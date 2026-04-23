@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 
 from db.database import SessionLocal
 from db.models import (Contract, ContractSeries, PublishedRate,
-                        Position, Order, Trade, Wallet, User)
+                        Position, Order, Trade, Wallet, User, IndexTick)
 from engine.orderbook import (place_order, place_secondary_order,
                                get_order_book, get_market_snapshot, get_all_orders)
 from engine.execution import get_trades, cancel_order

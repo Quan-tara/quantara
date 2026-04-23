@@ -26,6 +26,51 @@ app = FastAPI(title="Quantara API")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 
+@app.on_event("startup")
+async def startup_event():
+    """Auto-initialise DB tables and seed contract series on first boot."""
+    try:
+        from db.database import engine, Base
+        from db.models import ContractSeries, Wallet
+        from engine.constants import MM_USER_ID
+
+        # Create all tables (safe to run multiple times — no-op if already exist)
+        Base.metadata.create_all(bind=engine)
+
+        session = SessionLocal()
+        try:
+            # Seed the 12 contract series if not already present
+            SERIES = [
+                (1,  100,    60,    20.0, "1h · €100 · >20%"),
+                (2,  1000,   60,    20.0, "1h · €1,000 · >20%"),
+                (3,  10000,  60,    20.0, "1h · €10,000 · >20%"),
+                (4,  100,    1440,  20.0, "24h · €100 · >20%"),
+                (5,  1000,   1440,  20.0, "24h · €1,000 · >20%"),
+                (6,  10000,  1440,  20.0, "24h · €10,000 · >20%"),
+                (7,  100,    4320,  20.0, "3d · €100 · >20%"),
+                (8,  1000,   4320,  20.0, "3d · €1,000 · >20%"),
+                (9,  10000,  4320,  20.0, "3d · €10,000 · >20%"),
+                (10, 100,    10080, 20.0, "7d · €100 · >20%"),
+                (11, 1000,   10080, 20.0, "7d · €1,000 · >20%"),
+                (12, 10000,  10080, 20.0, "7d · €10,000 · >20%"),
+            ]
+            for sid, col, exp, thr, lbl in SERIES:
+                if not session.query(ContractSeries).filter(ContractSeries.id == sid).first():
+                    session.add(ContractSeries(id=sid, collateral=col,
+                                               expiry_mins=exp, threshold=thr, label=lbl))
+
+            # Ensure MM wallet exists
+            if not session.query(Wallet).filter(Wallet.user_id == MM_USER_ID).first():
+                session.add(Wallet(user_id=MM_USER_ID, cash_balance=10000.0, locked_balance=0.0))
+
+            session.commit()
+            print("✅ DB initialised and series seeded")
+        finally:
+            session.close()
+    except Exception as e:
+        print(f"⚠️ Startup DB init error: {e}")
+
+
 # ── Helpers ──
 def parse_user_id(raw) -> int:
     try:

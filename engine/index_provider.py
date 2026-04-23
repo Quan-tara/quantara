@@ -142,15 +142,31 @@ def _tick():
                     })
 
         _index = _compute_index()
-        _history.append((_index, time.time()))
+        now_ts = time.time()
+        _history.append((_index, now_ts))
         # Compute and store current volatility for the vol history chart
         recent_v = [v for v, _ in list(_history)[-360:]]
         if len(recent_v) >= 2:
             mean_v = sum(recent_v) / len(recent_v)
             var_v  = sum((v - mean_v) ** 2 for v in recent_v) / len(recent_v)
-            _vol_history.append(round(var_v ** 0.5, 4))
+            cur_vol = round(var_v ** 0.5, 4)
         else:
-            _vol_history.append(0.0)
+            cur_vol = 0.0
+        _vol_history.append(cur_vol)
+
+        # Persist tick to DB (non-blocking best-effort)
+        try:
+            from db.database import SessionLocal
+            from db.models import IndexTick
+            session = SessionLocal()
+            session.add(IndexTick(value=round(_index, 4), volatility=cur_vol, ts=now_ts))
+            # Prune rows older than 70 minutes to keep table small
+            cutoff = now_ts - 4200
+            session.query(IndexTick).filter(IndexTick.ts < cutoff).delete()
+            session.commit()
+            session.close()
+        except Exception:
+            pass  # never let DB errors stop the index
 
 
 # =========================================================
@@ -161,6 +177,31 @@ def _ticker_loop():
         time.sleep(TICK_INTERVAL)
         _tick()
 
+
+# ── Restore history from DB on startup ──
+def _restore_history():
+    """Load last 60 min of ticks from DB so history survives restarts."""
+    try:
+        from db.database import SessionLocal
+        from db.models import IndexTick
+        cutoff = time.time() - 3600  # last 60 min
+        session = SessionLocal()
+        rows = session.query(IndexTick).filter(
+            IndexTick.ts >= cutoff
+        ).order_by(IndexTick.ts.asc()).all()
+        session.close()
+        if rows:
+            with _lock:
+                for row in rows:
+                    _history.append((row.value, row.ts))
+                    _vol_history.append(row.volatility)
+            print(f"📈 Restored {len(rows)} index ticks from DB")
+        else:
+            print("📈 No recent ticks in DB — starting fresh")
+    except Exception as e:
+        print(f"⚠️ Could not restore index history: {e}")
+
+_restore_history()
 
 _thread = threading.Thread(target=_ticker_loop, daemon=True)
 _thread.start()

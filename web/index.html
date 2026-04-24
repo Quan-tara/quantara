@@ -349,8 +349,8 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
 .ledger-rows.open{display:block}
 .ledger-row{display:grid;gap:4px;padding:6px 16px 6px 28px;border-bottom:1px solid rgba(255,255,255,.03);
   font-family:var(--mono);font-size:10px;align-items:center}
-.ledger-row.mm-row{grid-template-columns:90px 60px 55px 55px 55px 1fr}
-.ledger-row.tr-row{grid-template-columns:90px 60px 60px 1fr}
+.ledger-row.mm-row{grid-template-columns:80px 80px 50px 50px 50px 1fr}
+.ledger-row.tr-row{grid-template-columns:80px 80px 55px 1fr}
 .ledger-hdr-row{font-size:9px;color:var(--muted);letter-spacing:.5px;
   padding:4px 16px 4px 28px;background:rgba(0,0,0,.15);border-bottom:1px solid var(--border)}
 .lr-yes{color:var(--red);font-weight:700}.lr-no{color:var(--green);font-weight:700}
@@ -1739,12 +1739,12 @@ async function loadLedger(){
 
       if(isMMUser){
         html += `<div class="ledger-row ledger-hdr-row mm-row">
-          <span>OPENED</span><span>EXPIRES/SETTLED</span><span>RESULT</span>
-          <span>RATE</span><span>VOLUME</span><span>NOTES</span>
+          <span>OPENED</span><span>EXP/SETTLED</span><span>RESULT</span>
+          <span>RATE</span><span>VOL</span><span>NOTES</span>
         </div>`;
       } else {
         html += `<div class="ledger-row ledger-hdr-row tr-row">
-          <span>OPENED</span><span>EXPIRES/SETTLED</span><span>RESULT</span><span>RATE</span>
+          <span>OPENED</span><span>EXP/SETTLED</span><span>RESULT</span><span>RATE</span>
         </div>`;
       }
 

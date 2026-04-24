@@ -16,7 +16,7 @@ import math
 
 intents = discord.Intents.default()
 intents.message_content = True
-bot = commands.Bot(command_prefix="!", help_command=None, intents=intents)
+bot = commands.Bot(command_prefix="!", intents=intents)
 
 def is_admin(ctx): return ctx.author.id == ADMIN_ID
 
@@ -409,4 +409,8 @@ async def mm_pnl(ctx):
     )
 
 
-bot.run(DISCORD_TOKEN)
+# Bot is started by web/app.py startup event via asyncio.create_task(bot.start(token))
+# When running standalone locally: python bot/bot.py
+if __name__ == "__main__":
+    from config import DISCORD_TOKEN
+    bot.run(DISCORD_TOKEN)

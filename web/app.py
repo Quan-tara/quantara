@@ -37,6 +37,18 @@ async def startup_event():
         # Create all tables (safe to run multiple times — no-op if already exist)
         Base.metadata.create_all(bind=engine)
 
+        # Add new columns to existing tables that may predate them
+        try:
+            with engine.connect() as conn:
+                conn.execute(
+                    __import__('sqlalchemy').text(
+                        "ALTER TABLE contract_series ADD COLUMN IF NOT EXISTS paused BOOLEAN DEFAULT FALSE"
+                    )
+                )
+                conn.commit()
+        except Exception as col_err:
+            print(f"⚠️ Column migration note: {col_err}")
+
         session = SessionLocal()
         try:
             # Seed the 12 contract series if not already present

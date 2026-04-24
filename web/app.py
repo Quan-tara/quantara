@@ -278,6 +278,9 @@ def api_publish_rate(admin_id: str):
 def api_series():
     session = SessionLocal()
     try:
+        # Expire all cached objects to force fresh reads from DB
+        # This ensures paused/unpaused state is always current
+        session.expire_all()
         all_series = session.query(ContractSeries).order_by(
             ContractSeries.expiry_mins, ContractSeries.collateral
         ).all()

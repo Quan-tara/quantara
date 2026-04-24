@@ -104,6 +104,20 @@ def ping():
     return {"status": "ok"}
 
 
+@app.get("/api/debug/series_paused")
+def debug_series_paused():
+    """Debug endpoint — shows paused state of all series directly from DB."""
+    import sqlalchemy as _sa
+    session = SessionLocal()
+    try:
+        rows = session.execute(
+            _sa.text("SELECT id, label, paused FROM contract_series ORDER BY id")
+        ).fetchall()
+        return [{"id": r[0], "label": r[1], "paused": r[2]} for r in rows]
+    finally:
+        session.close()
+
+
 # ── Probability distribution for any time window ──
 @app.get("/api/buckets")
 def api_buckets(hours: float = 1.0):

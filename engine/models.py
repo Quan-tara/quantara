@@ -18,6 +18,7 @@ class ContractSeries(Base):
     expiry_mins  = Column(Integer, nullable=False)
     threshold    = Column(Float, default=20.0)
     label        = Column(String, nullable=False)
+    paused       = Column(Boolean, default=False)
 
 
 class Contract(Base):
@@ -93,3 +94,19 @@ class Wallet(Base):
     user_id        = Column(BigInteger, primary_key=True)
     cash_balance   = Column(Float, default=10000.0)
     locked_balance = Column(Float, default=0.0)
+
+
+# =========================================================
+# INDEX TICK
+# Persists every index reading so history survives restarts.
+# Kept for the last 60 minutes (360 ticks at 10s intervals).
+# Older rows are pruned automatically by the ticker loop.
+# =========================================================
+class IndexTick(Base):
+    __tablename__ = "index_ticks"
+
+    id         = Column(Integer, primary_key=True, autoincrement=True)
+    value      = Column(Float, nullable=False)
+    volatility = Column(Float, nullable=False, default=0.0)
+    ts         = Column(Float, nullable=False)  # unix timestamp
+    created_at = Column(DateTime, default=datetime.utcnow)

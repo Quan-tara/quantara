@@ -1,9 +1,30 @@
 from db.database import SessionLocal
-from db.models import Position, Contract, PublishedRate
+from db.models import Position, Contract, PublishedRate, ContractSeries
 from engine.wallet import transfer_cash, unlock_collateral, get_wallet
 from datetime import datetime
 import threading
 import time
+
+
+# =========================================================
+# CANCEL ALL OPEN ORDERS ON A CONTRACT
+# Called before settlement and before launching a new contract.
+# Ensures no stale orders persist across contract instances.
+# =========================================================
+def _cancel_contract_orders(session, contract_id: int):
+    """Cancel all open orders for a contract. Returns count cancelled."""
+    from db.models import Order
+    open_orders = session.query(Order).filter(
+        Order.contract_id == contract_id,
+        Order.status      == "OPEN"
+    ).all()
+    for o in open_orders:
+        o.status = "CANCELLED"
+    session.commit()
+    count = len(open_orders)
+    if count:
+        print(f"🗑️ Cancelled {count} open orders for contract #{contract_id}")
+    return count
 
 
 # =========================================================
@@ -65,6 +86,9 @@ def settle_contract(contract_id: int, result: str):
                     summary.append(f"💸 HOLDER {p.user_id} loses premium")
                 p.status = "SETTLED"
 
+        # Cancel all remaining open orders before closing the contract
+        _cancel_contract_orders(session, contract_id)
+
         contract.status     = "SETTLED"
         contract.result     = result
         contract.settled_at = datetime.utcnow()
@@ -114,9 +138,17 @@ def auto_settle_expired():
                   f"(rate {rate:.1f}% vs threshold {threshold:.1f}%): {msg[:60]}")
             session = SessionLocal()
 
-            # Auto-launch next instance of this series
+            # Auto-launch next instance only if series is not paused
             if c.series_id:
-                _auto_launch_series(c.series_id)
+                try:
+                    sr = session.query(ContractSeries).filter(
+                        ContractSeries.id == c.series_id).first()
+                    if sr and sr.paused:
+                        print(f"⏸ Series {c.series_id} is paused — skipping auto-launch")
+                    else:
+                        _auto_launch_series(c.series_id)
+                except Exception:
+                    _auto_launch_series(c.series_id)
 
     except Exception as e:
         print(f"❌ Auto-settle error: {e}")

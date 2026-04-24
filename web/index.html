@@ -1439,10 +1439,17 @@ function selectSeries(seriesId){
             :`<span style="color:var(--amber)">No active contract — click LAUNCH first</span>`);
       }
 
-      // Show/hide launch and pause buttons
-      if(launchBtn)launchBtn.style.display=s.has_market?'none':'block';
-      const pauseBtn=document.getElementById('mm-sq-pause-btn');
-      if(pauseBtn)pauseBtn.style.display=s.has_market&&!s.paused?'block':'none';
+      // Always reset button states cleanly for the newly selected series
+      const pauseBtn = document.getElementById('mm-sq-pause-btn');
+      const launchConfirm = document.getElementById('mm-sq-launch-confirm');
+      const pauseConfirm  = document.getElementById('mm-sq-pause-confirm');
+      // Hide confirm panels (avoid stale open panels from previous series)
+      if(launchConfirm) launchConfirm.style.display = 'none';
+      if(pauseConfirm)  pauseConfirm.style.display  = 'none';
+      // LAUNCH: show when no active contract
+      if(launchBtn) launchBtn.style.display = s.has_market ? 'none' : 'block';
+      // PAUSE: show when active contract exists and series is not already paused
+      if(pauseBtn)  pauseBtn.style.display  = (s.has_market && !s.paused) ? 'block' : 'none';
     }
   } else {
     // ── Trader view: show buy/sell order form ──
@@ -2215,11 +2222,8 @@ async function mmSingleLaunch(){
   const d=await res.json();
   if(res.ok){
     showRes('mm-sq-res',`✅ Launched ${d.label} (Contract #${d.contract_id})`,true);
-    // Reload series cache first, then update form — button hidden by selectSeries
-    // when it reads the updated has_market=true from cache
+    // Reload cache then re-select — selectSeries handles all button states
     await loadSeries();
-    // Force button hidden now that we know launch succeeded
-    if(btn) btn.style.display = 'none';
     selectSeries(selectedSeriesId);
   } else {
     // Launch failed — show button again so MM can retry

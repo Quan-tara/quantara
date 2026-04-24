@@ -1351,7 +1351,7 @@ function renderSeriesGrid(){
           const statusTxt=!live?'no market':!s.has_orders?'no quotes yet':s.expires_in||'';
           const statusClr=!live?'var(--red)':!s.has_orders?'var(--amber)':'var(--muted)';
           html+=`<div class="grid-cell ${sel?'selected':''} ${!live?'no-market':''}"
-            onclick="${live?`selectSeries(${s.series_id})`:''}">
+            onclick="selectSeries(${s.series_id})" style="cursor:pointer">
             <div class="gc-dot ${tradable?'live':live?'off':'off'}" style="${live&&!tradable?'background:var(--amber)':''}"></div>
             <div class="gc-label">€${col>=1000?col/1000+'k':col}</div>
             <div class="gc-price">${price}</div>

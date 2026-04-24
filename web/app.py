@@ -287,7 +287,7 @@ def api_series():
                 "expires_in":   _expires_in(active) if active else None,
                 "expires_at":   str(active.expires_at) if active else None,
                 "fair_mid":     price["mid"],
-                "paused":       s.paused or False,
+                "paused":       getattr(s, "paused", False) or False,
                 "fair_bid":     price["bid"],
                 "fair_ask":     price["ask"],
                 "time_factor":  price["tf"],

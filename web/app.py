@@ -365,15 +365,32 @@ async def api_pause_series(series_id: int, req: AdminRequest):
     admin_id = parse_user_id(req.admin_id)
     if admin_id not in (ADMIN_ID, MM_USER_ID):
         raise HTTPException(status_code=403, detail="Admin only")
+    import sqlalchemy as _sa
     session = SessionLocal()
     try:
-        s = session.query(ContractSeries).filter(ContractSeries.id == series_id).first()
-        if not s:
-            raise HTTPException(status_code=404, detail="Series not found")
-        s.paused = True
+        # Use raw SQL to bypass any ORM caching issues
+        result = session.execute(
+            _sa.text("UPDATE contract_series SET paused = TRUE WHERE id = :sid"),
+            {"sid": series_id}
+        )
         session.commit()
-        await post_to_discord(f"⏸ Series **{s.label}** paused — will not auto-launch after settlement")
-        return {"series_id": series_id, "paused": True, "label": s.label}
+        if result.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Series not found")
+        print(f"⏸ Series {series_id} paused in DB (rows affected: {result.rowcount})")
+        # Get label for discord
+        row = session.execute(
+            _sa.text("SELECT label FROM contract_series WHERE id = :sid"),
+            {"sid": series_id}
+        ).fetchone()
+        label = row[0] if row else f"Series {series_id}"
+        await post_to_discord(f"⏸ **{label}** paused — will not auto-launch after settlement")
+        return {"series_id": series_id, "paused": True, "label": label}
+    except HTTPException:
+        raise
+    except Exception as e:
+        session.rollback()
+        print(f"❌ Pause error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
     finally:
         session.close()
 
@@ -383,14 +400,25 @@ async def api_resume_series(series_id: int, req: AdminRequest):
     admin_id = parse_user_id(req.admin_id)
     if admin_id not in (ADMIN_ID, MM_USER_ID):
         raise HTTPException(status_code=403, detail="Admin only")
+    import sqlalchemy as _sa
     session = SessionLocal()
     try:
-        s = session.query(ContractSeries).filter(ContractSeries.id == series_id).first()
-        if not s:
-            raise HTTPException(status_code=404, detail="Series not found")
-        s.paused = False
+        result = session.execute(
+            _sa.text("UPDATE contract_series SET paused = FALSE WHERE id = :sid"),
+            {"sid": series_id}
+        )
         session.commit()
-        return {"series_id": series_id, "paused": False, "label": s.label}
+        print(f"▶️ Series {series_id} resumed in DB (rows affected: {result.rowcount})")
+        row = session.execute(
+            _sa.text("SELECT label FROM contract_series WHERE id = :sid"),
+            {"sid": series_id}
+        ).fetchone()
+        label = row[0] if row else f"Series {series_id}"
+        return {"series_id": series_id, "paused": False, "label": label}
+    except Exception as e:
+        session.rollback()
+        print(f"❌ Resume error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
     finally:
         session.close()
 

@@ -64,11 +64,20 @@ async def startup_event():
                 session.add(Wallet(user_id=MM_USER_ID, cash_balance=10000.0, locked_balance=0.0))
 
             session.commit()
-            print("✅ DB initialised and series seeded")
+            # Confirm IndexTick table exists (created by create_all above)
+            from db.models import IndexTick
+            tick_count = session.query(IndexTick).count()
+            print(f"✅ DB initialised — series seeded — {tick_count} index ticks in DB")
         finally:
             session.close()
     except Exception as e:
         print(f"⚠️ Startup DB init error: {e}")
+
+
+# ── Keep-alive endpoint (used by external uptime monitors) ──
+@app.get("/ping")
+def ping():
+    return {"status": "ok"}
 
 
 # ── Helpers ──

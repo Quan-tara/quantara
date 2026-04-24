@@ -14,7 +14,7 @@ def get_or_create_user(user_id: int) -> User:
             session.expunge(user)
             return user
 
-        user = User(id=user_id, balance=10000.0, locked_collateral=0.0)
+        user = User(id=user_id, balance=100000.0, locked_collateral=0.0)
         session.add(user)
         session.commit()
         session.refresh(user)

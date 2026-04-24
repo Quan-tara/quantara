@@ -8,7 +8,7 @@ def get_wallet(session, user_id: int) -> Wallet:
     wallet = session.query(Wallet).filter(Wallet.user_id == user_id).first()
 
     if not wallet:
-        wallet = Wallet(user_id=user_id, cash_balance=10000.0, locked_balance=0.0)
+        wallet = Wallet(user_id=user_id, cash_balance=100000.0, locked_balance=0.0)
         session.add(wallet)
         session.flush()
 

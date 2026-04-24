@@ -1435,8 +1435,13 @@ function selectSeries(seriesId){
           `Collateral: <strong style="color:var(--text)">€${s.collateral.toLocaleString()}</strong> &nbsp;·&nbsp; `+
           `Fair mid: <strong style="color:var(--accent)">${fmt(s.fair_mid)}</strong><br>`+
           `Index: ${fmt(s.index)} &nbsp;·&nbsp; Time adj: +${(((tf||1)-1)*100).toFixed(1)}% &nbsp;·&nbsp; `+
-          (s.has_market?`Expires in: <strong style="color:var(--text)">${s.expires_in}</strong>`
-            :`<span style="color:var(--amber)">No active contract — click LAUNCH first</span>`);
+          (s.has_market
+            ? (s.paused === true
+                ? `Expires in: <strong style="color:var(--text)">${s.expires_in}</strong> &nbsp;<span style="color:var(--red)">⏸ paused — will not relaunch</span>`
+                : `Expires in: <strong style="color:var(--text)">${s.expires_in}</strong>`)
+            : (s.paused === true
+                ? `<span style="color:var(--red)">⏸ Series paused — click LAUNCH to resume</span>`
+                : `<span style="color:var(--amber)">No active contract — click LAUNCH first</span>`));
       }
 
       // Always reset button states cleanly for the newly selected series
@@ -2189,6 +2194,14 @@ async function mmPauseSeries(){
   const d = await res.json();
   if(res.ok){
     showRes('mm-sq-res','⏸ Series paused — will not auto-launch after settlement',true);
+    // Update cache immediately so grid reflects new state without waiting
+    const cached = seriesCache.find(x=>x.series_id===selectedSeriesId);
+    if(cached) cached.paused = true;
+    renderSeriesGrid();
+    // Hide pause button, show nothing (contract still running until expiry)
+    const pauseBtn = document.getElementById('mm-sq-pause-btn');
+    if(pauseBtn) pauseBtn.style.display = 'none';
+    // Refresh from server in background
     await loadSeries();
     selectSeries(selectedSeriesId);
   } else {

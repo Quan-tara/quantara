@@ -188,6 +188,9 @@ class SettleRequest(BaseModel):
 class CancelPositionRequest(BaseModel):
     user_id: str; short_id: str
 
+class AdminRequest(BaseModel):
+    admin_id: str
+
 class LaunchSeriesRequest(BaseModel):
     admin_id: str; series_id: int
 
@@ -284,6 +287,7 @@ def api_series():
                 "expires_in":   _expires_in(active) if active else None,
                 "expires_at":   str(active.expires_at) if active else None,
                 "fair_mid":     price["mid"],
+                "paused":       s.paused or False,
                 "fair_bid":     price["bid"],
                 "fair_ask":     price["ask"],
                 "time_factor":  price["tf"],
@@ -329,6 +333,41 @@ def api_series_book(series_id: int):
         return book
     finally:
         session.close()
+
+@app.post("/api/series/{series_id}/pause")
+async def api_pause_series(series_id: int, req: AdminRequest):
+    admin_id = parse_user_id(req.admin_id)
+    if admin_id != ADMIN_ID:
+        raise HTTPException(status_code=403, detail="Admin only")
+    session = SessionLocal()
+    try:
+        s = session.query(ContractSeries).filter(ContractSeries.id == series_id).first()
+        if not s:
+            raise HTTPException(status_code=404, detail="Series not found")
+        s.paused = True
+        session.commit()
+        await post_to_discord(f"⏸ Series **{s.label}** paused — will not auto-launch after settlement")
+        return {"series_id": series_id, "paused": True, "label": s.label}
+    finally:
+        session.close()
+
+
+@app.post("/api/series/{series_id}/resume")
+async def api_resume_series(series_id: int, req: AdminRequest):
+    admin_id = parse_user_id(req.admin_id)
+    if admin_id != ADMIN_ID:
+        raise HTTPException(status_code=403, detail="Admin only")
+    session = SessionLocal()
+    try:
+        s = session.query(ContractSeries).filter(ContractSeries.id == series_id).first()
+        if not s:
+            raise HTTPException(status_code=404, detail="Series not found")
+        s.paused = False
+        session.commit()
+        return {"series_id": series_id, "paused": False, "label": s.label}
+    finally:
+        session.close()
+
 
 @app.post("/api/series/{series_id}/launch")
 async def api_launch_series(series_id: int, req: LaunchSeriesRequest):
@@ -715,6 +754,41 @@ def api_trades(contract_id: Optional[int] = None, limit: int = 30):
         t["buyer_name"]  = get_display_name(t["buyer_id"])
         t["seller_name"] = get_display_name(t["seller_id"])
     return trades
+
+
+@app.get("/api/trades/user/{user_id}")
+def api_user_trades(user_id: int, limit: int = 200):
+    """Personal trade history for one user — all trades where they were buyer or seller."""
+    session = SessionLocal()
+    try:
+        from db.models import Trade, Contract, ContractSeries
+        rows = session.query(Trade, Contract, ContractSeries).join(
+            Contract, Trade.contract_id == Contract.id
+        ).outerjoin(
+            ContractSeries, Contract.series_id == ContractSeries.id
+        ).filter(
+            (Trade.buyer_id == user_id) | (Trade.seller_id == user_id)
+        ).order_by(Trade.created_at.desc()).limit(limit).all()
+
+        result = []
+        for trade, contract, series in rows:
+            role = "HOLDER" if trade.buyer_id == user_id else "WRITER"
+            result.append({
+                "trade_id":      trade.id,
+                "contract_id":   trade.contract_id,
+                "series_label":  series.label if series else f"Contract #{trade.contract_id}",
+                "role":          role,
+                "price":         trade.price,
+                "quantity":      trade.quantity,
+                "trade_type":    trade.trade_type,
+                "created_at":    str(trade.created_at),
+                "contract_result": contract.result,   # YES / NO / None
+                "contract_status": contract.status,   # OPEN / SETTLED
+                "collateral":    contract.collateral,
+            })
+        return result
+    finally:
+        session.close()
 
 @app.get("/api/settlements")
 def api_settlements():

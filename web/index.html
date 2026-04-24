@@ -312,6 +312,18 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
 .ledger-row{cursor:pointer}
 .ledger-row:hover{background:rgba(255,255,255,.03)}
 
+/* PERSONAL TRADE HISTORY */
+.mth-row{display:grid;grid-template-columns:90px 1fr 55px 60px 50px;gap:4px;
+  padding:6px 16px;border-bottom:1px solid rgba(255,255,255,.03);
+  font-family:var(--mono);font-size:10px;align-items:center}
+.mth-hdr{font-size:9px;color:var(--muted);letter-spacing:.5px;
+  background:rgba(0,0,0,.15);border-bottom:1px solid var(--border)}
+.mth-holder{color:var(--teal, #0D7377);font-weight:700}
+.mth-writer{color:var(--accent);font-weight:700}
+.mth-yes{color:var(--green);font-weight:700}
+.mth-no{color:var(--red);font-weight:700}
+.mth-open{color:var(--amber)}
+
 /* RATE GAUGE (horizontal, factor-bar style) */
 .rate-gauge-section{padding:12px 18px;border-bottom:1px solid var(--border);flex-shrink:0}
 .rate-gauge-row{display:flex;align-items:center;gap:8px;margin-bottom:8px;position:relative}
@@ -619,6 +631,9 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
           <div id="t-spike-log" style="max-height:120px;overflow-y:auto;border-bottom:1px solid var(--border)"></div>
         </div>
         <div class="col">
+          <div class="sh"><span class="sh-title">My Trade History</span>
+            <span class="sh-sub">all your trades across all series</span></div>
+          <div id="t-my-trades" class="scrollable" style="max-height:280px;overflow-y:auto;border-bottom:1px solid var(--border)"></div>
           <div class="sh"><span class="sh-title">Series Ledger</span>
             <span class="sh-sub">settled contracts</span></div>
           <div id="t-series-ledger" class="scrollable"></div>
@@ -774,6 +789,10 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
                 <button class="mbtn mb-quote" style="flex:1;margin-bottom:0" onclick="mmPostSingleQuote()">
                   📡 POST BID + ASK
                 </button>
+                <button id="mm-sq-pause-btn" onclick="mmConfirmPause()" style="display:none;padding:9px 12px;
+                  background:rgba(255,61,90,.1);border:1px solid var(--red);color:var(--red);
+                  font-family:var(--mono);font-size:10px;border-radius:4px;cursor:pointer"
+                  title="Stop this series from auto-launching after settlement">⏸ PAUSE</button>
                 <button onclick="mmConfirmLaunch()" style="padding:9px 12px;background:rgba(255,179,0,.12);
                   border:1px solid var(--amber);color:var(--amber);font-family:var(--mono);font-size:10px;
                   border-radius:4px;cursor:pointer" id="mm-sq-launch-btn">🚀 LAUNCH</button>
@@ -783,6 +802,15 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
                   <button onclick="mmSingleLaunch()" style="padding:4px 10px;background:var(--amber);color:#000;
                     font-family:var(--mono);font-size:10px;border:none;border-radius:3px;cursor:pointer">OK</button>
                   <button onclick="mmCancelLaunchConfirm()" style="padding:4px 10px;background:transparent;
+                    color:var(--muted);font-family:var(--mono);font-size:10px;border:1px solid var(--border);
+                    border-radius:3px;cursor:pointer">Cancel</button>
+                </div>
+                <div id="mm-sq-pause-confirm" style="display:none;align-items:center;gap:6px;margin-top:6px;
+                  padding:8px 10px;background:rgba(255,61,90,.08);border:1px solid var(--red);border-radius:4px">
+                  <span style="font-size:10px;font-family:var(--mono);color:var(--red);flex:1">Pause this series? It won't auto-launch after settlement.</span>
+                  <button onclick="mmPauseSeries()" style="padding:4px 10px;background:var(--red);color:#fff;
+                    font-family:var(--mono);font-size:10px;border:none;border-radius:3px;cursor:pointer">Pause</button>
+                  <button onclick="mmCancelPauseConfirm()" style="padding:4px 10px;background:transparent;
                     color:var(--muted);font-family:var(--mono);font-size:10px;border:1px solid var(--border);
                     border-radius:3px;cursor:pointer">Cancel</button>
                 </div>
@@ -1340,7 +1368,9 @@ function renderSeriesGrid(){
             <div class="mm-gc-price">${price}</div>
             ${live
               ?`<div class="mm-gc-status">${s.expires_in||''}</div>`
-              :`<div class="mm-gc-status" style="color:var(--muted);font-size:9px">not launched</div>`
+              : s.paused
+                ?`<div class="mm-gc-status" style="color:var(--red);font-size:9px">⏸ paused</div>`
+                :`<div class="mm-gc-status" style="color:var(--muted);font-size:9px">not launched</div>`
             }
           </div>`;
         }
@@ -1412,8 +1442,10 @@ function selectSeries(seriesId){
             :`<span style="color:var(--amber)">No active contract — click LAUNCH first</span>`);
       }
 
-      // Show/hide launch button
+      // Show/hide launch and pause buttons
       if(launchBtn)launchBtn.style.display=s.has_market?'none':'block';
+      const pauseBtn=document.getElementById('mm-sq-pause-btn');
+      if(pauseBtn)pauseBtn.style.display=s.has_market&&!s.paused?'block':'none';
     }
   } else {
     // ── Trader view: show buy/sell order form ──
@@ -1661,6 +1693,56 @@ async function cancelPos(shortId){
 async function loadTrades(){
   // Kept minimal — just used to trigger position/wallet refreshes
   // Ledger handles historical display now
+}
+
+// ── PERSONAL TRADE HISTORY ──
+async function loadMyTrades(){
+  const el = document.getElementById('t-my-trades'); if(!el) return;
+  if(!currentUser){ el.innerHTML='<div class="empty">Log in to see your trades</div>'; return; }
+  const uid = currentUser.id;
+  const trades = await fetch(`${API}/api/trades/user/${uid}`).then(r=>r.json()).catch(()=>[]);
+
+  if(!trades.length){
+    el.innerHTML='<div class="empty" style="padding:14px">No trades yet</div>';
+    return;
+  }
+
+  let html = `<div class="mth-row mth-hdr">
+    <span>WHEN</span><span>SERIES</span><span>ROLE</span><span>PRICE</span><span>OUTCOME</span>
+  </div>`;
+
+  trades.forEach(t=>{
+    const when = t.created_at ? t.created_at.slice(5,16).replace('T',' ') : '—';
+    const roleCls = t.role==='HOLDER' ? 'mth-holder' : 'mth-writer';
+    const roleLabel = t.role==='HOLDER' ? 'HOLDER' : 'WRITER';
+    const priceLabel = t.role==='HOLDER'
+      ? `-${fmt(t.price * t.quantity)}`   // paid
+      : `+${fmt(t.price * t.quantity)}`;  // collected
+    const priceCol = t.role==='HOLDER' ? 'color:var(--red)' : 'color:var(--green)';
+    let outcome = '<span class="mth-open">open</span>';
+    if(t.contract_status==='SETTLED'){
+      if(t.contract_result==='YES'){
+        outcome = t.role==='HOLDER'
+          ? `<span class="mth-yes">WIN</span>`
+          : `<span class="mth-no">LOSS</span>`;
+      } else if(t.contract_result==='NO'){
+        outcome = t.role==='WRITER'
+          ? `<span class="mth-yes">WIN</span>`
+          : `<span class="mth-no">LOSS</span>`;
+      }
+    }
+    const secBadge = t.trade_type==='SECONDARY'
+      ? `<span style="font-size:8px;color:var(--muted);margin-left:2px">[S]</span>` : '';
+    html += `<div class="mth-row">
+      <span style="color:var(--muted)">${when}</span>
+      <span style="color:var(--text);font-size:9px">${t.series_label}${secBadge}</span>
+      <span class="${roleCls}">${roleLabel}</span>
+      <span style="${priceCol};font-weight:700">${priceLabel}</span>
+      <span>${outcome}</span>
+    </div>`;
+  });
+
+  el.innerHTML = html;
 }
 
 // ── SERIES LEDGER ──
@@ -2092,6 +2174,32 @@ async function mmPostSingleQuote(){
   }
 }
 
+function mmConfirmPause(){
+  const panel = document.getElementById('mm-sq-pause-confirm');
+  if(panel) panel.style.display = 'flex';
+}
+function mmCancelPauseConfirm(){
+  const panel = document.getElementById('mm-sq-pause-confirm');
+  if(panel) panel.style.display = 'none';
+}
+async function mmPauseSeries(){
+  if(!selectedSeriesId||!currentUser)return;
+  const panel = document.getElementById('mm-sq-pause-confirm');
+  if(panel) panel.style.display = 'none';
+  const res = await fetch(`${API}/api/series/${selectedSeriesId}/pause`,{
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({admin_id:currentUser.id})
+  });
+  const d = await res.json();
+  if(res.ok){
+    showRes('mm-sq-res','⏸ Series paused — will not auto-launch after settlement',true);
+    await loadSeries();
+    selectSeries(selectedSeriesId);
+  } else {
+    showRes('mm-sq-res',`❌ ${d.detail}`,false);
+  }
+}
+
 function mmConfirmLaunch(){
   // Show inline confirm panel instead of native dialog
   const panel = document.getElementById('mm-sq-launch-confirm');
@@ -2105,10 +2213,14 @@ function mmCancelLaunchConfirm(){
 
 async function mmSingleLaunch(){
   if(!selectedSeriesId||!currentUser)return;
-  // Hide confirm panel immediately
   const panel = document.getElementById('mm-sq-launch-confirm');
   const btn   = document.getElementById('mm-sq-launch-btn');
   if(panel) panel.style.display = 'none';
+  // Resume series first (clears paused flag) in case it was paused
+  await fetch(`${API}/api/series/${selectedSeriesId}/resume`,{
+    method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({admin_id:currentUser.id})
+  });
   const res=await fetch(`${API}/api/series/${selectedSeriesId}/launch`,{
     method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({admin_id:currentUser.id,series_id:selectedSeriesId})
@@ -2147,7 +2259,7 @@ async function mmSettle(result){
 // ============================================================
 async function refreshTrader(){
   await Promise.all([loadIndex(),loadPublishedRate(),loadSeries()]);
-  if(currentUser)await Promise.all([loadWallet(),loadPositions()]);
+  if(currentUser)await Promise.all([loadWallet(),loadPositions(),loadMyTrades()]);
   if(selectedSeriesId){await loadSeriesBook(selectedSeriesId);await loadSeriesMarketplace(selectedSeriesId);}
   await loadRateHistory();
   await loadLedger();

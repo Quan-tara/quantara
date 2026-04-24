@@ -1365,7 +1365,7 @@ function renderSeriesGrid(){
             <div class="mm-gc-price">${price}</div>
             ${live
               ?`<div class="mm-gc-status">${s.expires_in||''}</div>`
-              : s.paused
+              : (s.paused === true)
                 ?`<div class="mm-gc-status" style="color:var(--red);font-size:9px">⏸ paused</div>`
                 :`<div class="mm-gc-status" style="color:var(--muted);font-size:9px">not launched</div>`
             }
@@ -1449,7 +1449,9 @@ function selectSeries(seriesId){
       // LAUNCH: show when no active contract
       if(launchBtn) launchBtn.style.display = s.has_market ? 'none' : 'block';
       // PAUSE: show when active contract exists and series is not already paused
-      if(pauseBtn)  pauseBtn.style.display  = (s.has_market && !s.paused) ? 'block' : 'none';
+      // Force Boolean coercion — API may return null/undefined for paused
+      const isPaused = s.paused === true;
+      if(pauseBtn)  pauseBtn.style.display  = (s.has_market && !isPaused) ? 'block' : 'none';
     }
   } else {
     // ── Trader view: show buy/sell order form ──

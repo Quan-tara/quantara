@@ -479,7 +479,7 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
           </div>
           <!-- Prob distribution + vol -->
           <div class="prob-section">
-            <div class="prob-title">Probability distribution (last hour)</div>
+            <div class="prob-title" id="t-bucket-title">Distribution — last 1h</div>
             <div id="t-buckets"></div>
             <div class="vol-row">
               <span class="vol-lbl">Volatility (60 min σ)</span>
@@ -673,7 +673,7 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
             <span style="display:none" id="m-pub-fill"></span>
           </div>
           <div class="prob-section">
-            <div class="prob-title">Probability distribution</div>
+            <div class="prob-title" id="m-bucket-title">Distribution — last 1h</div>
             <div id="m-buckets"></div>
             <div class="vol-row"><span class="vol-lbl">Volatility σ</span><span class="vol-val" id="m-vol">—</span></div>
             <div style="margin-top:8px">
@@ -1042,8 +1042,12 @@ async function loadIndex(){
 
   renderFactors('t-factors',snap.factors);
   renderFactors('m-factors',snap.factors);
-  renderBuckets('t-buckets',snap.buckets);
-  renderBuckets('m-buckets',snap.buckets);
+  // Only update bucket bars from snap if no series is selected (default 1h window)
+  // When a series is selected, loadBucketsForWindow handles the correct window
+  if(!selectedSeriesId){
+    renderBuckets('t-buckets', snap.buckets, 'last 1h');
+    renderBuckets('m-buckets', snap.buckets, 'last 1h');
+  }
   renderVolatility('t-vol',snap.volatility);
   renderVolatility('m-vol',snap.volatility);
   renderSpikeLog(snap.spike_log);
@@ -1214,23 +1218,34 @@ function renderFactors(elId,factors){
   }).join('');
 }
 
-function renderBuckets(elId,buckets){
-  const el=document.getElementById(elId);if(!el||!buckets)return;
-  const rows=[
-    {label:'0–20',pct:buckets['0_20'],color:'var(--green)'},
-    {label:'20–40',pct:buckets['20_40'],color:'#8bc34a'},
-    {label:'40–60',pct:buckets['40_60'],color:'var(--amber)'},
-    {label:'60–80',pct:buckets['60_80'],color:'#ff6e40'},
-    {label:'80–100',pct:buckets['80_100'],color:'var(--red)'},
+function renderBuckets(elId, buckets, windowLabel){
+  const el = document.getElementById(elId); if(!el||!buckets) return;
+  const titleId = elId==='t-buckets' ? 't-bucket-title' : 'm-bucket-title';
+  const titleEl = document.getElementById(titleId);
+  if(titleEl && windowLabel) titleEl.textContent = 'Distribution — ' + windowLabel;
+  const rows = [
+    {label:'0–20',  pct:buckets['0_20'],   color:'var(--green)'},
+    {label:'20–40', pct:buckets['20_40'],  color:'#8bc34a'},
+    {label:'40–60', pct:buckets['40_60'],  color:'var(--amber)'},
+    {label:'60–80', pct:buckets['60_80'],  color:'#ff6e40'},
+    {label:'80–100',pct:buckets['80_100'], color:'var(--red)'},
   ];
-  el.innerHTML=rows.map(r=>{
-    const d=r.pct===0?'0%':r.pct<1?'<1%':`${r.pct}%`;
+  el.innerHTML = rows.map(r=>{
+    const d = r.pct===0?'0%':r.pct<1?'<1%':`${r.pct}%`;
     return `<div class="prob-row">
       <span class="prob-range">${r.label}</span>
       <div class="prob-bar-wrap2"><div class="prob-fill" style="width:${r.pct}%;background:${r.color}"></div></div>
       <span class="prob-pct" style="color:${r.color}">${d}</span>
     </div>`;
   }).join('');
+}
+
+async function loadBucketsForWindow(hours, windowLabel){
+  try {
+    const data = await fetch(`${API}/api/buckets?hours=${hours}`).then(r=>r.json());
+    renderBuckets('t-buckets', data, windowLabel);
+    renderBuckets('m-buckets', data, windowLabel);
+  } catch(e) { /* silently fall back */ }
 }
 
 function renderVolatility(elId,vol){
@@ -1337,6 +1352,17 @@ function selectSeries(seriesId){
   selectedSeriesId=seriesId;
   const s=seriesCache.find(x=>x.series_id===seriesId);
   renderSeriesGrid();
+
+  // Update distribution window to match the selected series expiry
+  if(s){
+    const expiryMins = s.expiry_mins || 60;
+    let hours, label;
+    if(expiryMins <= 60)        { hours=1;   label='last 1h'; }
+    else if(expiryMins <= 1440) { hours=24;  label='last 24h'; }
+    else if(expiryMins <= 4320) { hours=72;  label='last 3d'; }
+    else                        { hours=168; label='last 7d'; }
+    loadBucketsForWindow(hours, label);
+  }
 
   if(currentUser&&(currentUser.isAdmin||currentUser.isMM)){
     // ── MM view: show single-series quote form ──

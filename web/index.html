@@ -1456,6 +1456,7 @@ function selectSeries(seriesId){
       // PAUSE: show when active contract exists and series is not already paused
       // Force Boolean coercion — API may return null/undefined for paused
       const isPaused = s.paused === true;
+      console.log(`[selectSeries] series=${s.series_id} has_market=${s.has_market} paused=${s.paused} isPaused=${isPaused}`);
       if(pauseBtn)  pauseBtn.style.display  = (s.has_market && !isPaused) ? 'block' : 'none';
     }
   } else {

@@ -730,10 +730,7 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
         <!-- CENTER: MM Grid + Quote + Settle -->
         <div class="col">
           <div class="sh"><span class="sh-title">Series Grid</span>
-            <button onclick="launchAll()" title="Creates one active contract instance for every series that doesn&#39;t have one. Each cell in the grid below can then be quoted and traded."
-              style="padding:3px 8px;background:rgba(255,179,0,.12);
-              border:1px solid var(--amber);color:var(--amber);font-family:var(--mono);
-              font-size:9px;border-radius:3px;cursor:pointer">🚀 LAUNCH ALL SERIES</button></div>
+            <span class="sh-sub">click a grey cell to launch that series</span></div>
           <div class="grid-container">
             <div class="grid-col-hdr">
               <div class="gch" style="color:var(--amber)">€100</div>
@@ -2111,16 +2108,6 @@ async function loadMMStats(){
 
 
 
-async function launchAll(){
-  if(!currentUser)return;
-  const res=await fetch(`${API}/api/series/launch_all`,{
-    method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({admin_id:currentUser.id,series_id:0})
-  });
-  const d=await res.json();
-  if(res.ok){showRes('mm-quote-res',`✅ Launched ${d.launched.length} series`,true);await loadSeries();}
-  else showRes('mm-quote-res',`❌ ${d.detail}`,false);
-}
 
 function refreshSingleQuote(){
   // Recalculate bid/ask whenever spread changes or a series is selected

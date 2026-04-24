@@ -73,6 +73,18 @@ async def startup_event():
     except Exception as e:
         print(f"⚠️ Startup DB init error: {e}")
 
+    # ── Start Discord bot as background asyncio task ──
+    try:
+        from config import DISCORD_TOKEN
+        if DISCORD_TOKEN:
+            from bot.bot import bot
+            asyncio.create_task(bot.start(DISCORD_TOKEN))
+            print("🤖 Discord bot starting in background...")
+        else:
+            print("⚠️ DISCORD_TOKEN not set — bot not started")
+    except Exception as e:
+        print(f"⚠️ Bot startup error: {e}")
+
 
 # ── Keep-alive endpoint (used by external uptime monitors) ──
 @app.api_route("/ping", methods=["GET", "HEAD"])

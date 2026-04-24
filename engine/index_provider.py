@@ -161,7 +161,7 @@ def _tick():
             session = SessionLocal()
             session.add(IndexTick(value=round(_index, 4), volatility=cur_vol, ts=now_ts))
             # Prune rows older than 70 minutes to keep table small
-            cutoff = now_ts - 4200
+            cutoff = now_ts - 604800  # keep 7 days of ticks for distribution windows
             session.query(IndexTick).filter(IndexTick.ts < cutoff).delete()
             session.commit()
             session.close()

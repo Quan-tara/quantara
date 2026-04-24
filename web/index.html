@@ -274,9 +274,6 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
 .mm-gc-label{font-size:9px;color:var(--muted);margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .mm-gc-price{font-family:var(--mono);font-size:12px;font-weight:700;color:var(--amber)}
 .mm-gc-status{font-size:8px;color:var(--muted);font-family:var(--mono);margin-top:2px}
-.mm-launch-btn{font-size:8px;background:rgba(255,179,0,.15);border:1px solid var(--amber);
-  color:var(--amber);padding:2px 5px;border-radius:2px;cursor:pointer;font-family:var(--mono);margin-top:3px}
-.mm-launch-btn:hover{background:rgba(255,179,0,.3)}
 
 /* MM STATS */
 .mm-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--border);flex-shrink:0}
@@ -1343,7 +1340,7 @@ function renderSeriesGrid(){
             <div class="mm-gc-price">${price}</div>
             ${live
               ?`<div class="mm-gc-status">${s.expires_in||''}</div>`
-              :`<button class="mm-launch-btn" onclick="event.stopPropagation();launchSeries(${s.series_id})">LAUNCH</button>`
+              :`<div class="mm-gc-status" style="color:var(--muted);font-size:9px">not launched</div>`
             }
           </div>`;
         }
@@ -2030,29 +2027,7 @@ async function loadMMStats(){
 
 
 
-async function launchSeries(seriesId){
-  // Show inline confirm on the grid cell — prevent accidental launches
-  // We route through selectSeries + the form confirm instead of firing directly
-  selectSeries(seriesId);
-  // Trigger the confirm panel in the form
-  mmConfirmLaunch();
-}
 
-async function launchSeriesConfirmed(seriesId){
-  if(!currentUser)return;
-  const res=await fetch(`${API}/api/series/${seriesId}/launch`,{
-    method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({admin_id:currentUser.id,series_id:seriesId})
-  });
-  const d=await res.json();
-  if(res.ok){
-    showRes('mm-sq-res',`✅ Launched: ${d.label} (Contract #${d.contract_id})`,true);
-    await loadSeries();
-    selectSeries(seriesId);
-  } else {
-    showRes('mm-sq-res',`❌ ${d.detail}`,false);
-  }
-}
 
 async function launchAll(){
   if(!currentUser)return;

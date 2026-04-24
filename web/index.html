@@ -790,6 +790,10 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
                   background:rgba(255,61,90,.1);border:1px solid var(--red);color:var(--red);
                   font-family:var(--mono);font-size:10px;border-radius:4px;cursor:pointer"
                   title="Stop this series from auto-launching after settlement">⏸ PAUSE</button>
+                <button id="mm-sq-resume-btn" onclick="mmResumeSeries()" style="display:none;padding:9px 12px;
+                  background:rgba(0,230,118,.1);border:1px solid var(--green);color:var(--green);
+                  font-family:var(--mono);font-size:10px;border-radius:4px;cursor:pointer"
+                  title="Resume auto-launching after settlement">▶ RESUME</button>
                 <button onclick="mmConfirmLaunch()" style="padding:9px 12px;background:rgba(255,179,0,.12);
                   border:1px solid var(--amber);color:var(--amber);font-family:var(--mono);font-size:10px;
                   border-radius:4px;cursor:pointer" id="mm-sq-launch-btn">🚀 LAUNCH</button>
@@ -1451,13 +1455,14 @@ function selectSeries(seriesId){
       // Hide confirm panels (avoid stale open panels from previous series)
       if(launchConfirm) launchConfirm.style.display = 'none';
       if(pauseConfirm)  pauseConfirm.style.display  = 'none';
-      // LAUNCH: show when no active contract
-      if(launchBtn) launchBtn.style.display = s.has_market ? 'none' : 'block';
-      // PAUSE: show when active contract exists and series is not already paused
-      // Force Boolean coercion — API may return null/undefined for paused
       const isPaused = s.paused === true;
-      console.log(`[selectSeries] series=${s.series_id} has_market=${s.has_market} paused=${s.paused} isPaused=${isPaused}`);
-      if(pauseBtn)  pauseBtn.style.display  = (s.has_market && !isPaused) ? 'block' : 'none';
+      const resumeBtn = document.getElementById('mm-sq-resume-btn');
+      // LAUNCH: show when no active contract and not paused
+      if(launchBtn)  launchBtn.style.display  = (!s.has_market && !isPaused) ? 'block' : 'none';
+      // PAUSE: show when active contract exists and not paused
+      if(pauseBtn)   pauseBtn.style.display   = (s.has_market && !isPaused) ? 'block' : 'none';
+      // RESUME: show when paused (regardless of whether contract is still running)
+      if(resumeBtn)  resumeBtn.style.display  = isPaused ? 'block' : 'none';
     }
   } else {
     // ── Trader view: show buy/sell order form ──
@@ -2176,6 +2181,25 @@ async function mmPostSingleQuote(){
   }
 }
 
+async function mmResumeSeries(){
+  if(!selectedSeriesId||!currentUser)return;
+  const res = await fetch(`${API}/api/series/${selectedSeriesId}/resume`,{
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({admin_id:currentUser.id})
+  });
+  const d = await res.json();
+  if(res.ok){
+    showRes('mm-sq-res','▶ Series resumed — will auto-launch after next settlement',true);
+    const cached = seriesCache.find(x=>x.series_id===selectedSeriesId);
+    if(cached) cached.paused = false;
+    renderSeriesGrid();
+    await loadSeries();
+    selectSeries(selectedSeriesId);
+  } else {
+    showRes('mm-sq-res',`❌ ${d.detail}`,false);
+  }
+}
+
 function mmConfirmPause(){
   const panel = document.getElementById('mm-sq-pause-confirm');
   if(panel) panel.style.display = 'flex';
@@ -2195,14 +2219,8 @@ async function mmPauseSeries(){
   const d = await res.json();
   if(res.ok){
     showRes('mm-sq-res','⏸ Series paused — will not auto-launch after settlement',true);
-    // Update cache immediately so grid reflects new state without waiting
     const cached = seriesCache.find(x=>x.series_id===selectedSeriesId);
     if(cached) cached.paused = true;
-    renderSeriesGrid();
-    // Hide pause button, show nothing (contract still running until expiry)
-    const pauseBtn = document.getElementById('mm-sq-pause-btn');
-    if(pauseBtn) pauseBtn.style.display = 'none';
-    // Refresh from server in background
     await loadSeries();
     selectSeries(selectedSeriesId);
   } else {

@@ -75,7 +75,7 @@ async def startup_event():
 
 
 # ── Keep-alive endpoint (used by external uptime monitors) ──
-@app.get("/ping")
+@app.api_route("/ping", methods=["GET", "HEAD"])
 def ping():
     return {"status": "ok"}
 

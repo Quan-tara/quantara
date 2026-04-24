@@ -141,13 +141,24 @@ def auto_settle_expired():
             # Auto-launch next instance only if series is not paused
             if c.series_id:
                 try:
-                    sr = session.query(ContractSeries).filter(
-                        ContractSeries.id == c.series_id).first()
-                    if sr and sr.paused:
+                    # Use a brand-new session to avoid stale cache
+                    from db.database import SessionLocal as _SL2
+                    import sqlalchemy as _sa
+                    _s2 = _SL2()
+                    try:
+                        row = _s2.execute(
+                            _sa.text("SELECT paused FROM contract_series WHERE id = :sid"),
+                            {"sid": c.series_id}
+                        ).fetchone()
+                        is_paused = bool(row[0]) if row and row[0] is not None else False
+                    finally:
+                        _s2.close()
+                    if is_paused:
                         print(f"⏸ Series {c.series_id} is paused — skipping auto-launch")
                     else:
                         _auto_launch_series(c.series_id)
-                except Exception:
+                except Exception as pe:
+                    print(f"⚠️ Paused check error: {pe} — launching anyway")
                     _auto_launch_series(c.series_id)
 
     except Exception as e:

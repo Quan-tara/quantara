@@ -736,6 +736,18 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
               </div>
               <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
                 <div>
+                  <label style="font-size:9px;color:var(--green);text-transform:uppercase;letter-spacing:1.5px;display:block;margin-bottom:3px">Bid Price €</label>
+                  <input type="number" id="mm-sq-bid" placeholder="0.00" step="0.01"
+                    style="width:100%;padding:7px 10px;background:var(--s1);border:1px solid var(--green);
+                      color:var(--green);font-family:var(--mono);font-size:13px;font-weight:700;border-radius:4px;outline:none">
+                </div>
+                <div>
+                  <label style="font-size:9px;color:var(--red);text-transform:uppercase;letter-spacing:1.5px;display:block;margin-bottom:3px">Ask Price €</label>
+                  <input type="number" id="mm-sq-ask" placeholder="0.00" step="0.01"
+                    style="width:100%;padding:7px 10px;background:var(--s1);border:1px solid var(--red);
+                      color:var(--red);font-family:var(--mono);font-size:13px;font-weight:700;border-radius:4px;outline:none">
+                </div>
+                <div>
                   <label style="font-size:9px;color:var(--amber);text-transform:uppercase;letter-spacing:1.5px;display:block;margin-bottom:3px">Spread %</label>
                   <input type="number" id="mm-sq-spread" value="10" min="1" max="50" step="0.5"
                     oninput="refreshSingleQuote()"
@@ -747,18 +759,6 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
                   <input type="number" id="mm-sq-qty" value="5" min="1" step="1"
                     style="width:100%;padding:7px 10px;background:var(--s1);border:1px solid var(--border);
                       color:var(--text);font-family:var(--mono);font-size:13px;border-radius:4px;outline:none">
-                </div>
-                <div>
-                  <label style="font-size:9px;color:var(--green);text-transform:uppercase;letter-spacing:1.5px;display:block;margin-bottom:3px">Bid Price €</label>
-                  <input type="number" id="mm-sq-bid" placeholder="0.00" step="0.01"
-                    style="width:100%;padding:7px 10px;background:var(--s1);border:1px solid var(--green);
-                      color:var(--green);font-family:var(--mono);font-size:13px;font-weight:700;border-radius:4px;outline:none">
-                </div>
-                <div>
-                  <label style="font-size:9px;color:var(--red);text-transform:uppercase;letter-spacing:1.5px;display:block;margin-bottom:3px">Ask Price €</label>
-                  <input type="number" id="mm-sq-ask" placeholder="0.00" step="0.01"
-                    style="width:100%;padding:7px 10px;background:var(--s1);border:1px solid var(--red);
-                      color:var(--red);font-family:var(--mono);font-size:13px;font-weight:700;border-radius:4px;outline:none">
                 </div>
               </div>
               <div id="mm-sq-info" style="padding:7px 10px;background:var(--s2);border-radius:4px;
@@ -1115,13 +1115,19 @@ function renderRateHistory(rowsId, data){
   const runEstStr = runEl ? runEl.textContent : null;
   const runEst = runEstStr && runEstStr !== '—' ? parseFloat(runEstStr) : (lastSnap ? lastSnap.index : null);
 
-  // Build bar list: today estimate (rightmost) + last 13 published (oldest left)
-  const historical = [...data].slice(0,13).reverse(); // oldest→newest left→right
+  // Build bar list: last 13 published (oldest→newest left→right)
+  const historical = [...data].slice(0,13).reverse();
   const bars = [];
   historical.forEach(r=>{
     bars.push({label:(r.period_end||'').slice(5,10), rate:r.rate, isEst:false});
   });
-  if(runEst !== null){
+
+  // Only add today's running estimate if today's rate has NOT already been published.
+  // If the most recent bar's date matches today (UTC), the rate is already published — no duplicate.
+  const todayStr = new Date().toISOString().slice(5,10); // "MM-DD"
+  const lastBar = bars.length ? bars[bars.length-1] : null;
+  const todayAlreadyPublished = lastBar && lastBar.label === todayStr;
+  if(runEst !== null && !todayAlreadyPublished){
     bars.push({label:'today', rate:runEst, isEst:true});
   }
 

@@ -61,7 +61,7 @@ async def startup_event():
 
             # Ensure MM wallet exists
             if not session.query(Wallet).filter(Wallet.user_id == MM_USER_ID).first():
-                session.add(Wallet(user_id=MM_USER_ID, cash_balance=10000.0, locked_balance=0.0))
+                session.add(Wallet(user_id=MM_USER_ID, cash_balance=100000.0, locked_balance=0.0))
 
             session.commit()
             # Confirm IndexTick table exists (created by create_all above)

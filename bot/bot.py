@@ -74,10 +74,13 @@ async def help_command(ctx):
 async def balance(ctx):
     session = SessionLocal()
     try:
-        get_or_create_user(ctx.author.id)
-        w = get_wallet(session, ctx.author.id)
+        # If the MM/admin account calls !balance, show the MM (system) wallet
+        uid = MM_USER_ID if ctx.author.id == ADMIN_ID else ctx.author.id
+        get_or_create_user(uid)
+        w = get_wallet(session, uid)
+        label = "MM (System)" if uid == MM_USER_ID else ctx.author.name
         await ctx.send(
-            f"💰 **{ctx.author.name}**\n"
+            f"💰 **{label}**\n"
             f"Cash: {w.cash_balance:.2f} | Locked: {w.locked_balance:.2f} | Available: {w.cash_balance-w.locked_balance:.2f}"
         )
     finally:
@@ -86,8 +89,9 @@ async def balance(ctx):
 
 @bot.command()
 async def positions(ctx):
-    get_or_create_user(ctx.author.id)
-    await ctx.send(get_positions_with_pnl(ctx.author.id))
+    uid = MM_USER_ID if ctx.author.id == ADMIN_ID else ctx.author.id
+    get_or_create_user(uid)
+    await ctx.send(get_positions_with_pnl(uid))
 
 
 @bot.command()
@@ -256,6 +260,27 @@ async def cancel(ctx, order_id: int):
     session = SessionLocal()
     try:
         await ctx.send(f"🗑️ {cancel_order(session, ctx.author.id, order_id)}")
+    finally:
+        session.close()
+
+
+@bot.command()
+async def myorders(ctx):
+    """Show your open orders with their IDs so you know what to cancel."""
+    uid = MM_USER_ID if ctx.author.id == ADMIN_ID else ctx.author.id
+    session = SessionLocal()
+    try:
+        orders = session.query(Order).filter(
+            Order.user_id == uid,
+            Order.status  == "OPEN"
+        ).order_by(Order.id.desc()).limit(10).all()
+        if not orders:
+            await ctx.send("📋 No open orders."); return
+        lines = ["📋 **Your open orders:**"]
+        for o in orders:
+            side = "BUY" if o.side == "BUY" else "SELL"
+            lines.append(f"  ID `{o.id}` — {side} Contract #{o.contract_id} @ {o.price:.2f} x {o.quantity} [{o.order_type}]")
+        await ctx.send("\n".join(lines))
     finally:
         session.close()
 

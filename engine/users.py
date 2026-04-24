@@ -66,12 +66,30 @@ def cancel_position(user_id: int, short_id: str) -> str:
             print(f"🔓 Collateral unlocked for WRITER {user_id}: {total_collateral}")
 
         position.status = "CANCELLED"
+
+        # If HOLDER cancels, find the matching WRITER position on the same contract
+        # and release their collateral immediately — no point keeping it locked.
+        if position.role == "HOLDER":
+            matching_writers = session.query(Position).filter(
+                Position.contract_id == position.contract_id,
+                Position.user_id     == 0,  # MM_USER_ID
+                Position.status      == "OPEN",
+                Position.role        == "WRITER",
+                Position.quantity    == position.quantity
+            ).first()
+            if matching_writers:
+                total_collateral = matching_writers.collateral * matching_writers.quantity
+                from engine.wallet import unlock_collateral
+                unlock_collateral(session, user_id=0, amount=total_collateral)
+                matching_writers.status = "CANCELLED"
+                print(f"🔓 MM collateral {total_collateral:.2f} released — HOLDER cancelled early")
+
         session.commit()
 
         role_msg = (
             f"🔓 Collateral of {position.collateral * position.quantity:.2f} unlocked."
             if position.role == "WRITER"
-            else "💸 Premium already paid — no refund."
+            else "💸 Premium forfeited. MM collateral released immediately."
         )
 
         return (

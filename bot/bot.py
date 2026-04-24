@@ -2,7 +2,7 @@ import discord
 from discord.ext import commands
 from db.database import SessionLocal
 from db.models import Contract, ContractSeries, Position, Order, PublishedRate
-from engine.users import get_or_create_user, cancel_position
+from engine.users import get_or_create_user, cancel_position as engine_cancel_position
 from engine.orderbook import place_order, place_secondary_order, get_order_book, get_market_snapshot
 from engine.execution import cancel_order, get_trades
 from engine.settlement import settle_contract
@@ -315,7 +315,9 @@ async def buy_position(ctx, contract_id: int, price: float, quantity: float):
 
 @bot.command()
 async def cancel_position(ctx, short_id: str):
-    await ctx.send(cancel_position(ctx.author.id, short_id))
+    uid = MM_USER_ID if ctx.author.id == ADMIN_ID else ctx.author.id
+    result = engine_cancel_position(uid, short_id)
+    await ctx.send(result)
 
 
 # ── ADMIN ──

@@ -92,6 +92,37 @@ def ping():
     return {"status": "ok"}
 
 
+# ── Probability distribution for any time window ──
+@app.get("/api/buckets")
+def api_buckets(hours: float = 1.0):
+    """Return index distribution buckets for the requested window (hours).
+    Queries the index_ticks DB table so any window up to 7 days works.
+    """
+    import time as _time
+    cutoff = _time.time() - hours * 3600
+    session = SessionLocal()
+    try:
+        rows = session.query(IndexTick).filter(IndexTick.ts >= cutoff).all()
+        vals = [r.value for r in rows]
+        if not vals:
+            # Fall back to current snapshot buckets (in-memory)
+            snap = get_index_snapshot()
+            return snap.get("buckets", {"0_20":0,"20_40":0,"40_60":0,"60_80":0,"80_100":0})
+        total = len(vals)
+        def pct(lo, hi):
+            return round(sum(1 for v in vals if lo <= v < hi) / total * 100)
+        return {
+            "0_20":   pct(0,  20),
+            "20_40":  pct(20, 40),
+            "40_60":  pct(40, 60),
+            "60_80":  pct(60, 80),
+            "80_100": pct(80, 100),
+            "total_ticks": total,
+        }
+    finally:
+        session.close()
+
+
 # ── Helpers ──
 def parse_user_id(raw) -> int:
     try:

@@ -276,10 +276,15 @@ def api_publish_rate(admin_id: str):
 # =========================================================
 @app.get("/api/series")
 def api_series():
+    import sqlalchemy as _sa
     session = SessionLocal()
     try:
-        # Expire all cached objects to force fresh reads from DB
-        # This ensures paused/unpaused state is always current
+        # Get paused states via raw SQL to bypass ORM caching completely
+        paused_rows = session.execute(
+            _sa.text("SELECT id, COALESCE(paused, FALSE) FROM contract_series")
+        ).fetchall()
+        paused_map = {row[0]: bool(row[1]) for row in paused_rows}
+
         session.expire_all()
         all_series = session.query(ContractSeries).order_by(
             ContractSeries.expiry_mins, ContractSeries.collateral
@@ -316,7 +321,7 @@ def api_series():
                 "expires_in":   _expires_in(active) if active else None,
                 "expires_at":   str(active.expires_at) if active else None,
                 "fair_mid":     price["mid"],
-                "paused":       bool(getattr(s, "paused", False)),
+                "paused":       paused_map.get(s.id, False),
                 "fair_bid":     price["bid"],
                 "fair_ask":     price["ask"],
                 "time_factor":  price["tf"],

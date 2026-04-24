@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from typing import Optional
-import os, httpx, math
+import os, httpx, math, asyncio
 from datetime import datetime, timedelta
 
 from db.database import SessionLocal

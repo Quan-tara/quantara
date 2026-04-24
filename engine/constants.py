@@ -2,8 +2,9 @@ MM_USER_ID = 0
 
 # =========================================================
 # ADMIN (Market Maker / Oracle) Discord ID
+# This is the Quantara bot account — the active MM account.
 # =========================================================
-ADMIN_ID = 1490706462341726381
+ADMIN_ID = 1496179139118633080  # Quantara (bot account)
 
 # =========================================================
 # KNOWN USERS — Discord ID → display name
@@ -12,16 +13,15 @@ ADMIN_ID = 1490706462341726381
 # =========================================================
 KNOWN_USERS = {
     0:                    "MM (System)",
-    1490706462341726381:  "Mimi",          # MM / Admin
+    1496179139118633080:  "Quantara",      # MM / Admin (active)
+    1490706462341726381:  "Mimi",          # MM / Admin (local testing)
     1494347237810114630:  "Basil",         # Trader 1
     1495343512089133117:  "Gogor",         # Trader 2
 }
 
 # =========================================================
-# DISCORD WEBHOOK URL
-# Create one in your Discord server:
-#   Server Settings → Integrations → Webhooks → New Webhook
-#   Copy the URL and paste it here.
-# Leave empty string "" to disable website→Discord announcements.
+# DISCORD WEBHOOK URL — #trade-feed channel
+# IMPORTANT: keep this private, do not commit to public repos.
+# Replace with your new webhook URL after resetting it.
 # =========================================================
-DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1495376920911679499/bNBDxeTNYZSZVP66LHNJ0pCkDm5aYCRoyrSx1cdYNvzPP9cKW0DfsmfkCXYyYBLn8WkR"   # e.g. "https://discord.com/api/webhooks/..."
+DISCORD_WEBHOOK_URL = "PASTE_NEW_WEBHOOK_URL_HERE"   # replace this"

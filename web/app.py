@@ -363,7 +363,7 @@ def api_series_book(series_id: int):
 @app.post("/api/series/{series_id}/pause")
 async def api_pause_series(series_id: int, req: AdminRequest):
     admin_id = parse_user_id(req.admin_id)
-    if admin_id != ADMIN_ID:
+    if admin_id not in (ADMIN_ID, MM_USER_ID):
         raise HTTPException(status_code=403, detail="Admin only")
     session = SessionLocal()
     try:
@@ -381,7 +381,7 @@ async def api_pause_series(series_id: int, req: AdminRequest):
 @app.post("/api/series/{series_id}/resume")
 async def api_resume_series(series_id: int, req: AdminRequest):
     admin_id = parse_user_id(req.admin_id)
-    if admin_id != ADMIN_ID:
+    if admin_id not in (ADMIN_ID, MM_USER_ID):
         raise HTTPException(status_code=403, detail="Admin only")
     session = SessionLocal()
     try:

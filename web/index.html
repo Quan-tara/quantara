@@ -1433,7 +1433,7 @@ function selectSeries(seriesId){
         info.innerHTML=
           `Series: <strong style="color:var(--text)">${s.label}</strong> &nbsp;·&nbsp; `+
           `Collateral: <strong style="color:var(--text)">€${s.collateral.toLocaleString()}</strong> &nbsp;·&nbsp; `+
-          `Fair mid: <strong style="color:var(--accent)">${fmt(mid)}</strong><br>`+
+          `Fair mid: <strong style="color:var(--accent)">${fmt(s.fair_mid)}</strong><br>`+
           `Index: ${fmt(s.index)} &nbsp;·&nbsp; Time adj: +${(((tf||1)-1)*100).toFixed(1)}% &nbsp;·&nbsp; `+
           (s.has_market?`Expires in: <strong style="color:var(--text)">${s.expires_in}</strong>`
             :`<span style="color:var(--amber)">No active contract — click LAUNCH first</span>`);

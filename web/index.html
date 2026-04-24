@@ -690,22 +690,25 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
           </div>
           <!-- MM Launch Calculator -->
           <div class="loss-calc" style="background:linear-gradient(135deg,rgba(255,179,0,.04),transparent)">
-            <div class="lc-title" style="color:var(--amber)">⚡ Pricing Calculator (spot × index, no time adj)</div>
-            <div class="lc-row"><label>Insured €</label>
+            <div class="lc-title" style="color:var(--amber)">⚡ Loss Estimator</div>
+            <div style="font-size:10px;color:var(--muted);margin-bottom:8px;line-height:1.5">
+              At the current index, what is the trader's expected loss — and how should you price protection for it?
+            </div>
+            <div class="lc-row"><label>Shipment value €</label>
               <input type="number" id="mm-lc-insured" value="100000" step="1000" oninput="updateMMCalc()"></div>
-            <div class="lc-row"><label>Loss severity %</label>
+            <div class="lc-row"><label>Amount at risk %</label>
               <input type="number" id="mm-lc-severity" value="100" min="1" max="100" oninput="updateMMCalc()"></div>
-            <div class="lc-row"><label>Spread %</label>
+            <div class="lc-row"><label>Your spread %</label>
               <input type="number" id="mm-lc-spread" value="10" min="1" max="50" oninput="updateMMCalc()"></div>
             <div class="lc-results">
-              <div class="lc-card"><div class="lc-card-lbl">Fair mid</div>
-                <div class="lc-card-val" style="color:var(--accent)" id="mm-lc-mid">—</div></div>
-              <div class="lc-card"><div class="lc-card-lbl">Suggested bid</div>
-                <div class="lc-card-val" style="color:var(--green)" id="mm-lc-bid">—</div></div>
-              <div class="lc-card"><div class="lc-card-lbl">Suggested ask</div>
-                <div class="lc-card-val" style="color:var(--red)" id="mm-lc-ask">—</div></div>
-              <div class="lc-card"><div class="lc-card-lbl">Expected loss</div>
+              <div class="lc-card"><div class="lc-card-lbl">Trader expected loss</div>
                 <div class="lc-card-val" style="color:var(--red)" id="mm-lc-exp">—</div></div>
+              <div class="lc-card"><div class="lc-card-lbl">Fair mid (spot)</div>
+                <div class="lc-card-val" style="color:var(--accent)" id="mm-lc-mid">—</div></div>
+              <div class="lc-card"><div class="lc-card-lbl">Your bid</div>
+                <div class="lc-card-val" style="color:var(--green)" id="mm-lc-bid">—</div></div>
+              <div class="lc-card"><div class="lc-card-lbl">Your ask</div>
+                <div class="lc-card-val" style="color:var(--red)" id="mm-lc-ask">—</div></div>
             </div>
           </div>
           <div class="sh"><span class="sh-title">Factors</span></div>
@@ -2028,14 +2031,27 @@ async function loadMMStats(){
 
 
 async function launchSeries(seriesId){
+  // Show inline confirm on the grid cell — prevent accidental launches
+  // We route through selectSeries + the form confirm instead of firing directly
+  selectSeries(seriesId);
+  // Trigger the confirm panel in the form
+  mmConfirmLaunch();
+}
+
+async function launchSeriesConfirmed(seriesId){
   if(!currentUser)return;
   const res=await fetch(`${API}/api/series/${seriesId}/launch`,{
     method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({admin_id:currentUser.id,series_id:seriesId})
   });
   const d=await res.json();
-  if(res.ok){alert(`✅ Launched: ${d.label} (Contract #${d.contract_id})`);await loadSeries();}
-  else alert(`❌ ${d.detail}`);
+  if(res.ok){
+    showRes('mm-sq-res',`✅ Launched: ${d.label} (Contract #${d.contract_id})`,true);
+    await loadSeries();
+    selectSeries(seriesId);
+  } else {
+    showRes('mm-sq-res',`❌ ${d.detail}`,false);
+  }
 }
 
 async function launchAll(){
@@ -2114,11 +2130,10 @@ function mmCancelLaunchConfirm(){
 
 async function mmSingleLaunch(){
   if(!selectedSeriesId||!currentUser)return;
-  // Hide confirm panel and launch button immediately
+  // Hide confirm panel immediately
   const panel = document.getElementById('mm-sq-launch-confirm');
   const btn   = document.getElementById('mm-sq-launch-btn');
   if(panel) panel.style.display = 'none';
-  if(btn)   btn.style.display   = 'none';
   const res=await fetch(`${API}/api/series/${selectedSeriesId}/launch`,{
     method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({admin_id:currentUser.id,series_id:selectedSeriesId})
@@ -2126,10 +2141,14 @@ async function mmSingleLaunch(){
   const d=await res.json();
   if(res.ok){
     showRes('mm-sq-res',`✅ Launched ${d.label} (Contract #${d.contract_id})`,true);
+    // Reload series cache first, then update form — button hidden by selectSeries
+    // when it reads the updated has_market=true from cache
     await loadSeries();
+    // Force button hidden now that we know launch succeeded
+    if(btn) btn.style.display = 'none';
     selectSeries(selectedSeriesId);
   } else {
-    // If launch failed, show the button again
+    // Launch failed — show button again so MM can retry
     if(btn) btn.style.display = 'block';
     showRes('mm-sq-res',`❌ ${d.detail}`,false);
   }

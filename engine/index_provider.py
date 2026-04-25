@@ -44,7 +44,7 @@ FACTORS = [
         "name":     "Traffic Congestion",
         "desc":     "Road conditions, accidents, rush hour",
         "weight":   0.25,
-        "baseline": 16.0,
+        "baseline": 12.0,
         "value":    10.0,
         "spike":    None,
     },
@@ -78,7 +78,7 @@ FACTORS = [
 ]
 
 # Spike probability per tick per factor (0.8% = roughly 1 spike per ~20 min per factor)
-SPIKE_PROBABILITY = 0.022
+SPIKE_PROBABILITY = 0.015   # ~1 spike per 11 min per factor on average
 
 _lock         = threading.Lock()
 _index        = 10.0          # starting index
@@ -124,11 +124,23 @@ def _tick():
 
                 # --- Random spike trigger ---
                 if random.random() < SPIKE_PROBABILITY:
-                    magnitude        = random.uniform(20, 55)
-                    duration_ticks   = random.randint(6, 18)   # 1–3 minutes
+                    magnitude        = random.uniform(60, 100)
+                    duration_ticks   = random.randint(8, 22)   # 1.3–3.7 minutes at 10s intervals
                     decay_per_tick   = magnitude / duration_ticks
 
                     f["value"]      = min(100.0, f["value"] + magnitude)
+                    # 30% chance: concurrent spike on a second random factor
+                    if random.random() < 0.40:
+                        other = random.choice([x for x in FACTORS if x is not f])
+                        mag2  = magnitude * random.uniform(0.60, 0.75)
+                        other["value"] = min(100.0, other["value"] + mag2)
+                        if other["spike"] is None:
+                            dur2 = random.randint(6, 16)
+                            other["spike"] = {
+                                "remaining_ticks": dur2,
+                                "decay_per_tick":  mag2 / dur2,
+                                "magnitude":       round(mag2, 1)
+                            }
                     f["spike"]      = {
                         "remaining_ticks": duration_ticks,
                         "decay_per_tick":  round(decay_per_tick, 2),

@@ -760,60 +760,86 @@
 <nav>
   <a href="#" class="nav-logo">
     <span class="logo-pulse"></span>
-    Quantara
+    <span style="color:var(--white)">Quan</span><span style="color:var(--teal2)">tara</span>
   </a>
   <div class="nav-links">
     <a href="#how">How it works</a>
     <a href="#audience">Who it's for</a>
-    <a href="https://quantara-7fdc.onrender.com" target="_blank">Live Demo</a>
-    <a href="#contact" class="nav-cta">Get in touch</a>
+    <a href="https://discord.gg/tCjR59UA" target="_blank" style="display:flex;align-items:center;gap:6px">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="flex-shrink:0"><path d="M20.317 4.37a19.791 19.791 0 00-4.885-1.515.074.074 0 00-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 00-5.487 0 12.64 12.64 0 00-.617-1.25.077.077 0 00-.079-.037A19.736 19.736 0 003.677 4.37a.07.07 0 00-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 00.031.057 19.9 19.9 0 005.993 3.03.078.078 0 00.084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 00-.041-.106 13.107 13.107 0 01-1.872-.892.077.077 0 01-.008-.128 10.2 10.2 0 00.372-.292.074.074 0 01.077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 01.078.01c.12.098.246.198.373.292a.077.077 0 01-.006.127 12.299 12.299 0 01-1.873.892.077.077 0 00-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 00.084.028 19.839 19.839 0 006.002-3.03.077.077 0 00.032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 00-.031-.03z"/></svg>
+      Discord
+    </a>
+    <a href="https://quantara-7fdc.onrender.com" target="_blank" class="nav-cta">Live Platform →</a>
   </div>
 </nav>
 
 <!-- HERO -->
-<section class="hero">
-  <div class="hero-eyebrow">Private Beta — Munich, 2026</div>
-  <h1 class="hero-title">
-    The first live index<br>for <em>delivery risk</em>
-  </h1>
-  <p class="hero-sub">
-    Late deliveries cost European logistics companies billions in SLA penalties every year.
-    Cargo insurance covers damaged goods — not late ones. Quantara closes that gap.
-  </p>
-  <div class="hero-actions">
-    <a href="#contact" class="btn-primary">Get in touch</a>
-    <a href="https://quantara-7fdc.onrender.com" target="_blank" class="btn-secondary">
-      View live demo
-      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-        <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>
-    </a>
-  </div>
+<style>
+.hero-split { display:grid; grid-template-columns:1fr 1fr; gap:60px; align-items:center; min-height:88vh; padding:80px 60px; position:relative; overflow:hidden; }
+.hero-split::before { content:''; position:absolute; top:-100px; left:-100px; width:700px; height:700px; background:radial-gradient(circle,rgba(13,115,119,0.12) 0%,transparent 70%); pointer-events:none; }
+.hero-left { position:relative; z-index:1; }
+.hero-right { position:relative; z-index:1; display:flex; flex-direction:column; align-items:flex-end; }
+.index-display { text-align:right; }
+.index-display-label { font-family:var(--mono); font-size:11px; letter-spacing:3px; text-transform:uppercase; color:var(--teal2); margin-bottom:12px; display:flex; align-items:center; justify-content:flex-end; gap:8px; }
+.index-display-value { font-family:var(--serif); font-size:clamp(100px,14vw,180px); line-height:0.9; color:var(--white); transition:color 0.5s; }
+.index-display-value.green { color:#4ade80; }
+.index-display-value.amber { color:var(--gold2); }
+.index-display-value.red   { color:#f87171; }
+.index-display-sub { font-family:var(--mono); font-size:12px; color:var(--muted); text-align:right; margin-top:12px; letter-spacing:1px; }
+.index-stats { display:flex; flex-direction:column; gap:12px; margin-top:32px; width:100%; }
+.index-stat-row { display:flex; justify-content:space-between; align-items:center; padding:12px 20px; background:rgba(15,33,55,0.8); border:1px solid var(--border); border-radius:3px; backdrop-filter:blur(8px); }
+.index-stat-lbl { font-family:var(--mono); font-size:10px; letter-spacing:1.5px; text-transform:uppercase; color:var(--muted); }
+.index-stat-val { font-family:var(--mono); font-size:16px; font-weight:500; color:var(--white); }
+.index-stat-val.green { color:#4ade80; }
+.index-stat-val.amber { color:var(--gold2); }
+.index-stat-val.red   { color:#f87171; }
+@media(max-width:900px){ .hero-split{grid-template-columns:1fr;padding:60px 24px;min-height:auto;gap:40px;} .hero-right{align-items:flex-start;} .index-display{text-align:left;} .index-display-label{justify-content:flex-start;} .index-display-sub{text-align:left;} }
+</style>
+<section>
+  <div class="hero-split">
+    <div class="hero-left">
+      <div class="hero-eyebrow">Private Beta — Munich, 2026</div>
+      <h1 class="hero-title">
+        The first live index<br>for <em>delivery risk</em>
+      </h1>
+      <p class="hero-sub">
+        Late deliveries cost European logistics companies billions in SLA penalties every year.
+        Cargo insurance covers damaged goods — not late ones. Quantara closes that gap.
+      </p>
+      <div class="hero-actions">
+        <a href="#contact" class="btn-primary">Get in touch</a>
+        <a href="https://quantara-7fdc.onrender.com" target="_blank" class="btn-secondary">
+          View live demo
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </a>
+      </div>
+    </div>
 
-  <div class="hero-ticker">
-    <div class="live-badge">
-      <span class="live-dot"></span>
-      Live
-    </div>
-    <div class="ticker-divider"></div>
-    <div class="ticker-item">
-      <span class="ticker-lbl">Delivery Pulse™</span>
-      <span class="ticker-val green" id="tick-index">—</span>
-    </div>
-    <div class="ticker-divider"></div>
-    <div class="ticker-item">
-      <span class="ticker-lbl">Daily Settlement Rate</span>
-      <span class="ticker-val" id="tick-rate">—</span>
-    </div>
-    <div class="ticker-divider"></div>
-    <div class="ticker-item">
-      <span class="ticker-lbl">Active Covers</span>
-      <span class="ticker-val amber" id="tick-contracts">—</span>
-    </div>
-    <div class="ticker-divider"></div>
-    <div class="ticker-item">
-      <span class="ticker-lbl">Threshold</span>
-      <span class="ticker-val">20.0%</span>
+    <div class="hero-right">
+      <div class="index-display">
+        <div class="index-display-label">
+          <span class="live-dot"></span>
+          Delivery Pulse™ — Live
+        </div>
+        <div class="index-display-value green" id="tick-index">—</div>
+        <div class="index-display-sub">0 = no risk &nbsp;·&nbsp; 100 = maximum risk &nbsp;·&nbsp; threshold 20%</div>
+      </div>
+      <div class="index-stats">
+        <div class="index-stat-row">
+          <span class="index-stat-lbl">Daily Settlement Rate</span>
+          <span class="index-stat-val" id="tick-rate">—</span>
+        </div>
+        <div class="index-stat-row">
+          <span class="index-stat-lbl">Active Covers</span>
+          <span class="index-stat-val amber" id="tick-contracts">—</span>
+        </div>
+        <div class="index-stat-row">
+          <span class="index-stat-lbl">Settlement Threshold</span>
+          <span class="index-stat-val">20.0%</span>
+        </div>
+      </div>
     </div>
   </div>
 </section>

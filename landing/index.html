@@ -1,1 +1,783 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quantara — Delivery Risk Exchange</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+:root {
+  --navy:   #0D1B2A;
+  --ink:    #1A2E42;
+  --teal:   #0A7E7E;
+  --teal2:  #0D9B9B;
+  --gold:   #C8943A;
+  --gold2:  #E0A84A;
+  --cream:  #F5F0E8;
+  --warm:   #EDE8DF;
+  --muted:  #8A9BAD;
+  --border: rgba(255,255,255,0.08);
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: var(--navy);
+  color: var(--cream);
+  overflow-x: hidden;
+}
+
+/* ── NOISE TEXTURE OVERLAY ── */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.4;
+}
+
+/* ── NAV ── */
+nav {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 48px;
+  background: rgba(13,27,42,0.85);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+}
+
+.nav-logo {
+  font-family: 'DM Serif Display', serif;
+  font-size: 22px;
+  letter-spacing: -0.5px;
+  color: var(--cream);
+}
+.nav-logo span { color: var(--teal2); }
+
+.nav-links { display: flex; gap: 32px; align-items: center; }
+.nav-links a {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+  text-decoration: none;
+  letter-spacing: 0.3px;
+  transition: color 0.2s;
+}
+.nav-links a:hover { color: var(--cream); }
+
+.nav-cta {
+  background: var(--teal) !important;
+  color: var(--cream) !important;
+  padding: 8px 20px;
+  border-radius: 4px;
+  font-weight: 600 !important;
+}
+.nav-cta:hover { background: var(--teal2) !important; }
+
+/* ── HERO ── */
+.hero {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 120px 48px 80px;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Geometric background lines */
+.hero::after {
+  content: '';
+  position: absolute;
+  top: -200px; right: -200px;
+  width: 700px; height: 700px;
+  border: 1px solid rgba(10,126,126,0.12);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.hero-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 80px;
+  align-items: center;
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.hero-eyebrow {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--teal2);
+  margin-bottom: 24px;
+}
+
+.hero-title {
+  font-family: 'DM Serif Display', serif;
+  font-size: clamp(36px, 5vw, 64px);
+  line-height: 1.08;
+  letter-spacing: -1.5px;
+  margin-bottom: 28px;
+}
+
+.hero-title em {
+  font-style: italic;
+  color: var(--gold2);
+}
+
+.hero-body {
+  font-size: 17px;
+  line-height: 1.7;
+  color: rgba(245,240,232,0.72);
+  font-weight: 300;
+  max-width: 480px;
+  margin-bottom: 40px;
+}
+
+.hero-actions { display: flex; gap: 16px; flex-wrap: wrap; }
+
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--teal);
+  color: var(--cream);
+  padding: 14px 28px;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  letter-spacing: 0.2px;
+  transition: background 0.2s, transform 0.1s;
+}
+.btn-primary:hover { background: var(--teal2); transform: translateY(-1px); }
+
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  color: var(--cream);
+  padding: 14px 28px;
+  border-radius: 4px;
+  border: 1px solid rgba(245,240,232,0.2);
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: border-color 0.2s, transform 0.1s;
+}
+.btn-secondary:hover { border-color: rgba(245,240,232,0.5); transform: translateY(-1px); }
+
+/* ── PULSE WIDGET ── */
+.pulse-widget {
+  background: var(--ink);
+  border: 1px solid rgba(10,126,126,0.25);
+  border-radius: 12px;
+  padding: 32px;
+  position: relative;
+  overflow: hidden;
+}
+
+.pulse-widget::before {
+  content: '';
+  position: absolute;
+  top: -40px; right: -40px;
+  width: 200px; height: 200px;
+  background: radial-gradient(circle, rgba(10,126,126,0.15) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.pw-label {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--teal2);
+  margin-bottom: 8px;
+}
+
+.pw-value {
+  font-family: 'DM Mono', monospace;
+  font-size: 56px;
+  font-weight: 500;
+  color: var(--cream);
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+.pw-sub {
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 28px;
+}
+
+.pw-bars {
+  display: flex;
+  gap: 4px;
+  align-items: flex-end;
+  height: 48px;
+  margin-bottom: 24px;
+}
+
+.pw-bar {
+  flex: 1;
+  border-radius: 2px 2px 0 0;
+  background: rgba(10,126,126,0.3);
+  transition: height 0.6s ease;
+  animation: barPulse 3s ease-in-out infinite;
+}
+
+@keyframes barPulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+
+.pw-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+}
+
+.pw-row-label { color: var(--muted); }
+.pw-row-value { font-family: 'DM Mono', monospace; color: var(--cream); }
+.pw-row-value.up { color: #E05555; }
+.pw-row-value.neutral { color: var(--teal2); }
+
+.pw-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  color: var(--teal2);
+  margin-bottom: 16px;
+}
+
+.pw-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--teal2);
+  animation: blink 1.5s ease-in-out infinite;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.2; }
+}
+
+/* ── SECTION: PROBLEM ── */
+.section {
+  padding: 100px 48px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.section-eyebrow {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin-bottom: 20px;
+}
+
+.section-title {
+  font-family: 'DM Serif Display', serif;
+  font-size: clamp(28px, 3.5vw, 48px);
+  line-height: 1.15;
+  letter-spacing: -1px;
+  margin-bottom: 24px;
+}
+
+.section-body {
+  font-size: 17px;
+  line-height: 1.75;
+  color: rgba(245,240,232,0.72);
+  font-weight: 300;
+  max-width: 680px;
+}
+
+/* ── THREE HORIZONS ── */
+.horizons {
+  padding: 80px 48px;
+  background: var(--ink);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.horizons-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.horizons-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2px;
+  margin-top: 48px;
+}
+
+.horizon-card {
+  padding: 40px 36px;
+  background: var(--navy);
+  position: relative;
+  overflow: hidden;
+}
+
+.horizon-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+}
+
+.horizon-card:nth-child(1)::before { background: var(--muted); }
+.horizon-card:nth-child(2)::before { background: var(--teal2); }
+.horizon-card:nth-child(3)::before { background: var(--gold2); }
+
+.horizon-tag {
+  font-family: 'DM Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 16px;
+}
+
+.horizon-name {
+  font-family: 'DM Serif Display', serif;
+  font-size: 22px;
+  margin-bottom: 12px;
+}
+
+.horizon-name span {
+  display: block;
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  font-style: normal;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+.horizon-desc {
+  font-size: 14px;
+  line-height: 1.7;
+  color: rgba(245,240,232,0.65);
+  font-weight: 300;
+}
+
+/* ── FOR WHO ── */
+.who-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+  margin-top: 56px;
+}
+
+.who-card {
+  background: var(--ink);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 32px 28px;
+  transition: border-color 0.2s, transform 0.2s;
+}
+
+.who-card:hover {
+  border-color: rgba(10,126,126,0.4);
+  transform: translateY(-3px);
+}
+
+.who-icon {
+  font-size: 28px;
+  margin-bottom: 16px;
+}
+
+.who-title {
+  font-family: 'DM Serif Display', serif;
+  font-size: 20px;
+  margin-bottom: 12px;
+}
+
+.who-desc {
+  font-size: 14px;
+  line-height: 1.7;
+  color: rgba(245,240,232,0.65);
+  font-weight: 300;
+}
+
+.who-list {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.who-item {
+  display: flex;
+  gap: 8px;
+  font-size: 13px;
+  color: rgba(245,240,232,0.55);
+}
+
+.who-item::before {
+  content: '—';
+  color: var(--teal2);
+  flex-shrink: 0;
+}
+
+/* ── CTA SECTION ── */
+.cta-section {
+  padding: 100px 48px;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.cta-section::before {
+  content: '';
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 600px; height: 600px;
+  background: radial-gradient(circle, rgba(10,126,126,0.08) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.cta-inner { max-width: 640px; margin: 0 auto; position: relative; }
+
+.cta-title {
+  font-family: 'DM Serif Display', serif;
+  font-size: clamp(28px, 4vw, 52px);
+  line-height: 1.1;
+  letter-spacing: -1px;
+  margin-bottom: 20px;
+}
+
+.cta-body {
+  font-size: 16px;
+  line-height: 1.7;
+  color: rgba(245,240,232,0.65);
+  font-weight: 300;
+  margin-bottom: 40px;
+}
+
+.cta-actions {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+/* ── FOOTER ── */
+footer {
+  border-top: 1px solid var(--border);
+  padding: 40px 48px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.footer-logo {
+  font-family: 'DM Serif Display', serif;
+  font-size: 18px;
+  color: var(--muted);
+}
+.footer-logo span { color: var(--teal2); }
+
+.footer-links {
+  display: flex;
+  gap: 28px;
+}
+
+.footer-links a {
+  font-size: 13px;
+  color: var(--muted);
+  text-decoration: none;
+  transition: color 0.2s;
+}
+.footer-links a:hover { color: var(--cream); }
+
+.footer-note {
+  font-size: 12px;
+  color: rgba(138,155,173,0.5);
+}
+
+/* ── DIVIDER ── */
+.divider {
+  height: 1px;
+  background: var(--border);
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+/* ── ANIMATIONS ── */
+.fade-up {
+  opacity: 0;
+  transform: translateY(24px);
+  animation: fadeUp 0.7s ease forwards;
+}
+
+@keyframes fadeUp {
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.delay-1 { animation-delay: 0.1s; }
+.delay-2 { animation-delay: 0.2s; }
+.delay-3 { animation-delay: 0.35s; }
+.delay-4 { animation-delay: 0.5s; }
+
+/* ── RESPONSIVE ── */
+@media (max-width: 900px) {
+  nav { padding: 16px 24px; }
+  .nav-links { display: none; }
+  .hero { padding: 100px 24px 60px; }
+  .hero-grid { grid-template-columns: 1fr; gap: 48px; }
+  .section { padding: 64px 24px; }
+  .horizons { padding: 64px 24px; }
+  .horizons-grid { grid-template-columns: 1fr; }
+  .who-grid { grid-template-columns: 1fr; }
+  .cta-section { padding: 64px 24px; }
+  footer { flex-direction: column; gap: 20px; text-align: center; }
+}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-logo">Quan<span>tara</span></div>
+  <div class="nav-links">
+    <a href="#how-it-works">How It Works</a>
+    <a href="#for-who">Who Is It For</a>
+    <a href="#platform">Platform</a>
+    <a href="mailto:hello@quantara.io">Contact</a>
+    <a href="https://quantara-7fdc.onrender.com" target="_blank" class="nav-cta">Live Demo →</a>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-grid">
+    <div>
+      <p class="hero-eyebrow fade-up">Delivery Risk Exchange · Private Beta</p>
+      <h1 class="hero-title fade-up delay-1">
+        The first <em>live index</em><br>for delivery risk
+      </h1>
+      <p class="hero-body fade-up delay-2">
+        Late deliveries cost European logistics companies billions in SLA penalties each year.
+        Cargo insurance covers lost goods — not late ones.
+        Quantara closes that gap with a real-time risk index, standardised financial instruments, and a live market.
+      </p>
+      <div class="hero-actions fade-up delay-3">
+        <a href="mailto:hello@quantara.io" class="btn-primary">Get in Touch →</a>
+        <a href="https://quantara-7fdc.onrender.com" target="_blank" class="btn-secondary">View Live Platform</a>
+      </div>
+    </div>
+
+    <!-- Pulse Widget -->
+    <div class="pulse-widget fade-up delay-2">
+      <div class="pw-live"><div class="pw-dot"></div>LIVE · updates every 10 seconds</div>
+      <div class="pw-label">Delivery Pulse™ Index</div>
+      <div class="pw-value" id="pw-num">18.4</div>
+      <div class="pw-sub">current delivery risk level · 0 = no risk · 100 = extreme risk</div>
+
+      <div class="pw-bars" id="pw-bars">
+        <!-- bars injected by JS -->
+      </div>
+
+      <div class="pw-row">
+        <span class="pw-row-label">Daily Settlement Rate</span>
+        <span class="pw-row-value neutral">17.9%</span>
+      </div>
+      <div class="pw-row">
+        <span class="pw-row-label">Market-implied forward rate</span>
+        <span class="pw-row-value up">23.1%</span>
+      </div>
+      <div class="pw-row">
+        <span class="pw-row-label">Active Covers</span>
+        <span class="pw-row-value">12 series · 4 expiries</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PROBLEM -->
+<div class="divider"></div>
+<section class="section" id="how-it-works">
+  <p class="section-eyebrow">The Problem</p>
+  <h2 class="section-title">A gap that has never had<br>a financial instrument</h2>
+  <p class="section-body">
+    Every logistics contract carries delivery SLA clauses. When shipments arrive late, companies absorb penalties, lose customers, and damage relationships — losses that standard cargo insurance simply does not cover. The risk is real, quantifiable, and entirely unhedged. Until now.
+  </p>
+</section>
+
+<!-- THREE HORIZONS -->
+<div class="horizons" id="platform">
+  <div class="horizons-inner">
+    <p class="section-eyebrow">How It Works</p>
+    <h2 class="section-title">Three signals. One market.</h2>
+    <div class="horizons-grid">
+
+      <div class="horizon-card">
+        <div class="horizon-tag">Backward-looking</div>
+        <div class="horizon-name">
+          Delivery Pulse™ History
+          <span>what has happened</span>
+        </div>
+        <p class="horizon-desc">
+          60-minute rolling history, 14-day settlement record, probability distribution across risk bands. The evidence base — how volatile has delivery risk actually been.
+        </p>
+      </div>
+
+      <div class="horizon-card">
+        <div class="horizon-tag">Present</div>
+        <div class="horizon-name">
+          Delivery Pulse™ Index
+          <span>what is happening now</span>
+        </div>
+        <p class="horizon-desc">
+          A live 0–100 signal updating every 10 seconds, derived from carrier performance, weather, traffic, and volume conditions. Drives all contract pricing in real time.
+        </p>
+      </div>
+
+      <div class="horizon-card">
+        <div class="horizon-tag">Forward-looking</div>
+        <div class="horizon-name">
+          Market-Implied Rate
+          <span>what the market expects</span>
+        </div>
+        <p class="horizon-desc">
+          The price at which buyers and sellers agree to trade encodes a forward probability of late delivery. This market-consensus forecast is generated by trading activity — not a model.
+        </p>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- FOR WHO -->
+<section class="section" id="for-who">
+  <p class="section-eyebrow">Who It Is For</p>
+  <h2 class="section-title">Three ways to participate</h2>
+
+  <div class="who-grid">
+
+    <div class="who-card">
+      <div class="who-icon">🏦</div>
+      <div class="who-title">Insurers &amp; Reinsurers</div>
+      <p class="who-desc">Use the Delivery Pulse™ as a settlement trigger for parametric cargo SLA products — the instrument type that doesn't currently exist in the market.</p>
+      <div class="who-list">
+        <div class="who-item">Live index as parametric trigger</div>
+        <div class="who-item">Market-implied forward probability</div>
+        <div class="who-item">Daily Settlement Rate as reference</div>
+        <div class="who-item">API access for product integration</div>
+      </div>
+    </div>
+
+    <div class="who-card">
+      <div class="who-icon">🚛</div>
+      <div class="who-title">Logistics &amp; Supply Chain</div>
+      <p class="who-desc">Buy Covers against your delivery SLA exposure. Pay a small premium — receive a payout if delivery conditions deteriorate beyond the threshold at expiry.</p>
+      <div class="who-list">
+        <div class="who-item">1h to 7d contract durations</div>
+        <div class="who-item">Standard, Plus, Pro collateral tiers</div>
+        <div class="who-item">Secondary market — exit anytime</div>
+        <div class="who-item">Automatic settlement at midnight UTC</div>
+      </div>
+    </div>
+
+    <div class="who-card">
+      <div class="who-icon">📊</div>
+      <div class="who-title">Traders &amp; Speculators</div>
+      <p class="who-desc">A new asset class. Parametric operational risk derivatives on a live underlying — with real-time pricing, a secondary market, and a daily settlement event.</p>
+      <div class="who-list">
+        <div class="who-item">12 standardised Cover series</div>
+        <div class="who-item">Live order book and market depth</div>
+        <div class="who-item">Secondary market liquidity</div>
+        <div class="who-item">Implied rate as forward signal</div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- CTA -->
+<div class="divider"></div>
+<section class="cta-section">
+  <div class="cta-inner">
+    <p class="section-eyebrow" style="text-align:center">Private Beta · Munich, 2026</p>
+    <h2 class="cta-title">We are looking for<br>founding partners</h2>
+    <p class="cta-body">
+      We are in active development and seeking our first data partners, insurance collaborators, and institutional participants. If you work in parametric insurance, freight data, or derivatives — we would like to hear from you.
+    </p>
+    <div class="cta-actions">
+      <a href="mailto:hello@quantara.io" class="btn-primary">Send Us a Message →</a>
+      <a href="https://quantara-7fdc.onrender.com" target="_blank" class="btn-secondary">Explore the Platform</a>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-logo">Quan<span>tara</span></div>
+  <div class="footer-links">
+    <a href="https://quantara-7fdc.onrender.com" target="_blank">Platform</a>
+    <a href="mailto:hello@quantara.io">Contact</a>
+  </div>
+  <div class="footer-note">Private Beta · Munich · 2026</div>
+</footer>
+
+<script>
+// Animate the pulse widget bars
+const bars = document.getElementById('pw-bars');
+const heights = [20, 35, 28, 42, 31, 55, 38, 62, 45, 70, 52, 48, 38, 30, 22, 18];
+if(bars) {
+  bars.innerHTML = heights.map((h, i) => 
+    `<div class="pw-bar" style="height:${h}%;animation-delay:${i*0.12}s;background:${h>50?'rgba(200,80,80,0.4)':h>35?'rgba(200,160,58,0.35)':'rgba(10,126,126,0.35)'}">`
+  ).join('');
+}
+
+// Animate the index number slightly
+let base = 18.4;
+setInterval(() => {
+  base += (Math.random() - 0.5) * 0.3;
+  base = Math.max(14, Math.min(24, base));
+  const el = document.getElementById('pw-num');
+  if(el) el.textContent = base.toFixed(1);
+}, 2000);
+
+// Fade in on scroll
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    if(e.isIntersecting) {
+      e.target.style.opacity = '1';
+      e.target.style.transform = 'translateY(0)';
+    }
+  });
+}, { threshold: 0.1 });
+
+document.querySelectorAll('.who-card, .horizon-card').forEach(el => {
+  el.style.opacity = '0';
+  el.style.transform = 'translateY(20px)';
+  el.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
+  observer.observe(el);
+});
+</script>
+</body>
+</html>

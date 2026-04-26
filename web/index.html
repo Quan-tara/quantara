@@ -401,11 +401,11 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
   <div class="logo">QUANT<em>ARA</em></div>
   <div class="hdr-center">
     <div class="hdr-pill">
-      <div><div class="hp-lbl">Delivery Risk Index</div><div class="hp-prob" id="hdr-prob">—</div></div>
+      <div><div class="hp-lbl">DeliveryPulse™</div><div class="hp-prob" id="hdr-prob">—</div></div>
       <div class="hp-idx low" id="hdr-idx">—</div>
     </div>
     <div class="rate-pill">
-      <div><div class="rp-lbl">Published Rate</div><div class="rp-val" id="hdr-rate-val">—</div></div>
+      <div><div class="rp-lbl">Daily Settlement Rate</div><div class="rp-val" id="hdr-rate-val">—</div></div>
       <div class="rp-itm" id="hdr-rate-itm" style="color:var(--muted)">vs 20% threshold</div>
     </div>
   </div>
@@ -448,7 +448,7 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
 
         <!-- LEFT: Index + Rate + Calculator + Factors -->
         <div class="col">
-          <div class="sh"><span class="sh-title">Risk Index</span></div>
+          <div class="sh"><span class="sh-title">DeliveryPulse™</span></div>
           <div class="risk-panel">
             <div class="rp-num low" id="t-rp-num">—</div>
             <div class="rp-label" id="t-rp-label">Loading...</div>
@@ -465,7 +465,7 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
             <canvas id="t-mini-chart" width="244" height="48"></canvas>
           </div>
           <!-- Published rate panel -->
-          <div class="sh"><span class="sh-title">Published Rate</span><span class="sh-sub">settles contracts</span></div>
+          <div class="sh"><span class="sh-title">Daily Settlement Rate</span><span class="sh-sub">settles covers at midnight UTC</span></div>
           <div class="rate-panel">
             <div class="rate-big">
               <div class="rate-num" id="t-rate-num" style="color:var(--green)">—</div>
@@ -478,8 +478,8 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
             </div>
             <div class="rate-legend"><span>0%</span><span>20%</span><span>100%</span></div>
             <div style="margin-top:8px;display:flex;justify-content:space-between;align-items:center">
-              <span style="font-size:10px;color:var(--muted)">↑ Last published rate (fixed daily)</span>
-              <span style="font-size:10px;color:var(--muted)">Live est:
+              <span style="font-size:10px;color:var(--muted)">↑ Last Daily Settlement Rate (fixed at midnight UTC)</span>
+              <span style="font-size:10px;color:var(--muted)">Today's estimate:
                 <strong style="font-family:var(--mono);color:var(--accent)" id="t-running-est">—</strong>
               </span>
             </div>
@@ -511,8 +511,8 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
           <!-- Series grid -->
           <div class="grid-container">
             <div class="grid-col-hdr">
-              <div class="gch">€100</div><div class="gch">€1,000</div>
-              <div class="gch">€10,000</div><div class="gch"></div>
+              <div class="gch">Standard</div><div class="gch">Plus</div>
+              <div class="gch">Pro</div><div class="gch"></div>
             </div>
             <div class="series-grid" id="t-series-grid">
               <!-- populated by JS -->
@@ -539,8 +539,8 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
               <div class="fg"><label>Quantity</label><input type="number" id="ord-qty" value="1" step="0.1"></div>
             </div>
             <div class="of-btns">
-              <button class="sbtn sb-buy" onclick="placeOrder('buy')">🛡️ BUY PROTECTION</button>
-              <button class="sbtn sb-sell" onclick="placeOrder('sell')">📝 SELL PROTECTION</button>
+              <button class="sbtn sb-buy" onclick="placeOrder('buy')">🛡️ BUY COVER</button>
+              <button class="sbtn sb-sell" onclick="placeOrder('sell')">📝 SELL COVER</button>
             </div>
             <button class="sbtn sb-sec" style="width:100%;margin-top:6px" onclick="showSecondaryForm()">🔄 RESELL MY POSITION</button>
             <div id="t-sec-form" style="display:none;margin-top:8px">
@@ -579,7 +579,7 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
           <!-- Loss calculator -->
           <div class="sh"><span class="sh-title">💡 Loss Estimator</span></div>
           <div class="loss-calc">
-            <div class="lc-title">At the current risk index, how much could you lose?</div>
+            <div class="lc-title">At the current DeliveryPulse™, how much could you lose?</div>
             <div style="font-size:10px;color:var(--muted);margin-bottom:8px;line-height:1.5">
               Enter the value of the shipment you want to protect and the share of it at risk.
               The estimator shows your expected loss at the current index — this is what buying protection hedges.
@@ -598,7 +598,7 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
               Protection cost ≈ collateral × (index ÷ 100). Select a series from the grid to see exact premiums.
             </div>
           </div>
-          <div class="sh"><span class="sh-title">My Positions</span><span class="sh-sub" id="t-idx-lbl"></span></div>
+          <div class="sh"><span class="sh-title">My Covers</span><span class="sh-sub" id="t-idx-lbl"></span></div>
           <div id="t-positions" class="scrollable"></div>
         </div>
       </div>
@@ -618,7 +618,7 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
             <div class="spark-lbl"><span>Last 60 min σ</span><span id="t-vol-spark-range" style="font-family:var(--mono);font-size:10px;color:var(--text)">—</span></div>
             <canvas id="t-vol-sparkline" width="400" height="50"></canvas>
           </div>
-          <div class="sh"><span class="sh-title">Published Rate History</span></div>
+          <div class="sh"><span class="sh-title">Daily Settlement Rate History</span></div>
           <div style="padding:10px 18px;border-bottom:1px solid var(--border)">
             <div id="t-rate-history-rows"></div>
             <div style="margin-top:6px;font-size:9px;color:var(--muted);font-family:var(--mono)">
@@ -655,7 +655,7 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
 
         <!-- LEFT: Index + Rate + Calculator -->
         <div class="col">
-          <div class="sh"><span class="sh-title">Risk Index</span></div>
+          <div class="sh"><span class="sh-title">DeliveryPulse™</span></div>
           <div class="risk-panel">
             <div class="rp-num low" id="m-rp-num">—</div>
             <div class="rp-label" id="m-rp-label">Loading...</div>
@@ -670,7 +670,7 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
             <div class="mini-chart-title">Index history (last hour)<span id="m-mini-range">—</span></div>
             <canvas id="m-mini-chart" width="244" height="48"></canvas>
           </div>
-          <div class="sh"><span class="sh-title">Published Rate</span><span class="sh-sub">settles contracts</span></div>
+          <div class="sh"><span class="sh-title">Daily Settlement Rate</span><span class="sh-sub">settles covers at midnight UTC</span></div>
           <div class="rate-panel">
             <div class="rate-big">
               <div class="rate-num" id="m-rate-num" style="color:var(--green)">—</div>
@@ -683,8 +683,8 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
             </div>
             <div class="rate-legend"><span>0%</span><span>20%</span><span>100%</span></div>
             <div style="margin-top:6px;display:flex;justify-content:space-between;align-items:center">
-              <span style="font-size:10px;color:var(--muted)">↑ Last published rate (fixed daily)</span>
-              <span style="font-size:10px;color:var(--muted)">Live est:
+              <span style="font-size:10px;color:var(--muted)">↑ Last Daily Settlement Rate (fixed at midnight UTC)</span>
+              <span style="font-size:10px;color:var(--muted)">Today's estimate:
                 <strong style="font-family:var(--mono);color:var(--accent)" id="m-running-est">—</strong>
               </span>
             </div>
@@ -702,7 +702,7 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
           </div>
           <!-- MM Launch Calculator -->
           <div class="loss-calc" style="background:linear-gradient(135deg,rgba(255,179,0,.04),transparent)">
-            <div class="lc-title" style="color:var(--amber)">⚡ Loss Estimator</div>
+            <div class="lc-title" style="color:var(--amber)">⚡ DeliveryPulse™ Loss Estimator</div>
             <div style="font-size:10px;color:var(--muted);margin-bottom:8px;line-height:1.5">
               At the current index, what is the trader's expected loss — and how should you price protection for it?
             </div>
@@ -729,13 +729,13 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
 
         <!-- CENTER: MM Grid + Quote + Settle -->
         <div class="col">
-          <div class="sh"><span class="sh-title">Series Grid</span>
-            <span class="sh-sub">click a grey cell to launch that series</span></div>
+          <div class="sh"><span class="sh-title">DeliveryPulse™ Covers</span>
+            <span class="sh-sub">click a grey cell to launch that Cover</span></div>
           <div class="grid-container">
             <div class="grid-col-hdr">
-              <div class="gch" style="color:var(--amber)">€100</div>
-              <div class="gch" style="color:var(--amber)">€1,000</div>
-              <div class="gch" style="color:var(--amber)">€10,000</div>
+              <div class="gch" style="color:var(--amber)">Standard</div>
+              <div class="gch" style="color:var(--amber)">Plus</div>
+              <div class="gch" style="color:var(--amber)">Pro</div>
               <div class="gch"></div>
             </div>
             <div class="series-grid" id="m-series-grid"></div>
@@ -850,7 +850,7 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
             <div class="wc"><div class="wc-lbl">Locked</div><div class="wc-val" id="m-w-lock" style="color:var(--amber)">—</div></div>
             <div class="wc"><div class="wc-lbl">Available</div><div class="wc-val" id="m-w-avail">—</div></div>
           </div>
-          <div class="sh"><span class="sh-title">MM Open Positions</span></div>
+          <div class="sh"><span class="sh-title">MM Open Covers</span></div>
           <div id="mm-positions" class="scrollable"></div>
         </div>
       </div>
@@ -872,7 +872,7 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
           </div>
           <div class="sh"><span class="sh-title">Spike Log</span></div>
           <div id="mm-spike-log" style="max-height:80px;overflow-y:auto;border-bottom:1px solid var(--border)"></div>
-          <div class="sh"><span class="sh-title">Published Rate History</span></div>
+          <div class="sh"><span class="sh-title">Daily Settlement Rate History</span></div>
           <div style="padding:10px 18px;border-bottom:1px solid var(--border)">
             <div id="m-rate-history-rows"></div>
             <div style="margin-top:6px;font-size:9px;color:var(--muted);font-family:var(--mono)">
@@ -1357,7 +1357,7 @@ function renderSeriesGrid(){
           html+=`<div class="grid-cell ${sel?'selected':''} ${!live?'no-market':''}"
             onclick="selectSeries(${s.series_id})" style="cursor:pointer">
             <div class="gc-dot ${tradable?'live':live?'off':'off'}" style="${live&&!tradable?'background:var(--amber)':''}"></div>
-            <div class="gc-label">€${col>=1000?col/1000+'k':col}</div>
+            <div class="gc-label">${col>=10000?'Pro':col>=1000?'Plus':'Standard'} Cover</div>
             <div class="gc-price">${price}</div>
             <div class="gc-exp" style="color:${statusClr}">${statusTxt}</div>
           </div>`;
@@ -1365,7 +1365,7 @@ function renderSeriesGrid(){
           html+=`<div class="mm-grid-cell ${sel?'selected':''}"
             onclick="selectSeries(${s.series_id})">
             <div class="gc-dot ${live?'live':'off'}" style="position:absolute;top:5px;right:5px"></div>
-            <div class="mm-gc-label">€${col>=1000?col/1000+'k':col}</div>
+            <div class="mm-gc-label">${col>=10000?'Pro':col>=1000?'Plus':'Standard'} Cover</div>
             <div class="mm-gc-price">${price}</div>
             ${live
               ?`<div class="mm-gc-status">${s.expires_in||''}</div>`

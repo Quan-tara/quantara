@@ -401,7 +401,7 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
   <div class="logo">QUANT<em>ARA</em></div>
   <div class="hdr-center">
     <div class="hdr-pill">
-      <div><div class="hp-lbl">DeliveryPulse™</div><div class="hp-prob" id="hdr-prob">—</div></div>
+      <div><div class="hp-lbl">Delivery Pulse™</div><div class="hp-prob" id="hdr-prob">—</div></div>
       <div class="hp-idx low" id="hdr-idx">—</div>
     </div>
     <div class="rate-pill">
@@ -448,7 +448,7 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
 
         <!-- LEFT: Index + Rate + Calculator + Factors -->
         <div class="col">
-          <div class="sh"><span class="sh-title">DeliveryPulse™</span></div>
+          <div class="sh"><span class="sh-title">Delivery Pulse™</span></div>
           <div class="risk-panel">
             <div class="rp-num low" id="t-rp-num">—</div>
             <div class="rp-label" id="t-rp-label">Loading...</div>
@@ -579,7 +579,7 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
           <!-- Loss calculator -->
           <div class="sh"><span class="sh-title">💡 Loss Estimator</span></div>
           <div class="loss-calc">
-            <div class="lc-title">At the current DeliveryPulse™, how much could you lose?</div>
+            <div class="lc-title">At the current Delivery Pulse™, how much could you lose?</div>
             <div style="font-size:10px;color:var(--muted);margin-bottom:8px;line-height:1.5">
               Enter the value of the shipment you want to protect and the share of it at risk.
               The estimator shows your expected loss at the current index — this is what buying protection hedges.
@@ -655,7 +655,7 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
 
         <!-- LEFT: Index + Rate + Calculator -->
         <div class="col">
-          <div class="sh"><span class="sh-title">DeliveryPulse™</span></div>
+          <div class="sh"><span class="sh-title">Delivery Pulse™</span></div>
           <div class="risk-panel">
             <div class="rp-num low" id="m-rp-num">—</div>
             <div class="rp-label" id="m-rp-label">Loading...</div>
@@ -702,7 +702,7 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
           </div>
           <!-- MM Launch Calculator -->
           <div class="loss-calc" style="background:linear-gradient(135deg,rgba(255,179,0,.04),transparent)">
-            <div class="lc-title" style="color:var(--amber)">⚡ DeliveryPulse™ Loss Estimator</div>
+            <div class="lc-title" style="color:var(--amber)">⚡ Delivery Pulse™ Loss Estimator</div>
             <div style="font-size:10px;color:var(--muted);margin-bottom:8px;line-height:1.5">
               At the current index, what is the trader's expected loss — and how should you price protection for it?
             </div>
@@ -729,7 +729,7 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
 
         <!-- CENTER: MM Grid + Quote + Settle -->
         <div class="col">
-          <div class="sh"><span class="sh-title">DeliveryPulse™ Covers</span>
+          <div class="sh"><span class="sh-title">Delivery Pulse™ Covers</span>
             <span class="sh-sub">click a grey cell to launch that Cover</span></div>
           <div class="grid-container">
             <div class="grid-col-hdr">
@@ -1357,7 +1357,7 @@ function renderSeriesGrid(){
           html+=`<div class="grid-cell ${sel?'selected':''} ${!live?'no-market':''}"
             onclick="selectSeries(${s.series_id})" style="cursor:pointer">
             <div class="gc-dot ${tradable?'live':live?'off':'off'}" style="${live&&!tradable?'background:var(--amber)':''}"></div>
-            <div class="gc-label">${col>=10000?'Pro':col>=1000?'Plus':'Standard'} Cover</div>
+            <div class="gc-label">€${col>=1000?col/1000+'k':col}</div>
             <div class="gc-price">${price}</div>
             <div class="gc-exp" style="color:${statusClr}">${statusTxt}</div>
           </div>`;
@@ -1365,7 +1365,7 @@ function renderSeriesGrid(){
           html+=`<div class="mm-grid-cell ${sel?'selected':''}"
             onclick="selectSeries(${s.series_id})">
             <div class="gc-dot ${live?'live':'off'}" style="position:absolute;top:5px;right:5px"></div>
-            <div class="mm-gc-label">${col>=10000?'Pro':col>=1000?'Plus':'Standard'} Cover</div>
+            <div class="mm-gc-label">€${col>=1000?col/1000+'k':col}</div>
             <div class="mm-gc-price">${price}</div>
             ${live
               ?`<div class="mm-gc-status">${s.expires_in||''}</div>`

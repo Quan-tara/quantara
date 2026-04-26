@@ -312,6 +312,11 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
 .ledger-row{cursor:pointer}
 .ledger-row:hover{background:rgba(255,255,255,.03)}
 
+.gc-implied{font-size:8px;font-family:var(--mono);color:var(--amber);margin-top:2px;font-weight:700}
+.gc-last-trade{font-size:8px;font-family:var(--mono);color:var(--muted);margin-top:1px}
+.mm-gc-implied{font-size:8px;font-family:var(--mono);color:var(--amber);margin-top:2px;font-weight:700}
+.mm-gc-last-trade{font-size:8px;font-family:var(--mono);color:var(--muted);margin-top:1px}
+
 /* PERSONAL TRADE HISTORY */
 .mth-row{display:grid;grid-template-columns:90px 1fr 55px 60px 50px;gap:4px;
   padding:6px 16px;border-bottom:1px solid rgba(255,255,255,.03);
@@ -505,7 +510,7 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
 
         <!-- CENTER: Grid + Order form + Book + Secondary -->
         <div class="col">
-          <div class="sh"><span class="sh-title">Contract Grid</span>
+          <div class="sh"><span class="sh-title">Delivery Pulse™ Covers</span>
             <span class="sh-sub" id="t-sel-label">click a cell to trade</span></div>
 
           <!-- Series grid -->
@@ -516,6 +521,11 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
             </div>
             <div class="series-grid" id="t-series-grid">
               <!-- populated by JS -->
+            </div>
+            <div style="padding:4px 8px;font-size:9px;color:var(--muted);line-height:1.5;border-top:1px solid var(--border)">
+              Spot price from MM quotes &nbsp;·&nbsp;
+              <span style="color:var(--amber)">↯ implied %</span> = market's forward forecast of the Daily Settlement Rate &nbsp;·&nbsp;
+              last = most recent traded price
             </div>
           </div>
 
@@ -739,6 +749,11 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
               <div class="gch"></div>
             </div>
             <div class="series-grid" id="m-series-grid"></div>
+            <div style="padding:4px 8px;font-size:9px;color:var(--muted);line-height:1.5;border-top:1px solid var(--border)">
+              Spot price from your quotes &nbsp;·&nbsp;
+              <span style="color:var(--amber)">↯ implied %</span> = market's forward forecast of the Daily Settlement Rate &nbsp;·&nbsp;
+              last = most recent traded price
+            </div>
           </div>
 
           <!-- MM single-series quote form — shown when a grid cell is clicked -->
@@ -1354,19 +1369,35 @@ function renderSeriesGrid(){
           const tradable=live&&s.has_orders;
           const statusTxt=!live?'no market':!s.has_orders?'no quotes yet':s.expires_in||'';
           const statusClr=!live?'var(--red)':!s.has_orders?'var(--amber)':'var(--muted)';
+          const impliedTxt = s.implied_rate!=null
+            ? `↯ ${s.implied_rate.toFixed(1)}% implied`
+            : '';
+          const lastTradeTxt = s.last_trade_price!=null
+            ? `last: €${fmt(s.last_trade_price)}`
+            : '';
           html+=`<div class="grid-cell ${sel?'selected':''} ${!live?'no-market':''}"
             onclick="selectSeries(${s.series_id})" style="cursor:pointer">
             <div class="gc-dot ${tradable?'live':live?'off':'off'}" style="${live&&!tradable?'background:var(--amber)':''}"></div>
             <div class="gc-label">€${col>=1000?col/1000+'k':col}</div>
             <div class="gc-price">${price}</div>
+            ${impliedTxt?`<div class="gc-implied">${impliedTxt}</div>`:''}
+            ${lastTradeTxt?`<div class="gc-last-trade">${lastTradeTxt}</div>`:''}
             <div class="gc-exp" style="color:${statusClr}">${statusTxt}</div>
           </div>`;
         } else {
+          const mmImpliedTxt = s.implied_rate!=null
+            ? `↯ ${s.implied_rate.toFixed(1)}% implied`
+            : '';
+          const mmLastTxt = s.last_trade_price!=null
+            ? `last: €${fmt(s.last_trade_price)}`
+            : '';
           html+=`<div class="mm-grid-cell ${sel?'selected':''}"
             onclick="selectSeries(${s.series_id})">
             <div class="gc-dot ${live?'live':'off'}" style="position:absolute;top:5px;right:5px"></div>
             <div class="mm-gc-label">€${col>=1000?col/1000+'k':col}</div>
             <div class="mm-gc-price">${price}</div>
+            ${mmImpliedTxt?`<div class="mm-gc-implied">${mmImpliedTxt}</div>`:''}
+            ${mmLastTxt?`<div class="mm-gc-last-trade">${mmLastTxt}</div>`:''}
             ${live
               ?`<div class="mm-gc-status">${s.expires_in||''}</div>`
               : (s.paused === true)

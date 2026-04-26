@@ -326,7 +326,36 @@ def api_series():
                 "fair_ask":     price["ask"],
                 "time_factor":  price["tf"],
                 "index":        price["idx"],
+                "last_trade_price": None,  # filled below
+                "implied_rate": None,       # filled below
             })
+        # Enrich with last traded price per series (one query for all)
+        import sqlalchemy as _sa2
+        if result:
+            contract_ids = [r["active_contract_id"] for r in result if r["active_contract_id"]]
+            if contract_ids:
+                # Get most recent trade per contract
+                last_trades = session.execute(
+                    _sa2.text("""
+                        SELECT DISTINCT ON (c.series_id)
+                            c.series_id, t.price, t.created_at
+                        FROM trades t
+                        JOIN contracts c ON t.contract_id = c.id
+                        WHERE c.series_id IS NOT NULL
+                        ORDER BY c.series_id, t.created_at DESC
+                    """)
+                ).fetchall()
+                last_trade_map = {row[0]: float(row[1]) for row in last_trades}
+
+                for r in result:
+                    lt = last_trade_map.get(r["series_id"])
+                    if lt and r["collateral"]:
+                        r["last_trade_price"] = round(lt, 2)
+                        r["implied_rate"] = round((lt / r["collateral"]) * 100, 1)
+                    else:
+                        r["last_trade_price"] = None
+                        r["implied_rate"] = None
+
         return result
     finally:
         session.close()

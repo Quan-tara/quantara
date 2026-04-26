@@ -3,781 +3,1172 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Quantara — Delivery Risk Exchange</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
+<title>Quantara — The Delivery Pulse Exchange</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-:root {
-  --navy:   #0D1B2A;
-  --ink:    #1A2E42;
-  --teal:   #0A7E7E;
-  --teal2:  #0D9B9B;
-  --gold:   #C8943A;
-  --gold2:  #E0A84A;
-  --cream:  #F5F0E8;
-  --warm:   #EDE8DF;
-  --muted:  #8A9BAD;
-  --border: rgba(255,255,255,0.08);
-}
-
-html { scroll-behavior: smooth; }
-
-body {
-  font-family: 'DM Sans', sans-serif;
-  background: var(--navy);
-  color: var(--cream);
-  overflow-x: hidden;
-}
-
-/* ── NOISE TEXTURE OVERLAY ── */
-body::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
-  pointer-events: none;
-  z-index: 0;
-  opacity: 0.4;
-}
-
-/* ── NAV ── */
-nav {
-  position: fixed;
-  top: 0; left: 0; right: 0;
-  z-index: 100;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 20px 48px;
-  background: rgba(13,27,42,0.85);
-  backdrop-filter: blur(12px);
-  border-bottom: 1px solid var(--border);
-}
-
-.nav-logo {
-  font-family: 'DM Serif Display', serif;
-  font-size: 22px;
-  letter-spacing: -0.5px;
-  color: var(--cream);
-}
-.nav-logo span { color: var(--teal2); }
-
-.nav-links { display: flex; gap: 32px; align-items: center; }
-.nav-links a {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--muted);
-  text-decoration: none;
-  letter-spacing: 0.3px;
-  transition: color 0.2s;
-}
-.nav-links a:hover { color: var(--cream); }
-
-.nav-cta {
-  background: var(--teal) !important;
-  color: var(--cream) !important;
-  padding: 8px 20px;
-  border-radius: 4px;
-  font-weight: 600 !important;
-}
-.nav-cta:hover { background: var(--teal2) !important; }
-
-/* ── HERO ── */
-.hero {
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  padding: 120px 48px 80px;
-  position: relative;
-  overflow: hidden;
-}
-
-/* Geometric background lines */
-.hero::after {
-  content: '';
-  position: absolute;
-  top: -200px; right: -200px;
-  width: 700px; height: 700px;
-  border: 1px solid rgba(10,126,126,0.12);
-  border-radius: 50%;
-  pointer-events: none;
-}
-
-.hero-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 80px;
-  align-items: center;
-  max-width: 1200px;
-  margin: 0 auto;
-  width: 100%;
-}
-
-.hero-eyebrow {
-  font-family: 'DM Mono', monospace;
-  font-size: 11px;
-  letter-spacing: 3px;
-  text-transform: uppercase;
-  color: var(--teal2);
-  margin-bottom: 24px;
-}
-
-.hero-title {
-  font-family: 'DM Serif Display', serif;
-  font-size: clamp(36px, 5vw, 64px);
-  line-height: 1.08;
-  letter-spacing: -1.5px;
-  margin-bottom: 28px;
-}
-
-.hero-title em {
-  font-style: italic;
-  color: var(--gold2);
-}
-
-.hero-body {
-  font-size: 17px;
-  line-height: 1.7;
-  color: rgba(245,240,232,0.72);
-  font-weight: 300;
-  max-width: 480px;
-  margin-bottom: 40px;
-}
-
-.hero-actions { display: flex; gap: 16px; flex-wrap: wrap; }
-
-.btn-primary {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  background: var(--teal);
-  color: var(--cream);
-  padding: 14px 28px;
-  border-radius: 4px;
-  font-size: 14px;
-  font-weight: 600;
-  text-decoration: none;
-  letter-spacing: 0.2px;
-  transition: background 0.2s, transform 0.1s;
-}
-.btn-primary:hover { background: var(--teal2); transform: translateY(-1px); }
-
-.btn-secondary {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  background: transparent;
-  color: var(--cream);
-  padding: 14px 28px;
-  border-radius: 4px;
-  border: 1px solid rgba(245,240,232,0.2);
-  font-size: 14px;
-  font-weight: 500;
-  text-decoration: none;
-  transition: border-color 0.2s, transform 0.1s;
-}
-.btn-secondary:hover { border-color: rgba(245,240,232,0.5); transform: translateY(-1px); }
-
-/* ── PULSE WIDGET ── */
-.pulse-widget {
-  background: var(--ink);
-  border: 1px solid rgba(10,126,126,0.25);
-  border-radius: 12px;
-  padding: 32px;
-  position: relative;
-  overflow: hidden;
-}
-
-.pulse-widget::before {
-  content: '';
-  position: absolute;
-  top: -40px; right: -40px;
-  width: 200px; height: 200px;
-  background: radial-gradient(circle, rgba(10,126,126,0.15) 0%, transparent 70%);
-  pointer-events: none;
-}
-
-.pw-label {
-  font-family: 'DM Mono', monospace;
-  font-size: 10px;
-  letter-spacing: 2px;
-  text-transform: uppercase;
-  color: var(--teal2);
-  margin-bottom: 8px;
-}
-
-.pw-value {
-  font-family: 'DM Mono', monospace;
-  font-size: 56px;
-  font-weight: 500;
-  color: var(--cream);
-  line-height: 1;
-  margin-bottom: 4px;
-}
-
-.pw-sub {
-  font-size: 12px;
-  color: var(--muted);
-  margin-bottom: 28px;
-}
-
-.pw-bars {
-  display: flex;
-  gap: 4px;
-  align-items: flex-end;
-  height: 48px;
-  margin-bottom: 24px;
-}
-
-.pw-bar {
-  flex: 1;
-  border-radius: 2px 2px 0 0;
-  background: rgba(10,126,126,0.3);
-  transition: height 0.6s ease;
-  animation: barPulse 3s ease-in-out infinite;
-}
-
-@keyframes barPulse {
-  0%, 100% { opacity: 0.4; }
-  50% { opacity: 1; }
-}
-
-.pw-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 10px 0;
-  border-top: 1px solid var(--border);
-  font-size: 12px;
-}
-
-.pw-row-label { color: var(--muted); }
-.pw-row-value { font-family: 'DM Mono', monospace; color: var(--cream); }
-.pw-row-value.up { color: #E05555; }
-.pw-row-value.neutral { color: var(--teal2); }
-
-.pw-live {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-family: 'DM Mono', monospace;
-  font-size: 10px;
-  color: var(--teal2);
-  margin-bottom: 16px;
-}
-
-.pw-dot {
-  width: 6px; height: 6px;
-  border-radius: 50%;
-  background: var(--teal2);
-  animation: blink 1.5s ease-in-out infinite;
-}
-
-@keyframes blink {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.2; }
-}
-
-/* ── SECTION: PROBLEM ── */
-.section {
-  padding: 100px 48px;
-  max-width: 1200px;
-  margin: 0 auto;
-}
-
-.section-eyebrow {
-  font-family: 'DM Mono', monospace;
-  font-size: 11px;
-  letter-spacing: 3px;
-  text-transform: uppercase;
-  color: var(--gold);
-  margin-bottom: 20px;
-}
-
-.section-title {
-  font-family: 'DM Serif Display', serif;
-  font-size: clamp(28px, 3.5vw, 48px);
-  line-height: 1.15;
-  letter-spacing: -1px;
-  margin-bottom: 24px;
-}
-
-.section-body {
-  font-size: 17px;
-  line-height: 1.75;
-  color: rgba(245,240,232,0.72);
-  font-weight: 300;
-  max-width: 680px;
-}
-
-/* ── THREE HORIZONS ── */
-.horizons {
-  padding: 80px 48px;
-  background: var(--ink);
-  border-top: 1px solid var(--border);
-  border-bottom: 1px solid var(--border);
-}
-
-.horizons-inner {
-  max-width: 1200px;
-  margin: 0 auto;
-}
-
-.horizons-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 2px;
-  margin-top: 48px;
-}
-
-.horizon-card {
-  padding: 40px 36px;
-  background: var(--navy);
-  position: relative;
-  overflow: hidden;
-}
-
-.horizon-card::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 0; right: 0;
-  height: 2px;
-}
-
-.horizon-card:nth-child(1)::before { background: var(--muted); }
-.horizon-card:nth-child(2)::before { background: var(--teal2); }
-.horizon-card:nth-child(3)::before { background: var(--gold2); }
-
-.horizon-tag {
-  font-family: 'DM Mono', monospace;
-  font-size: 9px;
-  letter-spacing: 2.5px;
-  text-transform: uppercase;
-  color: var(--muted);
-  margin-bottom: 16px;
-}
-
-.horizon-name {
-  font-family: 'DM Serif Display', serif;
-  font-size: 22px;
-  margin-bottom: 12px;
-}
-
-.horizon-name span {
-  display: block;
-  font-family: 'DM Mono', monospace;
-  font-size: 11px;
-  font-style: normal;
-  color: var(--muted);
-  margin-top: 4px;
-}
-
-.horizon-desc {
-  font-size: 14px;
-  line-height: 1.7;
-  color: rgba(245,240,232,0.65);
-  font-weight: 300;
-}
-
-/* ── FOR WHO ── */
-.who-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 24px;
-  margin-top: 56px;
-}
-
-.who-card {
-  background: var(--ink);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 32px 28px;
-  transition: border-color 0.2s, transform 0.2s;
-}
-
-.who-card:hover {
-  border-color: rgba(10,126,126,0.4);
-  transform: translateY(-3px);
-}
-
-.who-icon {
-  font-size: 28px;
-  margin-bottom: 16px;
-}
-
-.who-title {
-  font-family: 'DM Serif Display', serif;
-  font-size: 20px;
-  margin-bottom: 12px;
-}
-
-.who-desc {
-  font-size: 14px;
-  line-height: 1.7;
-  color: rgba(245,240,232,0.65);
-  font-weight: 300;
-}
-
-.who-list {
-  margin-top: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.who-item {
-  display: flex;
-  gap: 8px;
-  font-size: 13px;
-  color: rgba(245,240,232,0.55);
-}
-
-.who-item::before {
-  content: '—';
-  color: var(--teal2);
-  flex-shrink: 0;
-}
-
-/* ── CTA SECTION ── */
-.cta-section {
-  padding: 100px 48px;
-  text-align: center;
-  position: relative;
-  overflow: hidden;
-}
-
-.cta-section::before {
-  content: '';
-  position: absolute;
-  top: 50%; left: 50%;
-  transform: translate(-50%, -50%);
-  width: 600px; height: 600px;
-  background: radial-gradient(circle, rgba(10,126,126,0.08) 0%, transparent 70%);
-  pointer-events: none;
-}
-
-.cta-inner { max-width: 640px; margin: 0 auto; position: relative; }
-
-.cta-title {
-  font-family: 'DM Serif Display', serif;
-  font-size: clamp(28px, 4vw, 52px);
-  line-height: 1.1;
-  letter-spacing: -1px;
-  margin-bottom: 20px;
-}
-
-.cta-body {
-  font-size: 16px;
-  line-height: 1.7;
-  color: rgba(245,240,232,0.65);
-  font-weight: 300;
-  margin-bottom: 40px;
-}
-
-.cta-actions {
-  display: flex;
-  gap: 16px;
-  justify-content: center;
-  flex-wrap: wrap;
-}
-
-/* ── FOOTER ── */
-footer {
-  border-top: 1px solid var(--border);
-  padding: 40px 48px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.footer-logo {
-  font-family: 'DM Serif Display', serif;
-  font-size: 18px;
-  color: var(--muted);
-}
-.footer-logo span { color: var(--teal2); }
-
-.footer-links {
-  display: flex;
-  gap: 28px;
-}
-
-.footer-links a {
-  font-size: 13px;
-  color: var(--muted);
-  text-decoration: none;
-  transition: color 0.2s;
-}
-.footer-links a:hover { color: var(--cream); }
-
-.footer-note {
-  font-size: 12px;
-  color: rgba(138,155,173,0.5);
-}
-
-/* ── DIVIDER ── */
-.divider {
-  height: 1px;
-  background: var(--border);
-  max-width: 1200px;
-  margin: 0 auto;
-}
-
-/* ── ANIMATIONS ── */
-.fade-up {
-  opacity: 0;
-  transform: translateY(24px);
-  animation: fadeUp 0.7s ease forwards;
-}
-
-@keyframes fadeUp {
-  to { opacity: 1; transform: translateY(0); }
-}
-
-.delay-1 { animation-delay: 0.1s; }
-.delay-2 { animation-delay: 0.2s; }
-.delay-3 { animation-delay: 0.35s; }
-.delay-4 { animation-delay: 0.5s; }
-
-/* ── RESPONSIVE ── */
-@media (max-width: 900px) {
-  nav { padding: 16px 24px; }
-  .nav-links { display: none; }
-  .hero { padding: 100px 24px 60px; }
-  .hero-grid { grid-template-columns: 1fr; gap: 48px; }
-  .section { padding: 64px 24px; }
-  .horizons { padding: 64px 24px; }
-  .horizons-grid { grid-template-columns: 1fr; }
-  .who-grid { grid-template-columns: 1fr; }
-  .cta-section { padding: 64px 24px; }
-  footer { flex-direction: column; gap: 20px; text-align: center; }
-}
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --navy:    #0B1929;
+    --navy2:   #0F2137;
+    --navy3:   #152840;
+    --teal:    #0D7377;
+    --teal2:   #14A8AE;
+    --gold:    #C9A84C;
+    --gold2:   #E8C86A;
+    --white:   #F0F4F8;
+    --muted:   #6B8CAE;
+    --border:  rgba(13,115,119,0.2);
+    --mono:    'DM Mono', monospace;
+    --serif:   'DM Serif Display', serif;
+    --sans:    'DM Sans', sans-serif;
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--navy);
+    color: var(--white);
+    font-family: var(--sans);
+    font-weight: 400;
+    line-height: 1.6;
+    overflow-x: hidden;
+  }
+
+  /* ── NOISE TEXTURE OVERLAY ── */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.6;
+  }
+
+  /* ── GRID LINES ── */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(13,115,119,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(13,115,119,0.04) 1px, transparent 1px);
+    background-size: 60px 60px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  section, nav, footer { position: relative; z-index: 1; }
+
+  /* ── NAV ── */
+  nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 60px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(11,25,41,0.9);
+    backdrop-filter: blur(12px);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .nav-logo {
+    font-family: var(--mono);
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--white);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .nav-logo .logo-pulse {
+    width: 8px; height: 8px;
+    background: var(--teal2);
+    border-radius: 50%;
+    animation: pulse-dot 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.7); }
+  }
+
+  .nav-links { display: flex; align-items: center; gap: 32px; }
+  .nav-links a {
+    font-size: 13px;
+    color: var(--muted);
+    text-decoration: none;
+    letter-spacing: 0.5px;
+    transition: color 0.2s;
+    font-family: var(--mono);
+  }
+  .nav-links a:hover { color: var(--white); }
+
+  .nav-cta {
+    background: transparent;
+    border: 1px solid var(--teal);
+    color: var(--teal2) !important;
+    padding: 8px 20px;
+    border-radius: 3px;
+    transition: all 0.2s !important;
+  }
+  .nav-cta:hover {
+    background: var(--teal) !important;
+    color: var(--white) !important;
+  }
+
+  /* ── HERO ── */
+  .hero {
+    min-height: 88vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 80px 60px 60px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* Radial glow */
+  .hero::before {
+    content: '';
+    position: absolute;
+    top: -100px; left: -100px;
+    width: 700px; height: 700px;
+    background: radial-gradient(circle, rgba(13,115,119,0.12) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .hero-eyebrow {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--teal2);
+    margin-bottom: 24px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .hero-eyebrow::before {
+    content: '';
+    display: block;
+    width: 32px; height: 1px;
+    background: var(--teal2);
+  }
+
+  .hero-title {
+    font-family: var(--serif);
+    font-size: clamp(44px, 6vw, 80px);
+    line-height: 1.05;
+    color: var(--white);
+    max-width: 820px;
+    margin-bottom: 28px;
+  }
+
+  .hero-title em {
+    font-style: italic;
+    color: var(--teal2);
+  }
+
+  .hero-sub {
+    font-size: 18px;
+    color: var(--muted);
+    max-width: 560px;
+    line-height: 1.7;
+    margin-bottom: 48px;
+    font-weight: 300;
+  }
+
+  .hero-actions {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+
+  .btn-primary {
+    background: var(--teal);
+    color: var(--white);
+    padding: 14px 36px;
+    border-radius: 3px;
+    text-decoration: none;
+    font-family: var(--mono);
+    font-size: 13px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    transition: all 0.2s;
+    border: 1px solid var(--teal);
+  }
+  .btn-primary:hover {
+    background: var(--teal2);
+    border-color: var(--teal2);
+    transform: translateY(-1px);
+  }
+
+  .btn-secondary {
+    color: var(--muted);
+    text-decoration: none;
+    font-family: var(--mono);
+    font-size: 13px;
+    letter-spacing: 1px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: color 0.2s;
+  }
+  .btn-secondary:hover { color: var(--white); }
+  .btn-secondary svg { transition: transform 0.2s; }
+  .btn-secondary:hover svg { transform: translateX(3px); }
+
+  /* Live index ticker */
+  .hero-ticker {
+    margin-top: 64px;
+    padding: 20px 28px;
+    background: rgba(15,33,55,0.8);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    display: inline-flex;
+    align-items: center;
+    gap: 32px;
+    backdrop-filter: blur(8px);
+    max-width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .ticker-item { display: flex; flex-direction: column; gap: 4px; }
+  .ticker-lbl {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .ticker-val {
+    font-family: var(--mono);
+    font-size: 22px;
+    font-weight: 500;
+    color: var(--white);
+  }
+  .ticker-val.green { color: #4ade80; }
+  .ticker-val.amber { color: var(--gold2); }
+  .ticker-val.red   { color: #f87171; }
+  .ticker-divider { width: 1px; height: 36px; background: var(--border); }
+
+  .live-badge {
+    display: flex; align-items: center; gap: 6px;
+    font-family: var(--mono); font-size: 9px;
+    color: var(--teal2); letter-spacing: 1px; text-transform: uppercase;
+  }
+  .live-dot {
+    width: 6px; height: 6px; border-radius: 50%; background: var(--teal2);
+    animation: pulse-dot 1.5s ease-in-out infinite;
+  }
+
+  /* ── THE PROBLEM ── */
+  .problem {
+    padding: 100px 60px;
+    border-top: 1px solid var(--border);
+  }
+
+  .section-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--teal2);
+    margin-bottom: 20px;
+  }
+
+  .problem-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 80px;
+    align-items: start;
+    margin-top: 48px;
+  }
+
+  .problem-text h2 {
+    font-family: var(--serif);
+    font-size: clamp(32px, 3.5vw, 48px);
+    line-height: 1.15;
+    margin-bottom: 24px;
+    color: var(--white);
+  }
+
+  .problem-text p {
+    color: var(--muted);
+    font-size: 16px;
+    line-height: 1.8;
+    margin-bottom: 16px;
+    font-weight: 300;
+  }
+
+  .problem-text strong { color: var(--white); font-weight: 500; }
+
+  .problem-stat {
+    background: var(--navy2);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--teal);
+    padding: 28px 32px;
+    border-radius: 4px;
+    margin-bottom: 16px;
+  }
+
+  .stat-number {
+    font-family: var(--serif);
+    font-size: 48px;
+    color: var(--white);
+    line-height: 1;
+    margin-bottom: 8px;
+  }
+  .stat-desc {
+    font-size: 13px;
+    color: var(--muted);
+    font-family: var(--mono);
+    letter-spacing: 0.5px;
+  }
+
+  /* ── THREE HORIZONS ── */
+  .horizons {
+    padding: 100px 60px;
+    background: var(--navy2);
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .horizons-intro {
+    max-width: 600px;
+    margin-bottom: 64px;
+  }
+
+  .horizons-intro h2 {
+    font-family: var(--serif);
+    font-size: clamp(32px, 3.5vw, 48px);
+    line-height: 1.15;
+    margin-bottom: 20px;
+  }
+
+  .horizons-intro p {
+    color: var(--muted);
+    font-size: 16px;
+    line-height: 1.8;
+    font-weight: 300;
+  }
+
+  .horizons-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 2px;
+  }
+
+  .horizon-card {
+    background: var(--navy);
+    padding: 40px 36px;
+    position: relative;
+    overflow: hidden;
+    transition: background 0.3s;
+  }
+  .horizon-card:hover { background: var(--navy3); }
+
+  .horizon-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: var(--teal);
+  }
+  .horizon-card:nth-child(2)::before { background: var(--gold); }
+  .horizon-card:nth-child(3)::before { background: var(--teal2); }
+
+  .horizon-tag {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .horizon-card:nth-child(1) .horizon-tag { color: var(--teal); }
+  .horizon-card:nth-child(2) .horizon-tag { color: var(--gold); }
+  .horizon-card:nth-child(3) .horizon-tag { color: var(--teal2); }
+
+  .horizon-name {
+    font-family: var(--serif);
+    font-size: 28px;
+    margin-bottom: 12px;
+    line-height: 1.2;
+  }
+
+  .horizon-formula {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    background: rgba(0,0,0,0.2);
+    padding: 8px 12px;
+    border-radius: 3px;
+    margin-bottom: 20px;
+    letter-spacing: 0.5px;
+  }
+
+  .horizon-desc {
+    font-size: 14px;
+    color: var(--muted);
+    line-height: 1.7;
+    font-weight: 300;
+  }
+
+  .horizon-number {
+    position: absolute;
+    bottom: 24px; right: 28px;
+    font-family: var(--serif);
+    font-size: 80px;
+    color: rgba(255,255,255,0.03);
+    line-height: 1;
+    pointer-events: none;
+  }
+
+  /* ── WHO IT'S FOR ── */
+  .audience {
+    padding: 100px 60px;
+    border-top: 1px solid var(--border);
+  }
+
+  .audience h2 {
+    font-family: var(--serif);
+    font-size: clamp(32px, 3.5vw, 48px);
+    margin-bottom: 64px;
+    max-width: 480px;
+    line-height: 1.15;
+  }
+
+  .audience-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 2px;
+  }
+
+  .audience-card {
+    padding: 40px 36px;
+    background: var(--navy2);
+    border: 1px solid var(--border);
+    transition: border-color 0.3s;
+  }
+  .audience-card:hover { border-color: var(--teal); }
+
+  .audience-icon {
+    width: 40px; height: 40px;
+    background: rgba(13,115,119,0.15);
+    border: 1px solid var(--teal);
+    border-radius: 4px;
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 20px;
+    font-size: 18px;
+  }
+
+  .audience-title {
+    font-family: var(--serif);
+    font-size: 22px;
+    margin-bottom: 12px;
+    color: var(--white);
+  }
+
+  .audience-desc {
+    font-size: 14px;
+    color: var(--muted);
+    line-height: 1.7;
+    margin-bottom: 20px;
+    font-weight: 300;
+  }
+
+  .audience-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+  .tag {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    padding: 4px 10px;
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    color: var(--muted);
+  }
+
+  /* ── HOW IT WORKS ── */
+  .how {
+    padding: 100px 60px;
+    background: var(--navy2);
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .how h2 {
+    font-family: var(--serif);
+    font-size: clamp(32px, 3.5vw, 48px);
+    margin-bottom: 16px;
+    line-height: 1.15;
+  }
+
+  .how-sub {
+    color: var(--muted);
+    font-size: 16px;
+    max-width: 540px;
+    line-height: 1.7;
+    margin-bottom: 64px;
+    font-weight: 300;
+  }
+
+  .how-steps {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1px;
+    background: var(--border);
+  }
+
+  .how-step {
+    background: var(--navy);
+    padding: 36px 28px;
+    position: relative;
+  }
+
+  .step-num {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--teal2);
+    letter-spacing: 2px;
+    margin-bottom: 16px;
+  }
+
+  .step-title {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 10px;
+    color: var(--white);
+  }
+
+  .step-desc {
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.6;
+    font-weight: 300;
+  }
+
+  /* ── BETA ── */
+  .beta {
+    padding: 100px 60px;
+    border-top: 1px solid var(--border);
+  }
+
+  .beta-inner {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 80px;
+    align-items: center;
+  }
+
+  .beta-text h2 {
+    font-family: var(--serif);
+    font-size: clamp(32px, 3.5vw, 48px);
+    line-height: 1.15;
+    margin-bottom: 20px;
+  }
+
+  .beta-text p {
+    color: var(--muted);
+    font-size: 16px;
+    line-height: 1.8;
+    margin-bottom: 24px;
+    font-weight: 300;
+  }
+
+  .beta-links { display: flex; gap: 16px; flex-wrap: wrap; }
+
+  .link-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 24px;
+    background: var(--navy2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    text-decoration: none;
+    color: var(--white);
+    font-size: 14px;
+    font-family: var(--mono);
+    transition: all 0.2s;
+    flex: 1;
+    min-width: 180px;
+  }
+  .link-card:hover {
+    border-color: var(--teal);
+    color: var(--teal2);
+    transform: translateY(-2px);
+  }
+
+  .link-card svg { flex-shrink: 0; }
+
+  /* Contact form */
+  .contact-form {
+    background: var(--navy2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 40px;
+  }
+
+  .contact-form h3 {
+    font-family: var(--serif);
+    font-size: 24px;
+    margin-bottom: 8px;
+  }
+
+  .form-sub {
+    font-size: 13px;
+    color: var(--muted);
+    margin-bottom: 28px;
+    font-weight: 300;
+  }
+
+  .form-group { margin-bottom: 16px; }
+
+  .form-group label {
+    display: block;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+
+  .form-group input,
+  .form-group select,
+  .form-group textarea {
+    width: 100%;
+    background: var(--navy);
+    border: 1px solid var(--border);
+    color: var(--white);
+    padding: 12px 16px;
+    border-radius: 3px;
+    font-family: var(--sans);
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.2s;
+    appearance: none;
+  }
+
+  .form-group input:focus,
+  .form-group select:focus,
+  .form-group textarea:focus { border-color: var(--teal); }
+
+  .form-group textarea { resize: vertical; min-height: 100px; }
+
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+  .form-submit {
+    width: 100%;
+    background: var(--teal);
+    color: var(--white);
+    border: none;
+    padding: 14px;
+    border-radius: 3px;
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-top: 8px;
+  }
+  .form-submit:hover { background: var(--teal2); }
+  .form-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .form-msg {
+    margin-top: 12px;
+    font-size: 13px;
+    text-align: center;
+    display: none;
+  }
+  .form-msg.success { color: #4ade80; display: block; }
+  .form-msg.error   { color: #f87171; display: block; }
+
+  /* ── FOOTER ── */
+  footer {
+    padding: 40px 60px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+
+  .footer-logo {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--muted);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  .footer-note {
+    font-size: 12px;
+    color: var(--muted);
+    font-family: var(--mono);
+  }
+
+  /* ── ANIMATIONS ── */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(24px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .hero-eyebrow { animation: fadeUp 0.6s ease both; }
+  .hero-title   { animation: fadeUp 0.7s 0.1s ease both; }
+  .hero-sub     { animation: fadeUp 0.7s 0.2s ease both; }
+  .hero-actions { animation: fadeUp 0.7s 0.3s ease both; }
+  .hero-ticker  { animation: fadeUp 0.7s 0.4s ease both; }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 900px) {
+    nav { padding: 16px 24px; }
+    .nav-links { gap: 16px; }
+    .hero, .problem, .horizons, .audience, .how, .beta, footer { padding-left: 24px; padding-right: 24px; }
+    .problem-grid, .beta-inner { grid-template-columns: 1fr; gap: 40px; }
+    .horizons-grid, .audience-grid { grid-template-columns: 1fr; }
+    .how-steps { grid-template-columns: 1fr 1fr; }
+    .form-row { grid-template-columns: 1fr; }
+  }
+
+  @media (max-width: 600px) {
+    .how-steps { grid-template-columns: 1fr; }
+    .hero-ticker { gap: 16px; }
+    .nav-links a:not(.nav-cta) { display: none; }
+  }
 </style>
 </head>
 <body>
 
 <!-- NAV -->
 <nav>
-  <div class="nav-logo">Quan<span>tara</span></div>
+  <a href="#" class="nav-logo">
+    <span class="logo-pulse"></span>
+    Quantara
+  </a>
   <div class="nav-links">
-    <a href="#how-it-works">How It Works</a>
-    <a href="#for-who">Who Is It For</a>
-    <a href="#platform">Platform</a>
-    <a href="mailto:hello@quantara.io">Contact</a>
-    <a href="https://quantara-7fdc.onrender.com" target="_blank" class="nav-cta">Live Demo →</a>
+    <a href="#how">How it works</a>
+    <a href="#audience">Who it's for</a>
+    <a href="https://quantara-7fdc.onrender.com" target="_blank">Live Demo</a>
+    <a href="#contact" class="nav-cta">Get in touch</a>
   </div>
 </nav>
 
 <!-- HERO -->
 <section class="hero">
-  <div class="hero-grid">
-    <div>
-      <p class="hero-eyebrow fade-up">Delivery Risk Exchange · Private Beta</p>
-      <h1 class="hero-title fade-up delay-1">
-        The first <em>live index</em><br>for delivery risk
-      </h1>
-      <p class="hero-body fade-up delay-2">
-        Late deliveries cost European logistics companies billions in SLA penalties each year.
-        Cargo insurance covers lost goods — not late ones.
-        Quantara closes that gap with a real-time risk index, standardised financial instruments, and a live market.
-      </p>
-      <div class="hero-actions fade-up delay-3">
-        <a href="mailto:hello@quantara.io" class="btn-primary">Get in Touch →</a>
-        <a href="https://quantara-7fdc.onrender.com" target="_blank" class="btn-secondary">View Live Platform</a>
-      </div>
+  <div class="hero-eyebrow">Private Beta — Munich, 2026</div>
+  <h1 class="hero-title">
+    The first live index<br>for <em>delivery risk</em>
+  </h1>
+  <p class="hero-sub">
+    Late deliveries cost European logistics companies billions in SLA penalties every year.
+    Cargo insurance covers damaged goods — not late ones. Quantara closes that gap.
+  </p>
+  <div class="hero-actions">
+    <a href="#contact" class="btn-primary">Get in touch</a>
+    <a href="https://quantara-7fdc.onrender.com" target="_blank" class="btn-secondary">
+      View live demo
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+        <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </a>
+  </div>
+
+  <div class="hero-ticker">
+    <div class="live-badge">
+      <span class="live-dot"></span>
+      Live
     </div>
-
-    <!-- Pulse Widget -->
-    <div class="pulse-widget fade-up delay-2">
-      <div class="pw-live"><div class="pw-dot"></div>LIVE · updates every 10 seconds</div>
-      <div class="pw-label">Delivery Pulse™ Index</div>
-      <div class="pw-value" id="pw-num">18.4</div>
-      <div class="pw-sub">current delivery risk level · 0 = no risk · 100 = extreme risk</div>
-
-      <div class="pw-bars" id="pw-bars">
-        <!-- bars injected by JS -->
-      </div>
-
-      <div class="pw-row">
-        <span class="pw-row-label">Daily Settlement Rate</span>
-        <span class="pw-row-value neutral">17.9%</span>
-      </div>
-      <div class="pw-row">
-        <span class="pw-row-label">Market-implied forward rate</span>
-        <span class="pw-row-value up">23.1%</span>
-      </div>
-      <div class="pw-row">
-        <span class="pw-row-label">Active Covers</span>
-        <span class="pw-row-value">12 series · 4 expiries</span>
-      </div>
+    <div class="ticker-divider"></div>
+    <div class="ticker-item">
+      <span class="ticker-lbl">Delivery Pulse™</span>
+      <span class="ticker-val green" id="tick-index">—</span>
+    </div>
+    <div class="ticker-divider"></div>
+    <div class="ticker-item">
+      <span class="ticker-lbl">Daily Settlement Rate</span>
+      <span class="ticker-val" id="tick-rate">—</span>
+    </div>
+    <div class="ticker-divider"></div>
+    <div class="ticker-item">
+      <span class="ticker-lbl">Active Covers</span>
+      <span class="ticker-val amber" id="tick-contracts">—</span>
+    </div>
+    <div class="ticker-divider"></div>
+    <div class="ticker-item">
+      <span class="ticker-lbl">Threshold</span>
+      <span class="ticker-val">20.0%</span>
     </div>
   </div>
 </section>
 
-<!-- PROBLEM -->
-<div class="divider"></div>
-<section class="section" id="how-it-works">
-  <p class="section-eyebrow">The Problem</p>
-  <h2 class="section-title">A gap that has never had<br>a financial instrument</h2>
-  <p class="section-body">
-    Every logistics contract carries delivery SLA clauses. When shipments arrive late, companies absorb penalties, lose customers, and damage relationships — losses that standard cargo insurance simply does not cover. The risk is real, quantifiable, and entirely unhedged. Until now.
-  </p>
+<!-- THE PROBLEM -->
+<section class="problem" id="problem">
+  <div class="section-label">The Problem</div>
+  <div class="problem-grid">
+    <div class="problem-text">
+      <h2>A multi-billion gap that has never had a financial instrument</h2>
+      <p>
+        Every day, thousands of B2B shipments across Europe arrive late.
+        For the companies receiving them, this means <strong>SLA penalties, lost customers,
+        and production stoppages</strong> — real financial losses that cargo insurance does not cover.
+      </p>
+      <p>
+        Cargo insurance pays out when goods are lost or damaged in transit.
+        It says nothing about lateness. Companies absorb this risk through safety stock,
+        buffer time, and hoping for the best.
+      </p>
+      <p>
+        <strong>There is no instrument to hedge it. Until now.</strong>
+      </p>
+    </div>
+    <div>
+      <div class="problem-stat">
+        <div class="stat-number">€12B+</div>
+        <div class="stat-desc">Annual SLA penalty exposure in European road freight</div>
+      </div>
+      <div class="problem-stat" style="border-left-color: var(--gold)">
+        <div class="stat-number">~15%</div>
+        <div class="stat-desc">Average late delivery rate on B2B road freight lanes in Europe</div>
+      </div>
+      <div class="problem-stat" style="border-left-color: var(--teal2)">
+        <div class="stat-number">0</div>
+        <div class="stat-desc">Parametric instruments currently available for delivery lateness risk</div>
+      </div>
+    </div>
+  </div>
 </section>
 
 <!-- THREE HORIZONS -->
-<div class="horizons" id="platform">
-  <div class="horizons-inner">
-    <p class="section-eyebrow">How It Works</p>
-    <h2 class="section-title">Three signals. One market.</h2>
-    <div class="horizons-grid">
-
-      <div class="horizon-card">
-        <div class="horizon-tag">Backward-looking</div>
-        <div class="horizon-name">
-          Delivery Pulse™ History
-          <span>what has happened</span>
-        </div>
-        <p class="horizon-desc">
-          60-minute rolling history, 14-day settlement record, probability distribution across risk bands. The evidence base — how volatile has delivery risk actually been.
-        </p>
-      </div>
-
-      <div class="horizon-card">
-        <div class="horizon-tag">Present</div>
-        <div class="horizon-name">
-          Delivery Pulse™ Index
-          <span>what is happening now</span>
-        </div>
-        <p class="horizon-desc">
-          A live 0–100 signal updating every 10 seconds, derived from carrier performance, weather, traffic, and volume conditions. Drives all contract pricing in real time.
-        </p>
-      </div>
-
-      <div class="horizon-card">
-        <div class="horizon-tag">Forward-looking</div>
-        <div class="horizon-name">
-          Market-Implied Rate
-          <span>what the market expects</span>
-        </div>
-        <p class="horizon-desc">
-          The price at which buyers and sellers agree to trade encodes a forward probability of late delivery. This market-consensus forecast is generated by trading activity — not a model.
-        </p>
-      </div>
-
-    </div>
+<section class="horizons" id="how">
+  <div class="horizons-intro">
+    <div class="section-label">What We Built</div>
+    <h2>Three signals. One platform.</h2>
+    <p>
+      Quantara generates three distinct, time-layered signals from the same underlying reality —
+      delivery conditions on European road freight lanes.
+    </p>
   </div>
-</div>
 
-<!-- FOR WHO -->
-<section class="section" id="for-who">
-  <p class="section-eyebrow">Who It Is For</p>
-  <h2 class="section-title">Three ways to participate</h2>
-
-  <div class="who-grid">
-
-    <div class="who-card">
-      <div class="who-icon">🏦</div>
-      <div class="who-title">Insurers &amp; Reinsurers</div>
-      <p class="who-desc">Use the Delivery Pulse™ as a settlement trigger for parametric cargo SLA products — the instrument type that doesn't currently exist in the market.</p>
-      <div class="who-list">
-        <div class="who-item">Live index as parametric trigger</div>
-        <div class="who-item">Market-implied forward probability</div>
-        <div class="who-item">Daily Settlement Rate as reference</div>
-        <div class="who-item">API access for product integration</div>
+  <div class="horizons-grid">
+    <div class="horizon-card">
+      <div class="horizon-tag">← Backward</div>
+      <div class="horizon-name">Delivery Pulse™ History</div>
+      <div class="horizon-formula">60min chart · daily rate bars · factor log</div>
+      <div class="horizon-desc">
+        What actually happened. 60 minutes of live index history, 14 days of daily settlement rates,
+        and a spike log showing which factors caused each movement.
+        The evidence base for pricing and underwriting decisions.
       </div>
+      <div class="horizon-number">1</div>
     </div>
 
-    <div class="who-card">
-      <div class="who-icon">🚛</div>
-      <div class="who-title">Logistics &amp; Supply Chain</div>
-      <p class="who-desc">Buy Covers against your delivery SLA exposure. Pay a small premium — receive a payout if delivery conditions deteriorate beyond the threshold at expiry.</p>
-      <div class="who-list">
-        <div class="who-item">1h to 7d contract durations</div>
-        <div class="who-item">Standard, Plus, Pro collateral tiers</div>
-        <div class="who-item">Secondary market — exit anytime</div>
-        <div class="who-item">Automatic settlement at midnight UTC</div>
+    <div class="horizon-card">
+      <div class="horizon-tag">● Present</div>
+      <div class="horizon-name">Delivery Pulse™</div>
+      <div class="horizon-formula">live · 0–100 · updates every 10 seconds</div>
+      <div class="horizon-desc">
+        What is happening right now. A live index (0–100) calculated from five weighted factors:
+        weather severity, traffic congestion, driver availability, route complexity, and shipment volume.
+        Drives all Cover pricing in real time.
       </div>
+      <div class="horizon-number">2</div>
     </div>
 
-    <div class="who-card">
-      <div class="who-icon">📊</div>
-      <div class="who-title">Traders &amp; Speculators</div>
-      <p class="who-desc">A new asset class. Parametric operational risk derivatives on a live underlying — with real-time pricing, a secondary market, and a daily settlement event.</p>
-      <div class="who-list">
-        <div class="who-item">12 standardised Cover series</div>
-        <div class="who-item">Live order book and market depth</div>
-        <div class="who-item">Secondary market liquidity</div>
-        <div class="who-item">Implied rate as forward signal</div>
+    <div class="horizon-card">
+      <div class="horizon-tag">→ Forward</div>
+      <div class="horizon-name">Market-Implied Rate</div>
+      <div class="horizon-formula">from traded prices · ↯ % implied settlement</div>
+      <div class="horizon-desc">
+        What the market expects. When Covers trade on the secondary market,
+        each traded price implies a forecast of where the Daily Settlement Rate will land at expiry.
+        This is a genuine market-consensus forward probability —
+        not a model, but what buyers and sellers are actually willing to pay.
       </div>
+      <div class="horizon-number">3</div>
     </div>
-
   </div>
 </section>
 
-<!-- CTA -->
-<div class="divider"></div>
-<section class="cta-section">
-  <div class="cta-inner">
-    <p class="section-eyebrow" style="text-align:center">Private Beta · Munich, 2026</p>
-    <h2 class="cta-title">We are looking for<br>founding partners</h2>
-    <p class="cta-body">
-      We are in active development and seeking our first data partners, insurance collaborators, and institutional participants. If you work in parametric insurance, freight data, or derivatives — we would like to hear from you.
-    </p>
-    <div class="cta-actions">
-      <a href="mailto:hello@quantara.io" class="btn-primary">Send Us a Message →</a>
-      <a href="https://quantara-7fdc.onrender.com" target="_blank" class="btn-secondary">Explore the Platform</a>
+<!-- WHO IT'S FOR -->
+<section class="audience" id="audience">
+  <div class="section-label">Who It's For</div>
+  <h2>Three participants.<br>One market.</h2>
+
+  <div class="audience-grid">
+    <div class="audience-card">
+      <div class="audience-icon">🏛</div>
+      <div class="audience-title">Insurers & Reinsurers</div>
+      <div class="audience-desc">
+        The Delivery Pulse™ index and its market-implied forward rate give underwriters
+        a live, validated signal for pricing parametric cargo SLA products —
+        a risk class that has never had a financial-grade index before.
+        Use the Daily Settlement Rate as your trigger.
+      </div>
+      <div class="audience-tags">
+        <span class="tag">Parametric triggers</span>
+        <span class="tag">Settlement reference</span>
+        <span class="tag">Index licensing</span>
+      </div>
+    </div>
+
+    <div class="audience-card">
+      <div class="audience-icon">🚚</div>
+      <div class="audience-title">Logistics Companies</div>
+      <div class="audience-desc">
+        Buy a Cover matching your shipment exposure. If delivery conditions deteriorate
+        and the Daily Settlement Rate exceeds 20%, you receive a payout —
+        offsetting the SLA penalties you absorb from your customers.
+        Protection sized to your collateral: Standard (€100), Plus (€1,000), Pro (€10,000).
+      </div>
+      <div class="audience-tags">
+        <span class="tag">SLA hedging</span>
+        <span class="tag">Parametric payout</span>
+        <span class="tag">No claims process</span>
+      </div>
+    </div>
+
+    <div class="audience-card">
+      <div class="audience-icon">📈</div>
+      <div class="audience-title">Traders & Speculators</div>
+      <div class="audience-desc">
+        A new asset class with a real, operationally grounded underlying.
+        Buy and sell Covers on primary and secondary markets.
+        The market-implied rate creates genuine pricing tension
+        — especially for longer-duration contracts where
+        the gap between spot and implied is widest.
+      </div>
+      <div class="audience-tags">
+        <span class="tag">New asset class</span>
+        <span class="tag">Secondary market</span>
+        <span class="tag">Implied rate arb</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section class="how">
+  <div class="section-label">How It Works</div>
+  <h2>Simple by design.</h2>
+  <p class="how-sub">
+    The Delivery Pulse™ index drives pricing. The Daily Settlement Rate drives settlement.
+    Everything in between is the market.
+  </p>
+
+  <div class="how-steps">
+    <div class="how-step">
+      <div class="step-num">01 —</div>
+      <div class="step-title">Index updates every 10s</div>
+      <div class="step-desc">
+        The Delivery Pulse™ (0–100) reflects live delivery conditions from five weighted factors.
+        Higher index = higher risk = higher Cover prices.
+      </div>
+    </div>
+    <div class="how-step">
+      <div class="step-num">02 —</div>
+      <div class="step-title">Buy or sell a Cover</div>
+      <div class="step-desc">
+        Select your duration (1h to 7d) and size (Standard / Plus / Pro).
+        Buyers pay a premium and become HOLDERs. Sellers lock collateral and become WRITERs.
+      </div>
+    </div>
+    <div class="how-step">
+      <div class="step-num">03 —</div>
+      <div class="step-title">Daily Settlement Rate published</div>
+      <div class="step-desc">
+        At midnight UTC, the official Daily Settlement Rate is calculated from 24 hours of index data.
+        All expired Covers settle against this number automatically.
+      </div>
+    </div>
+    <div class="how-step">
+      <div class="step-num">04 —</div>
+      <div class="step-title">Automatic settlement</div>
+      <div class="step-desc">
+        Rate above 20%: HOLDERs receive full collateral payout.
+        Rate at or below 20%: WRITERs keep their collateral and the premiums collected.
+        No claims. No paperwork. Instant settlement.
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- BETA + CONTACT -->
+<section class="beta" id="contact">
+  <div class="beta-inner">
+    <div class="beta-text">
+      <div class="section-label">Private Beta</div>
+      <h2>We are building this with the right partners.</h2>
+      <p>
+        Quantara is in private beta. The platform is live, the mechanics work,
+        and we are looking for specific conversations — with freight data providers,
+        parametric insurance professionals, and sophisticated traders who want
+        early access to a new asset class.
+      </p>
+      <p>
+        If you work in cargo insurance, freight data, or derivatives trading
+        and you think this is worth a 20-minute conversation, get in touch.
+      </p>
+
+      <div class="beta-links" style="margin-top: 32px;">
+        <a href="https://quantara-7fdc.onrender.com" target="_blank" class="link-card">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h6M9 12h6M9 15h4"/>
+          </svg>
+          Live Platform
+        </a>
+        <a href="https://discord.gg/tCjR59UA" target="_blank" class="link-card">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M20.317 4.37a19.791 19.791 0 00-4.885-1.515.074.074 0 00-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 00-5.487 0 12.64 12.64 0 00-.617-1.25.077.077 0 00-.079-.037A19.736 19.736 0 003.677 4.37a.07.07 0 00-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 00.031.057 19.9 19.9 0 005.993 3.03.078.078 0 00.084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 00-.041-.106 13.107 13.107 0 01-1.872-.892.077.077 0 01-.008-.128 10.2 10.2 0 00.372-.292.074.074 0 01.077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 01.078.01c.12.098.246.198.373.292a.077.077 0 01-.006.127 12.299 12.299 0 01-1.873.892.077.077 0 00-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 00.084.028 19.839 19.839 0 006.002-3.03.077.077 0 00.032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 00-.031-.03z"/>
+          </svg>
+          Discord Community
+        </a>
+      </div>
+    </div>
+
+    <div class="contact-form">
+      <h3>Get in touch</h3>
+      <p class="form-sub">Tell us who you are and why you're interested. We read every message.</p>
+
+      <form id="contact-form" action="https://formspree.io/f/REPLACE_WITH_YOUR_ID" method="POST">
+        <div class="form-row">
+          <div class="form-group">
+            <label>First name</label>
+            <input type="text" name="first_name" required placeholder="Anna">
+          </div>
+          <div class="form-group">
+            <label>Last name</label>
+            <input type="text" name="last_name" required placeholder="Müller">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Email</label>
+          <input type="email" name="email" required placeholder="anna@company.com">
+        </div>
+        <div class="form-group">
+          <label>I work in</label>
+          <select name="role">
+            <option value="">Select your field...</option>
+            <option value="insurance">Cargo / Parametric Insurance</option>
+            <option value="reinsurance">Reinsurance</option>
+            <option value="freight-data">Freight Data / Visibility</option>
+            <option value="logistics">Logistics / Supply Chain</option>
+            <option value="trading">Trading / Finance</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Message</label>
+          <textarea name="message" placeholder="What caught your attention, and what would you like to discuss?"></textarea>
+        </div>
+        <button type="submit" class="form-submit" id="submit-btn">Send Message</button>
+        <div class="form-msg" id="form-msg"></div>
+      </form>
     </div>
   </div>
 </section>
 
 <!-- FOOTER -->
 <footer>
-  <div class="footer-logo">Quan<span>tara</span></div>
-  <div class="footer-links">
-    <a href="https://quantara-7fdc.onrender.com" target="_blank">Platform</a>
-    <a href="mailto:hello@quantara.io">Contact</a>
+  <div class="footer-logo">Quantara — The Delivery Pulse™ Exchange</div>
+  <div class="footer-note">
+    <a href="mailto:quantara.exchange@gmail.com" style="color:var(--muted);text-decoration:none;transition:color 0.2s"
+       onmouseover="this.style.color='var(--white)'" onmouseout="this.style.color='var(--muted)'">
+      quantara.exchange@gmail.com
+    </a>
+    &nbsp;·&nbsp; Private Beta · Munich, 2026 · Not a regulated financial product
   </div>
-  <div class="footer-note">Private Beta · Munich · 2026</div>
 </footer>
 
 <script>
-// Animate the pulse widget bars
-const bars = document.getElementById('pw-bars');
-const heights = [20, 35, 28, 42, 31, 55, 38, 62, 45, 70, 52, 48, 38, 30, 22, 18];
-if(bars) {
-  bars.innerHTML = heights.map((h, i) => 
-    `<div class="pw-bar" style="height:${h}%;animation-delay:${i*0.12}s;background:${h>50?'rgba(200,80,80,0.4)':h>35?'rgba(200,160,58,0.35)':'rgba(10,126,126,0.35)'}">`
-  ).join('');
-}
+  const APP = 'https://quantara-7fdc.onrender.com';
 
-// Animate the index number slightly
-let base = 18.4;
-setInterval(() => {
-  base += (Math.random() - 0.5) * 0.3;
-  base = Math.max(14, Math.min(24, base));
-  const el = document.getElementById('pw-num');
-  if(el) el.textContent = base.toFixed(1);
-}, 2000);
+  // ── Live ticker ──
+  async function loadTicker() {
+    try {
+      const [idx, rate, contracts] = await Promise.all([
+        fetch(`${APP}/api/index`).then(r => r.json()),
+        fetch(`${APP}/api/published_rates/current`).then(r => r.json()),
+        fetch(`${APP}/api/contracts`).then(r => r.json()),
+      ]);
 
-// Fade in on scroll
-const observer = new IntersectionObserver((entries) => {
-  entries.forEach(e => {
-    if(e.isIntersecting) {
-      e.target.style.opacity = '1';
-      e.target.style.transform = 'translateY(0)';
+      const pulse = idx.index ?? 0;
+      const el = document.getElementById('tick-index');
+      if (el) {
+        el.textContent = pulse.toFixed(1);
+        el.className = 'ticker-val ' + (pulse < 20 ? 'green' : pulse < 40 ? 'amber' : 'red');
+      }
+
+      const rEl = document.getElementById('tick-rate');
+      if (rEl && rate.rate != null) {
+        rEl.textContent = rate.rate.toFixed(1) + '%';
+        rEl.className = 'ticker-val ' + (rate.rate > 20 ? 'red' : 'green');
+      } else if (rEl && rate.estimate != null) {
+        rEl.textContent = '~' + rate.estimate.toFixed(1) + '%';
+        rEl.className = 'ticker-val amber';
+      }
+
+      const cEl = document.getElementById('tick-contracts');
+      if (cEl && Array.isArray(contracts)) {
+        const open = contracts.filter(c => c.status === 'OPEN').length;
+        cEl.textContent = open;
+      }
+    } catch (e) {
+      // Silently fail — ticker shows — when app is asleep
+    }
+  }
+
+  loadTicker();
+  setInterval(loadTicker, 10000);
+
+  // ── Contact form ──
+  const form = document.getElementById('contact-form');
+  const btn  = document.getElementById('submit-btn');
+  const msg  = document.getElementById('form-msg');
+
+  form.addEventListener('submit', async function(e) {
+    e.preventDefault();
+    btn.disabled = true;
+    btn.textContent = 'Sending...';
+    msg.className = 'form-msg';
+
+    try {
+      const res = await fetch(form.action, {
+        method: 'POST',
+        body: new FormData(form),
+        headers: { 'Accept': 'application/json' }
+      });
+      if (res.ok) {
+        msg.textContent = 'Message sent. We will be in touch shortly.';
+        msg.className = 'form-msg success';
+        form.reset();
+        btn.textContent = 'Sent';
+      } else {
+        throw new Error();
+      }
+    } catch {
+      msg.textContent = 'Something went wrong. Please email us directly.';
+      msg.className = 'form-msg error';
+      btn.disabled = false;
+      btn.textContent = 'Send Message';
     }
   });
-}, { threshold: 0.1 });
-
-document.querySelectorAll('.who-card, .horizon-card').forEach(el => {
-  el.style.opacity = '0';
-  el.style.transform = 'translateY(20px)';
-  el.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
-  observer.observe(el);
-});
 </script>
 </body>
 </html>

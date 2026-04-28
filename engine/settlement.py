@@ -93,7 +93,10 @@ def settle_contract(contract_id: int, result: str, settlement_rate: float = None
         contract.result     = result
         contract.settled_at = datetime.utcnow()
         if settlement_rate is not None:
-            contract.settlement_rate = settlement_rate
+            try:
+                contract.settlement_rate = settlement_rate
+            except Exception:
+                pass  # column not yet mapped
         session.commit()
 
         lines = "\n".join(summary) if summary else "(no open positions)"

@@ -45,6 +45,11 @@ async def startup_event():
                         "ALTER TABLE contract_series ADD COLUMN IF NOT EXISTS paused BOOLEAN DEFAULT FALSE"
                     )
                 )
+                conn.execute(
+                    __import__('sqlalchemy').text(
+                        "ALTER TABLE contracts ADD COLUMN IF NOT EXISTS settlement_rate FLOAT"
+                    )
+                )
                 conn.commit()
         except Exception as col_err:
             print(f"⚠️ Column migration note: {col_err}")
@@ -714,7 +719,7 @@ def api_contracts():
                 "premium": c.premium, "collateral": c.collateral,
                 "status": c.status, "result": c.result,
                 "settlement_threshold": c.settlement_threshold,
-                "settlement_rate": round(c.rate, 2) if c.rate else None,
+                "settlement_rate": round(c.settlement_rate, 2) if c.settlement_rate else None,
                 "created_at": str(c.created_at) if c.created_at else None,
                 "expires_at": str(c.expires_at) if c.expires_at else None,
                 "expires_in": expires_in,
@@ -912,7 +917,7 @@ def api_settlements():
                 "id": c.id, "name": c.name, "result": c.result,
                 "series_id": c.series_id,
                 "settled_at": str(c.settled_at),
-                "settlement_rate": round(c.rate, 2) if c.rate else None,
+                "settlement_rate": round(c.settlement_rate, 2) if c.settlement_rate else None,
                 "settlement_threshold": c.settlement_threshold or 20.0,
                 "winners": winners, "losers": losers
             })

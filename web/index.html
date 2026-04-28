@@ -1173,19 +1173,21 @@ async function loadPublishedRate(){
 }
 
 async function loadRateHistory(){
-  const data=await fetch(`${API}/api/published_rates`).then(r=>r.json()).catch(()=>[]);
+  const [data, cur] = await Promise.all([
+    fetch(`${API}/api/published_rates`).then(r=>r.json()).catch(()=>[]),
+    fetch(`${API}/api/published_rates/current`).then(r=>r.json()).catch(()=>null),
+  ]);
   lastRates=data;
+  const runEst = cur ? cur.running_estimate : null;
   renderRateBars('t-rate-bars','t-rate-dates',data);
   renderRateBars('m-rate-bars','m-rate-dates',data);
+  renderRateHistory('t-rate-history-rows', data, runEst);
+  renderRateHistory('m-rate-history-rows', data, runEst);
 }
 
-function renderRateHistory(rowsId, data){
+function renderRateHistory(rowsId, data, runEst){
   const el = document.getElementById(rowsId); if(!el)return;
-
-  // Today's running estimate
-  const runEl = document.getElementById('t-running-est') || document.getElementById('m-running-est');
-  const runEstStr = runEl ? runEl.textContent : null;
-  const runEst = runEstStr && runEstStr !== '—' ? parseFloat(runEstStr) : (lastSnap ? lastSnap.index : null);
+  if(runEst == null) runEst = lastSnap ? lastSnap.index : null;
 
   // Build bar list: last 13 published (oldest→newest left→right)
   const historical = [...data].slice(0,13).reverse();
@@ -1274,9 +1276,9 @@ function renderRateHistory(rowsId, data){
 }
 
 // Alias for loadRateHistory calls
-function renderRateBars(barsId, datesId, data){
+function renderRateBars(barsId, datesId, data, runEst){
   const rowsId = barsId==='t-rate-bars' ? 't-rate-history-rows' : 'm-rate-history-rows';
-  renderRateHistory(rowsId, data);
+  renderRateHistory(rowsId, data, runEst);
 }
 
 // ============================================================

@@ -714,6 +714,7 @@ def api_contracts():
                 "premium": c.premium, "collateral": c.collateral,
                 "status": c.status, "result": c.result,
                 "settlement_threshold": c.settlement_threshold,
+                "settlement_rate": round(c.rate, 2) if c.rate else None,
                 "created_at": str(c.created_at) if c.created_at else None,
                 "expires_at": str(c.expires_at) if c.expires_at else None,
                 "expires_in": expires_in,

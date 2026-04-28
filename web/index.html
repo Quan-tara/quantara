@@ -1914,7 +1914,9 @@ async function loadLedger(){
         const buyCnt = vol ? vol.buyers.size : 0;
         const resultCls = c.result==='YES'?'lr-yes':c.result==='NO'?'lr-no':'lr-open';
         const resultTxt = c.result||'OPEN';
-        const rateTxt = c.settlement_threshold ? `vs ${c.settlement_threshold}%` : '—';
+        const rateTxt = c.settlement_rate != null
+          ? `${c.settlement_rate.toFixed(2)}% <span style="color:var(--muted);font-size:9px">vs ${c.settlement_threshold||20}%</span>`
+          : c.settlement_threshold ? `<span style="color:var(--muted)">vs ${c.settlement_threshold}%</span>` : '—';
         const notes = c.status==='OPEN'
           ? `<span style="color:var(--amber)">active — ${_expiresIn(c.expires_at)}</span>`
           : `${buyCnt} trader${buyCnt!==1?'s':''}`;

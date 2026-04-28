@@ -1190,17 +1190,25 @@ function renderRateHistory(rowsId, data, runEst){
   if(runEst == null) runEst = lastSnap ? lastSnap.index : null;
 
   // Build bar list: last 13 published (oldest→newest left→right)
+  // If today's rate is already published, replace it with the live estimate (dashed)
+  // so the rightmost bar always shows the current live picture, not the stale midnight value.
   const historical = [...data].slice(0,13).reverse();
   const bars = [];
-  historical.forEach(r=>{
-    bars.push({label:(r.period_end||'').slice(5,10), rate:r.rate, isEst:false});
+  const todayStr = new Date().toISOString().slice(5,10); // "MM-DD"
+
+  historical.forEach(r => {
+    const label = (r.period_end||'').slice(5,10);
+    if(label === todayStr && runEst !== null) {
+      // Replace today's published bar with the live estimate
+      bars.push({label:'now', rate:runEst, isEst:true});
+    } else {
+      bars.push({label, rate:r.rate, isEst:false});
+    }
   });
 
-  // Always add today's running estimate as the rightmost bar (dashed).
-  // This shows the CURRENT live estimate, which differs from the published rate
-  // (published at midnight, estimate updates continuously throughout the day).
-  // Both are useful — published shows what settled, estimate shows where we are now.
-  if(runEst !== null){
+  // If today's rate hasn't been published yet, add the estimate bar
+  const hasTodayBar = bars.some(b => b.label === 'now' || b.label === todayStr);
+  if(!hasTodayBar && runEst !== null){
     bars.push({label:'now', rate:runEst, isEst:true});
   }
 

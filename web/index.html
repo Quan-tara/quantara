@@ -1196,13 +1196,12 @@ function renderRateHistory(rowsId, data, runEst){
     bars.push({label:(r.period_end||'').slice(5,10), rate:r.rate, isEst:false});
   });
 
-  // Only add today's running estimate if today's rate has NOT already been published.
-  // If the most recent bar's date matches today (UTC), the rate is already published — no duplicate.
-  const todayStr = new Date().toISOString().slice(5,10); // "MM-DD"
-  const lastBar = bars.length ? bars[bars.length-1] : null;
-  const todayAlreadyPublished = lastBar && lastBar.label === todayStr;
-  if(runEst !== null && !todayAlreadyPublished){
-    bars.push({label:'today', rate:runEst, isEst:true});
+  // Always add today's running estimate as the rightmost bar (dashed).
+  // This shows the CURRENT live estimate, which differs from the published rate
+  // (published at midnight, estimate updates continuously throughout the day).
+  // Both are useful — published shows what settled, estimate shows where we are now.
+  if(runEst !== null){
+    bars.push({label:'now', rate:runEst, isEst:true});
   }
 
   if(!bars.length){

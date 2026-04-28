@@ -719,7 +719,7 @@ def api_contracts():
                 "premium": c.premium, "collateral": c.collateral,
                 "status": c.status, "result": c.result,
                 "settlement_threshold": c.settlement_threshold,
-                "settlement_rate": round(c.settlement_rate, 2) if c.settlement_rate else None,
+                "settlement_rate": round(getattr(c,"settlement_rate",None), 2) if getattr(c,"settlement_rate",None) else None,
                 "created_at": str(c.created_at) if c.created_at else None,
                 "expires_at": str(c.expires_at) if c.expires_at else None,
                 "expires_in": expires_in,
@@ -917,7 +917,7 @@ def api_settlements():
                 "id": c.id, "name": c.name, "result": c.result,
                 "series_id": c.series_id,
                 "settled_at": str(c.settled_at),
-                "settlement_rate": round(c.settlement_rate, 2) if c.settlement_rate else None,
+                "settlement_rate": round(getattr(c,"settlement_rate",None), 2) if getattr(c,"settlement_rate",None) else None,
                 "settlement_threshold": c.settlement_threshold or 20.0,
                 "winners": winners, "losers": losers
             })

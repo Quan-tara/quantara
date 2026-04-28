@@ -106,14 +106,60 @@ def settle_contract(contract_id: int, result: str):
 
 # =========================================================
 # AUTO-SETTLEMENT AGAINST PUBLISHED RATE
-# Runs every 60s. Settles all expired auto_settle contracts
-# using the current published daily rate.
+# =========================================================
+# Per-duration settlement rate calculator
+# =========================================================
+def _get_window_rate(session, contract):
+    """Calculate settlement rate for a contract based on its own duration window."""
+    import sqlalchemy as _sa
+    import time as _time
+    from datetime import timedelta
+    from engine.index_provider import get_current_published_rate
+
+    expires_at = contract.expires_at
+    created_at = contract.created_at
+    threshold  = contract.settlement_threshold or 20.0
+
+    duration_h = (expires_at - created_at).total_seconds() / 3600 if (created_at and expires_at) else 24
+
+    # 24h contracts use the official published daily rate (includes noise term for realism)
+    if 20 <= duration_h <= 28:
+        pub = get_current_published_rate()
+        return pub["rate"], threshold, "published daily rate"
+
+    # All other durations: mean of index_ticks over the contract's own window
+    window_start    = expires_at - timedelta(hours=duration_h)
+    window_start_ts = _time.mktime(window_start.timetuple())
+    window_end_ts   = _time.mktime(expires_at.timetuple())
+
+    try:
+        row = session.execute(
+            _sa.text(
+                "SELECT AVG(value), COUNT(*) FROM index_ticks "
+                "WHERE ts >= :start AND ts <= :end"
+            ),
+            {"start": window_start_ts, "end": window_end_ts}
+        ).fetchone()
+
+        if row and row[1] and row[1] >= 6:
+            return round(float(row[0]), 2), threshold, f"mean of {row[1]} ticks over {duration_h:.0f}h window"
+        else:
+            pub = get_current_published_rate()
+            return pub["rate"], threshold, "published rate (fallback — insufficient ticks)"
+    except Exception as e:
+        print(f"⚠️ Window rate error: {e}")
+        pub = get_current_published_rate()
+        return pub["rate"], threshold, "published rate (fallback — error)"
+
+
+# Runs every 60s. Settles all expired auto_settle contracts.
+# Each contract settles against the mean index over its own duration window.
+# 24h contracts use the official published daily rate (with noise).
 # =========================================================
 def auto_settle_expired():
     """Check for expired auto_settle contracts and settle them."""
     session = SessionLocal()
     try:
-        from engine.index_provider import get_current_published_rate
         now = datetime.utcnow()
 
         expired = session.query(Contract).filter(
@@ -125,17 +171,16 @@ def auto_settle_expired():
         if not expired:
             return
 
-        pub = get_current_published_rate()
-        rate      = pub["rate"]
-        threshold = pub["threshold"]
-        result    = "YES" if rate > threshold else "NO"
-
         for c in expired:
             cid = c.id
+            # Per-contract settlement rate based on its own duration window
+            rate, threshold, rate_desc = _get_window_rate(session, c)
+            result = "YES" if rate > threshold else "NO"
+
             session.close()
             msg = settle_contract(cid, result)
             print(f"⏰ Auto-settled Contract #{cid} as {result} "
-                  f"(rate {rate:.1f}% vs threshold {threshold:.1f}%): {msg[:60]}")
+                  f"(rate {rate:.2f}% vs threshold {threshold:.1f}% — {rate_desc}): {msg[:60]}")
             session = SessionLocal()
 
             # Auto-launch next instance only if series is not paused

@@ -2016,8 +2016,20 @@ async function toggleContractDetail(row, contractId, isMMUser){
   }
 
   let html;
+  // Settlement rate banner
+  const settlementBanner = settlement && settlement.settlement_rate != null
+    ? `<div style="padding:7px 12px;margin-bottom:4px;background:rgba(0,0,0,0.25);border:1px solid var(--border);
+        border-radius:3px;font-family:var(--mono);font-size:10px;display:flex;gap:20px;align-items:center">
+        <span style="color:var(--muted)">Settled:</span>
+        <span style="color:${settlement.result==='YES'?'var(--red)':'var(--green)'};font-weight:700">${settlement.result}</span>
+        <span style="color:var(--muted)">Settlement rate:</span>
+        <span style="color:var(--accent);font-weight:700">${settlement.settlement_rate.toFixed(2)}%</span>
+        <span style="color:var(--muted)">vs threshold</span>
+        <span style="color:var(--text)">${(settlement.settlement_threshold||20).toFixed(1)}%</span>
+      </div>` : '';
+
   if(isMMUser){
-    html = `<div class="cd-hdr mm-cd" style="grid-template-columns:90px 50px 40px 80px 65px 1fr">
+    html = settlementBanner + `<div class="cd-hdr mm-cd" style="grid-template-columns:90px 50px 40px 80px 65px 1fr">
       <span>NAME</span><span>ROLE</span><span>QTY</span><span>ENTRY (paid/rcvd)</span><span>PER UNIT</span><span>OUTCOME</span>
     </div>`;
     participants.forEach(([uid,p])=>{
@@ -2045,7 +2057,7 @@ async function toggleContractDetail(row, contractId, isMMUser){
       </div>`;
     });
   } else {
-    html = `<div class="cd-hdr tr-cd" style="grid-template-columns:100px 55px 40px 85px 1fr">
+    html = settlementBanner + `<div class="cd-hdr tr-cd" style="grid-template-columns:100px 55px 40px 85px 1fr">
       <span>NAME</span><span>ROLE</span><span>QTY</span><span>ENTRY (paid/rcvd)</span><span>OUTCOME</span>
     </div>`;
     participants.forEach(([uid,p])=>{

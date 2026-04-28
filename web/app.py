@@ -911,6 +911,8 @@ def api_settlements():
                 "id": c.id, "name": c.name, "result": c.result,
                 "series_id": c.series_id,
                 "settled_at": str(c.settled_at),
+                "settlement_rate": round(c.rate, 2) if c.rate else None,
+                "settlement_threshold": c.settlement_threshold or 20.0,
                 "winners": winners, "losers": losers
             })
         return result

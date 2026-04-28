@@ -30,7 +30,7 @@ def _cancel_contract_orders(session, contract_id: int):
 # =========================================================
 # CORE SETTLEMENT — double-entry, cash-conserving
 # =========================================================
-def settle_contract(contract_id: int, result: str):
+def settle_contract(contract_id: int, result: str, settlement_rate: float = None):
     session = SessionLocal()
     try:
         result = result.upper()
@@ -92,6 +92,8 @@ def settle_contract(contract_id: int, result: str):
         contract.status     = "SETTLED"
         contract.result     = result
         contract.settled_at = datetime.utcnow()
+        if settlement_rate is not None:
+            contract.rate = settlement_rate
         session.commit()
 
         lines = "\n".join(summary) if summary else "(no open positions)"
@@ -178,7 +180,7 @@ def auto_settle_expired():
             result = "YES" if rate > threshold else "NO"
 
             session.close()
-            msg = settle_contract(cid, result)
+            msg = settle_contract(cid, result, settlement_rate=rate)
             print(f"⏰ Auto-settled Contract #{cid} as {result} "
                   f"(rate {rate:.2f}% vs threshold {threshold:.1f}% — {rate_desc}): {msg[:60]}")
             session = SessionLocal()

@@ -35,6 +35,7 @@ class Contract(Base):
     created_at           = Column(DateTime, default=datetime.utcnow)
     expires_at           = Column(DateTime, nullable=False)
     settled_at           = Column(DateTime, nullable=True)
+    settlement_rate      = Column(Float, nullable=True)
 
 
 class PublishedRate(Base):

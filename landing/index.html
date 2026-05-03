@@ -801,6 +801,40 @@
     .index-display-value { font-size: 100px; }
   }
 
+  /* ── INDEX GAUGE ── */
+  .gauge-wrap { width: 100%; max-width: 320px; margin: 0 0 8px auto; }
+  .gauge-svg { width: 100%; overflow: visible; }
+  .gauge-track { fill: none; stroke: rgba(255,255,255,0.07); stroke-width: 18; stroke-linecap: round; }
+  .gauge-fill  { fill: none; stroke-width: 18; stroke-linecap: round;
+    transition: stroke-dashoffset 1.2s cubic-bezier(.4,0,.2,1), stroke 0.6s; }
+  .gauge-center-val { font-family: var(--serif); font-size: 52px; fill: var(--white);
+    text-anchor: middle; dominant-baseline: middle; }
+  .gauge-status { font-family: var(--mono); font-size: 11px; letter-spacing: 3px;
+    text-anchor: middle; dominant-baseline: middle; }
+
+  .index-context { font-size: 13px; color: var(--muted); line-height: 1.6;
+    margin: 8px 0; text-align: right; max-width: 320px; margin-left: auto; font-style: italic; }
+  .index-movement { display: flex; align-items: center; justify-content: flex-end;
+    gap: 8px; margin: 6px 0; }
+  .movement-arrow { font-size: 16px; font-weight: 700; }
+  .movement-pct { font-family: var(--mono); font-size: 13px; }
+  .movement-label { font-size: 11px; color: var(--muted); font-family: var(--mono); }
+  .movement-up   { color: #f87171; }
+  .movement-down { color: #4ade80; }
+  .movement-flat { color: var(--muted); }
+
+  .sparkline-wrap { width: 100%; max-width: 320px; margin-left: auto; }
+  .sparkline-label { font-family: var(--mono); font-size: 9px; color: var(--muted);
+    letter-spacing: 1px; text-transform: uppercase; margin-bottom: 4px; text-align: right; }
+  .sparkline-svg { width: 100%; height: 48px; overflow: visible; }
+  .sparkline-path { fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+  .sparkline-area { opacity: 0.15; }
+
+  @media (max-width: 900px) {
+    .gauge-wrap, .sparkline-wrap { max-width: 100%; margin-left: 0; margin-right: auto; }
+    .index-context, .index-movement { text-align: left; justify-content: flex-start; }
+  }
+
   /* ── ANIMATIONS ── */
   @keyframes fadeUp {
     from { opacity: 0; transform: translateY(24px); }
@@ -886,17 +920,53 @@
     </div>
 
     <div class="hero-right">
-      <div class="index-display">
-        <div class="index-display-label">
-          <span class="live-dot"></span>
-          Delivery Pulse™ — Live
-        </div>
-        <div class="index-display-value" id="tick-index">—</div>
-        <div class="index-display-sub">
-          0 = no risk &nbsp;·&nbsp; 100 = maximum risk<br>
-          Settlement threshold: 20%
-        </div>
+
+      <!-- Label -->
+      <div class="index-display-label" style="justify-content:flex-end;margin-bottom:12px">
+        <span class="live-dot"></span>
+        Delivery Pulse™ — Live
       </div>
+
+      <!-- Arc gauge -->
+      <div class="gauge-wrap">
+        <svg class="gauge-svg" viewBox="0 0 220 130" xmlns="http://www.w3.org/2000/svg">
+          <path class="gauge-track"
+            d="M 20 115 A 90 90 0 0 1 200 115"
+            stroke-dasharray="283" stroke-dashoffset="0"/>
+          <path class="gauge-fill" id="gauge-fill"
+            d="M 20 115 A 90 90 0 0 1 200 115"
+            stroke="#4ade80"
+            stroke-dasharray="283" stroke-dashoffset="283"/>
+          <text class="gauge-center-val" id="gauge-val" x="110" y="95">—</text>
+          <text class="gauge-status" id="gauge-status" x="110" y="118" fill="#4ade80">LOADING</text>
+        </svg>
+      </div>
+
+      <!-- Movement indicator -->
+      <div class="index-movement" id="index-movement" style="display:none">
+        <span class="movement-arrow" id="movement-arrow"></span>
+        <span class="movement-pct" id="movement-pct"></span>
+        <span class="movement-label">vs 1h ago</span>
+      </div>
+
+      <!-- Plain English context -->
+      <div class="index-context" id="index-context"></div>
+
+      <!-- Sparkline -->
+      <div class="sparkline-wrap">
+        <div class="sparkline-label">24h history</div>
+        <svg class="sparkline-svg" id="sparkline" viewBox="0 0 320 48" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="spark-grad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#4ade80" stop-opacity="0.3"/>
+              <stop offset="100%" stop-color="#4ade80" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+          <path id="sparkline-area" class="sparkline-area" fill="url(#spark-grad)"/>
+          <path id="sparkline-path" class="sparkline-path" stroke="#4ade80"/>
+        </svg>
+      </div>
+
     </div>
   </div>
 </section>
@@ -1155,6 +1225,92 @@
   const APP = 'https://quantara-7fdc.onrender.com';
 
   // ── Live ticker ──
+  let prevPulse = null;
+  let sparkHistory = [];
+
+  function getColor(v) {
+    if (v < 20) return '#4ade80';
+    if (v < 40) return '#facc15';
+    if (v < 60) return '#fb923c';
+    return '#f87171';
+  }
+
+  function getStatus(v) {
+    if (v < 20) return 'NORMAL';
+    if (v < 35) return 'ELEVATED';
+    if (v < 55) return 'HIGH RISK';
+    return 'CRITICAL';
+  }
+
+  function getContext(v) {
+    if (v < 15) return 'Delivery conditions are stable. Low disruption expected.';
+    if (v < 25) return 'Mild disruption signals detected. Most deliveries on schedule.';
+    if (v < 40) return 'Elevated conditions — roughly 1 in 4 deliveries may face delays.';
+    if (v < 55) return 'Significant disruption. Expect delays across major lanes.';
+    if (v < 70) return 'Severe conditions. High probability of widespread delivery failures.';
+    return 'Extreme risk. Major disruptions likely across the network.';
+  }
+
+  function updateGauge(v) {
+    const color  = getColor(v);
+    const status = getStatus(v);
+    const pct    = Math.min(v / 100, 1);
+    const arcLen = 283;
+    const offset = arcLen * (1 - pct);
+
+    const fill = document.getElementById('gauge-fill');
+    const val  = document.getElementById('gauge-val');
+    const stat = document.getElementById('gauge-status');
+    if (fill) { fill.style.strokeDashoffset = offset; fill.style.stroke = color; }
+    if (val)  { val.textContent = v.toFixed(1); val.style.fill = color; }
+    if (stat) { stat.textContent = status; stat.style.fill = color; }
+  }
+
+  function updateMovement(curr, prev) {
+    const wrap = document.getElementById('index-movement');
+    const arrow = document.getElementById('movement-arrow');
+    const pct   = document.getElementById('movement-pct');
+    if (!wrap || prev === null) return;
+    const delta = curr - prev;
+    const deltaPct = prev > 0 ? ((delta / prev) * 100).toFixed(1) : '0.0';
+    wrap.style.display = 'flex';
+    if (Math.abs(delta) < 0.5) {
+      arrow.textContent = '→'; arrow.className = 'movement-arrow movement-flat';
+      pct.textContent = 'Stable'; pct.className = 'movement-pct movement-flat';
+    } else if (delta > 0) {
+      arrow.textContent = '↑'; arrow.className = 'movement-arrow movement-up';
+      pct.textContent = `+${deltaPct}% in the last hour`; pct.className = 'movement-pct movement-up';
+    } else {
+      arrow.textContent = '↓'; arrow.className = 'movement-arrow movement-down';
+      pct.textContent = `${deltaPct}% in the last hour`; pct.className = 'movement-pct movement-down';
+    }
+  }
+
+  function updateSparkline(history) {
+    if (!history || history.length < 2) return;
+    const vals = history.map(h => h[0]);
+    const W = 320, H = 48, pad = 2;
+    const min = Math.min(...vals), max = Math.max(...vals, 1);
+    const range = max - min || 1;
+    const pts = vals.map((v, i) => {
+      const x = pad + (i / (vals.length - 1)) * (W - pad * 2);
+      const y = H - pad - ((v - min) / range) * (H - pad * 2);
+      return [x, y];
+    });
+    const line = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ');
+    const area = line + ` L${pts[pts.length-1][0]},${H} L${pts[0][0]},${H} Z`;
+    const color = getColor(vals[vals.length - 1]);
+    const path  = document.getElementById('sparkline-path');
+    const apath = document.getElementById('sparkline-area');
+    const grad  = document.getElementById('spark-grad');
+    if (path)  { path.setAttribute('d', line); path.style.stroke = color; }
+    if (apath) { apath.setAttribute('d', area); apath.style.fill = `url(#spark-grad)`; }
+    if (grad)  {
+      grad.children[0].setAttribute('stop-color', color);
+      grad.children[1].setAttribute('stop-color', color);
+    }
+  }
+
   async function loadTicker() {
     try {
       const [idx, rate, contracts] = await Promise.all([
@@ -1164,28 +1320,28 @@
       ]);
 
       const pulse = idx.index ?? 0;
-      const el = document.getElementById('tick-index');
-      if (el) {
-        el.textContent = pulse.toFixed(1);
-        el.className = 'index-display-value ' + (pulse < 20 ? '' : pulse < 40 ? 'amber' : 'red');
+      const h1avg = idx.h1_avg ?? pulse;
+
+      // Gauge
+      updateGauge(pulse);
+
+      // Context sentence
+      const ctx = document.getElementById('index-context');
+      if (ctx) ctx.textContent = getContext(pulse);
+
+      // Movement vs 1h average
+      updateMovement(pulse, h1avg);
+
+      // Sparkline from history
+      if (idx.history && idx.history.length > 1) {
+        updateSparkline(idx.history);
       }
 
-      const rEl = document.getElementById('tick-rate');
-      if (rEl && rate.rate != null) {
-        rEl.textContent = rate.rate.toFixed(1) + '%';
-        rEl.className = 'ticker-val ' + (rate.rate > 20 ? 'red' : 'green');
-      } else if (rEl && rate.estimate != null) {
-        rEl.textContent = '~' + rate.estimate.toFixed(1) + '%';
-        rEl.className = 'ticker-val amber';
-      }
+      // Prev for next tick delta
+      prevPulse = pulse;
 
-      const cEl = document.getElementById('tick-contracts');
-      if (cEl && Array.isArray(contracts)) {
-        const open = contracts.filter(c => c.status === 'OPEN').length;
-        cEl.textContent = open;
-      }
     } catch (e) {
-      // Silently fail — ticker shows — when app is asleep
+      // Silently fail when app is asleep
     }
   }
 

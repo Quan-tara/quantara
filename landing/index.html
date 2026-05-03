@@ -953,19 +953,41 @@
       <!-- Plain English context -->
       <div class="index-context" id="index-context"></div>
 
-      <!-- Sparkline -->
+      <!-- Mini chart -->
       <div class="sparkline-wrap">
-        <div class="sparkline-label">24h history</div>
-        <svg class="sparkline-svg" id="sparkline" viewBox="0 0 320 48" preserveAspectRatio="none">
+        <div class="sparkline-label">Last 10 minutes — Delivery Pulse™</div>
+        <svg class="sparkline-svg" id="sparkline" viewBox="0 0 320 80" preserveAspectRatio="none"
+             style="height:80px">
           <defs>
             <linearGradient id="spark-grad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stop-color="#4ade80" stop-opacity="0.3"/>
+              <stop offset="0%" stop-color="#4ade80" stop-opacity="0.25"/>
               <stop offset="100%" stop-color="#4ade80" stop-opacity="0"/>
             </linearGradient>
           </defs>
-          <path id="sparkline-area" class="sparkline-area" fill="url(#spark-grad)"/>
+          <!-- Grid lines -->
+          <line id="grid-100" x1="32" y1="4"  x2="316" y2="4"  stroke="rgba(255,255,255,0.05)" stroke-width="1"/>
+          <line id="grid-50"  x1="32" y1="27" x2="316" y2="27" stroke="rgba(255,255,255,0.05)" stroke-width="1"/>
+          <line id="grid-0"   x1="32" y1="70" x2="316" y2="70" stroke="rgba(255,255,255,0.07)" stroke-width="1"/>
+          <!-- Threshold line at 20% -->
+          <line id="threshold-line" x1="32" y1="57" x2="316" y2="57"
+                stroke="rgba(201,168,76,0.5)" stroke-width="1" stroke-dasharray="4 3"/>
+          <text id="threshold-txt" x="2" y="60" fill="rgba(201,168,76,0.7)"
+                font-size="7" font-family="monospace">20</text>
+          <!-- Y axis labels -->
+          <text id="lbl-100" x="2" y="7"  fill="rgba(255,255,255,0.25)" font-size="7" font-family="monospace">100</text>
+          <text id="lbl-50"  x="4" y="30" fill="rgba(255,255,255,0.25)" font-size="7" font-family="monospace">50</text>
+          <text id="lbl-0"   x="6" y="73" fill="rgba(255,255,255,0.25)" font-size="7" font-family="monospace">0</text>
+          <!-- Data -->
+          <path id="sparkline-area" fill="url(#spark-grad)"/>
           <path id="sparkline-path" class="sparkline-path" stroke="#4ade80"/>
+          <!-- Current value dot -->
+          <circle id="spark-dot" r="3" fill="#4ade80" opacity="0"/>
         </svg>
+        <div style="display:flex;justify-content:space-between;margin-top:2px">
+          <span style="font-family:var(--mono);font-size:9px;color:var(--muted)">10 min ago</span>
+          <span style="font-family:var(--mono);font-size:9px;color:rgba(201,168,76,0.7)">── settlement threshold 20%</span>
+          <span style="font-family:var(--mono);font-size:9px;color:var(--muted)">now</span>
+        </div>
       </div>
 
     </div>
@@ -1289,28 +1311,45 @@
 
   function updateSparkline(history) {
     if (!history || history.length < 2) return;
-    // history is a flat array of numbers
     const vals = history.map(h => typeof h === 'number' ? h : h[0]);
-    const W = 320, H = 48, pad = 2;
-    const min = Math.min(...vals), max = Math.max(...vals, 1);
-    const range = max - min || 1;
-    const pts = vals.map((v, i) => {
-      const x = pad + (i / (vals.length - 1)) * (W - pad * 2);
-      const y = H - pad - ((v - min) / range) * (H - pad * 2);
-      return [x, y];
-    });
+    // Fixed scale: 0-100, with padding
+    const W = 320, H = 80;
+    const xLeft = 32, xRight = 316, yTop = 4, yBottom = 70;
+    const xRange = xRight - xLeft;
+    const yRange = yBottom - yTop;
+
+    const toX = (i) => xLeft + (i / (vals.length - 1)) * xRange;
+    const toY = (v) => yBottom - (v / 100) * yRange;
+
+    const pts = vals.map((v, i) => [toX(i), toY(v)]);
     const line = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ');
-    const area = line + ` L${pts[pts.length-1][0]},${H} L${pts[0][0]},${H} Z`;
+    const area = line + ` L${pts[pts.length-1][0]},${yBottom} L${pts[0][0]},${yBottom} Z`;
+
     const color = getColor(vals[vals.length - 1]);
     const path  = document.getElementById('sparkline-path');
     const apath = document.getElementById('sparkline-area');
+    const dot   = document.getElementById('spark-dot');
     const grad  = document.getElementById('spark-grad');
+
     if (path)  { path.setAttribute('d', line); path.style.stroke = color; }
-    if (apath) { apath.setAttribute('d', area); apath.style.fill = `url(#spark-grad)`; }
-    if (grad)  {
-      grad.children[0].setAttribute('stop-color', color);
-      grad.children[1].setAttribute('stop-color', color);
+    if (apath) { apath.setAttribute('d', area); }
+    if (grad)  { grad.children[0].setAttribute('stop-color', color); grad.children[1].setAttribute('stop-color', color); }
+
+    // Current value dot at rightmost point
+    if (dot) {
+      const last = pts[pts.length - 1];
+      dot.setAttribute('cx', last[0]);
+      dot.setAttribute('cy', last[1]);
+      dot.setAttribute('fill', color);
+      dot.setAttribute('opacity', '1');
     }
+
+    // Update threshold line position (always at y for value 20)
+    const threshY = toY(20).toFixed(1);
+    const tLine = document.getElementById('threshold-line');
+    const tTxt  = document.getElementById('threshold-txt');
+    if (tLine) { tLine.setAttribute('y1', threshY); tLine.setAttribute('y2', threshY); }
+    if (tTxt)  { tTxt.setAttribute('y', (parseFloat(threshY) + 3).toFixed(1)); }
   }
 
   async function loadTicker() {

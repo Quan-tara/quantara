@@ -815,7 +815,8 @@
   .index-context { font-size: 13px; color: var(--muted); line-height: 1.6;
     margin: 8px 0; text-align: right; max-width: 320px; margin-left: auto; font-style: italic; }
   .index-movement { display: flex; align-items: center; justify-content: flex-end;
-    gap: 8px; margin: 6px 0; }
+    gap: 8px; margin: 6px 0; padding: 6px 12px; border-radius: 4px;
+    border: 1px solid rgba(255,255,255,0.06); transition: background 0.5s; }
   .movement-arrow { font-size: 16px; font-weight: 700; }
   .movement-pct { font-family: var(--mono); font-size: 13px; }
   .movement-label { font-size: 11px; color: var(--muted); font-family: var(--mono); }
@@ -1288,7 +1289,8 @@
 
   function updateSparkline(history) {
     if (!history || history.length < 2) return;
-    const vals = history.map(h => h[0]);
+    // history is a flat array of numbers
+    const vals = history.map(h => typeof h === 'number' ? h : h[0]);
     const W = 320, H = 48, pad = 2;
     const min = Math.min(...vals), max = Math.max(...vals, 1);
     const range = max - min || 1;
@@ -1333,6 +1335,7 @@
       updateMovement(pulse, h1avg);
 
       // Sparkline from history
+      // history is a flat array of index values (last ~60 ticks)
       if (idx.history && idx.history.length > 1) {
         updateSparkline(idx.history);
       }

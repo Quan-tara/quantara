@@ -3,8 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Quantara — The Delivery Pulse Exchange</title>
-<!-- Google tag (gtag.js) -->
+<title>Quantara — Risk Exchange</title>
+
+<!-- Google Analytics -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-YWV1TK1L0L"></script>
 <script>
   window.dataLayer = window.dataLayer || [];
@@ -12,1434 +13,562 @@
   gtag('js', new Date());
   gtag('config', 'G-YWV1TK1L0L');
 </script>
-<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
 <style>
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-  :root {
-    --navy:    #0B1929;
-    --navy2:   #0F2137;
-    --navy3:   #152840;
-    --teal:    #0D7377;
-    --teal2:   #14A8AE;
-    --gold:    #C9A84C;
-    --gold2:   #E8C86A;
-    --white:   #F0F4F8;
-    --muted:   #6B8CAE;
-    --border:  rgba(13,115,119,0.2);
-    --mono:    'DM Mono', monospace;
-    --serif:   'DM Serif Display', serif;
-    --sans:    'DM Sans', sans-serif;
-  }
-
-  html { scroll-behavior: smooth; }
-
-  body {
-    background: var(--navy);
-    color: var(--white);
-    font-family: var(--sans);
-    font-weight: 400;
-    line-height: 1.6;
-    overflow-x: hidden;
-  }
-
-  /* ── NOISE TEXTURE OVERLAY ── */
-  body::before {
-    content: '';
-    position: fixed;
-    inset: 0;
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
-    pointer-events: none;
-    z-index: 0;
-    opacity: 0.6;
-  }
-
-  /* ── GRID LINES ── */
-  body::after {
-    content: '';
-    position: fixed;
-    inset: 0;
-    background-image:
-      linear-gradient(rgba(13,115,119,0.04) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(13,115,119,0.04) 1px, transparent 1px);
-    background-size: 60px 60px;
-    pointer-events: none;
-    z-index: 0;
-  }
-
-  section, nav, footer { position: relative; z-index: 1; }
-
-  /* ── NAV ── */
-  nav {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 20px 60px;
-    border-bottom: 1px solid var(--border);
-    background: rgba(11,25,41,0.9);
-    backdrop-filter: blur(12px);
-    position: sticky;
-    top: 0;
-    z-index: 100;
-  }
-
-  .nav-logo {
-    font-family: var(--mono);
-    font-size: 16px;
-    font-weight: 500;
-    color: var(--white);
-    letter-spacing: 2px;
-    text-transform: uppercase;
-    text-decoration: none;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-
-  .nav-logo .logo-pulse {
-    width: 8px; height: 8px;
-    background: var(--teal2);
-    border-radius: 50%;
-    animation: pulse-dot 2s ease-in-out infinite;
-  }
-
-  @keyframes pulse-dot {
-    0%, 100% { opacity: 1; transform: scale(1); }
-    50% { opacity: 0.4; transform: scale(0.7); }
-  }
-
-  .nav-links { display: flex; align-items: center; gap: 32px; }
-  .nav-links a {
-    font-size: 13px;
-    color: var(--muted);
-    text-decoration: none;
-    letter-spacing: 0.5px;
-    transition: color 0.2s;
-    font-family: var(--mono);
-  }
-  .nav-links a:hover { color: var(--white); }
-
-  .nav-cta {
-    background: transparent;
-    border: 1px solid var(--teal);
-    color: var(--teal2) !important;
-    padding: 8px 20px;
-    border-radius: 3px;
-    transition: all 0.2s !important;
-  }
-  .nav-cta:hover {
-    background: var(--teal) !important;
-    color: var(--white) !important;
-  }
-
-  /* ── HERO ── */
-  .hero {
-    min-height: 88vh;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    padding: 80px 60px 60px;
-    position: relative;
-    overflow: hidden;
-  }
-
-  /* Radial glow */
-  .hero::before {
-    content: '';
-    position: absolute;
-    top: -100px; left: -100px;
-    width: 700px; height: 700px;
-    background: radial-gradient(circle, rgba(13,115,119,0.12) 0%, transparent 70%);
-    pointer-events: none;
-  }
-
-  .hero-eyebrow {
-    font-family: var(--mono);
-    font-size: 11px;
-    letter-spacing: 3px;
-    text-transform: uppercase;
-    color: var(--teal2);
-    margin-bottom: 24px;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-
-  .hero-eyebrow::before {
-    content: '';
-    display: block;
-    width: 32px; height: 1px;
-    background: var(--teal2);
-  }
-
-  .hero-title {
-    font-family: var(--serif);
-    font-size: clamp(44px, 6vw, 80px);
-    line-height: 1.05;
-    color: var(--white);
-    max-width: 820px;
-    margin-bottom: 28px;
-  }
-
-  .hero-title em {
-    font-style: italic;
-    color: var(--teal2);
-  }
-
-  .hero-sub {
-    font-size: 18px;
-    color: var(--muted);
-    max-width: 560px;
-    line-height: 1.7;
-    margin-bottom: 48px;
-    font-weight: 300;
-  }
-
-  .hero-actions {
-    display: flex;
-    align-items: center;
-    gap: 20px;
-    flex-wrap: wrap;
-  }
-
-  .btn-primary {
-    background: var(--teal);
-    color: var(--white);
-    padding: 14px 36px;
-    border-radius: 3px;
-    text-decoration: none;
-    font-family: var(--mono);
-    font-size: 13px;
-    letter-spacing: 1px;
-    text-transform: uppercase;
-    transition: all 0.2s;
-    border: 1px solid var(--teal);
-  }
-  .btn-primary:hover {
-    background: var(--teal2);
-    border-color: var(--teal2);
-    transform: translateY(-1px);
-  }
-
-  .btn-secondary {
-    color: var(--muted);
-    text-decoration: none;
-    font-family: var(--mono);
-    font-size: 13px;
-    letter-spacing: 1px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    transition: color 0.2s;
-  }
-  .btn-secondary:hover { color: var(--white); }
-  .btn-secondary svg { transition: transform 0.2s; }
-  .btn-secondary:hover svg { transform: translateX(3px); }
-
-  /* Live index ticker */
-  .hero-ticker {
-    margin-top: 64px;
-    padding: 20px 28px;
-    background: rgba(15,33,55,0.8);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    display: inline-flex;
-    align-items: center;
-    gap: 32px;
-    backdrop-filter: blur(8px);
-    max-width: 100%;
-    flex-wrap: wrap;
-  }
-
-  .ticker-item { display: flex; flex-direction: column; gap: 4px; }
-  .ticker-lbl {
-    font-family: var(--mono);
-    font-size: 9px;
-    letter-spacing: 2px;
-    text-transform: uppercase;
-    color: var(--muted);
-  }
-  .ticker-val {
-    font-family: var(--mono);
-    font-size: 22px;
-    font-weight: 500;
-    color: var(--white);
-  }
-  .ticker-val.green { color: #4ade80; }
-  .ticker-val.amber { color: var(--gold2); }
-  .ticker-val.red   { color: #f87171; }
-  .ticker-divider { width: 1px; height: 36px; background: var(--border); }
-
-  .live-badge {
-    display: flex; align-items: center; gap: 6px;
-    font-family: var(--mono); font-size: 9px;
-    color: var(--teal2); letter-spacing: 1px; text-transform: uppercase;
-  }
-  .live-dot {
-    width: 6px; height: 6px; border-radius: 50%; background: var(--teal2);
-    animation: pulse-dot 1.5s ease-in-out infinite;
-  }
-
-  /* ── THE PROBLEM ── */
-  .problem {
-    padding: 100px 60px;
-    border-top: 1px solid var(--border);
-  }
-
-  .section-label {
-    font-family: var(--mono);
-    font-size: 10px;
-    letter-spacing: 3px;
-    text-transform: uppercase;
-    color: var(--teal2);
-    margin-bottom: 20px;
-  }
-
-  .problem-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 80px;
-    align-items: start;
-    margin-top: 48px;
-  }
-
-  .problem-text h2 {
-    font-family: var(--serif);
-    font-size: clamp(32px, 3.5vw, 48px);
-    line-height: 1.15;
-    margin-bottom: 24px;
-    color: var(--white);
-  }
-
-  .problem-text p {
-    color: var(--muted);
-    font-size: 16px;
-    line-height: 1.8;
-    margin-bottom: 16px;
-    font-weight: 300;
-  }
-
-  .problem-text strong { color: var(--white); font-weight: 500; }
-
-  .problem-stat {
-    background: var(--navy2);
-    border: 1px solid var(--border);
-    border-left: 3px solid var(--teal);
-    padding: 28px 32px;
-    border-radius: 4px;
-    margin-bottom: 16px;
-  }
-
-  .stat-number {
-    font-family: var(--serif);
-    font-size: 48px;
-    color: var(--white);
-    line-height: 1;
-    margin-bottom: 8px;
-  }
-  .stat-desc {
-    font-size: 13px;
-    color: var(--muted);
-    font-family: var(--mono);
-    letter-spacing: 0.5px;
-  }
-
-  /* ── THREE HORIZONS ── */
-  .horizons {
-    padding: 100px 60px;
-    background: var(--navy2);
-    border-top: 1px solid var(--border);
-    border-bottom: 1px solid var(--border);
-  }
-
-  .horizons-intro {
-    max-width: 600px;
-    margin-bottom: 64px;
-  }
-
-  .horizons-intro h2 {
-    font-family: var(--serif);
-    font-size: clamp(32px, 3.5vw, 48px);
-    line-height: 1.15;
-    margin-bottom: 20px;
-  }
-
-  .horizons-intro p {
-    color: var(--muted);
-    font-size: 16px;
-    line-height: 1.8;
-    font-weight: 300;
-  }
-
-  .horizons-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 2px;
-  }
-
-  .horizon-card {
-    background: var(--navy);
-    padding: 40px 36px;
-    position: relative;
-    overflow: hidden;
-    transition: background 0.3s;
-  }
-  .horizon-card:hover { background: var(--navy3); }
-
-  .horizon-card::before {
-    content: '';
-    position: absolute;
-    top: 0; left: 0; right: 0;
-    height: 2px;
-    background: var(--teal);
-  }
-  .horizon-card:nth-child(2)::before { background: var(--gold); }
-  .horizon-card:nth-child(3)::before { background: var(--teal2); }
-
-  .horizon-tag {
-    font-family: var(--mono);
-    font-size: 9px;
-    letter-spacing: 2px;
-    text-transform: uppercase;
-    margin-bottom: 16px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  .horizon-card:nth-child(1) .horizon-tag { color: var(--teal); }
-  .horizon-card:nth-child(2) .horizon-tag { color: var(--gold); }
-  .horizon-card:nth-child(3) .horizon-tag { color: var(--teal2); }
-
-  .horizon-name {
-    font-family: var(--serif);
-    font-size: 28px;
-    margin-bottom: 12px;
-    line-height: 1.2;
-  }
-
-  .horizon-formula {
-    font-family: var(--mono);
-    font-size: 11px;
-    color: var(--muted);
-    background: rgba(0,0,0,0.2);
-    padding: 8px 12px;
-    border-radius: 3px;
-    margin-bottom: 20px;
-    letter-spacing: 0.5px;
-  }
-
-  .horizon-desc {
-    font-size: 14px;
-    color: var(--muted);
-    line-height: 1.7;
-    font-weight: 300;
-  }
-
-  .horizon-number {
-    position: absolute;
-    bottom: 24px; right: 28px;
-    font-family: var(--serif);
-    font-size: 80px;
-    color: rgba(255,255,255,0.03);
-    line-height: 1;
-    pointer-events: none;
-  }
-
-  /* ── WHO IT'S FOR ── */
-  .audience {
-    padding: 100px 60px;
-    border-top: 1px solid var(--border);
-  }
-
-  .audience h2 {
-    font-family: var(--serif);
-    font-size: clamp(32px, 3.5vw, 48px);
-    margin-bottom: 64px;
-    max-width: 480px;
-    line-height: 1.15;
-  }
-
-  .audience-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 2px;
-  }
-
-  .audience-card {
-    padding: 40px 36px;
-    background: var(--navy2);
-    border: 1px solid var(--border);
-    transition: border-color 0.3s;
-  }
-  .audience-card:hover { border-color: var(--teal); }
-
-  .audience-icon {
-    width: 40px; height: 40px;
-    background: rgba(13,115,119,0.15);
-    border: 1px solid var(--teal);
-    border-radius: 4px;
-    display: flex; align-items: center; justify-content: center;
-    margin-bottom: 20px;
-    font-size: 18px;
-  }
-
-  .audience-title {
-    font-family: var(--serif);
-    font-size: 22px;
-    margin-bottom: 12px;
-    color: var(--white);
-  }
-
-  .audience-desc {
-    font-size: 14px;
-    color: var(--muted);
-    line-height: 1.7;
-    margin-bottom: 20px;
-    font-weight: 300;
-  }
-
-  .audience-tags { display: flex; flex-wrap: wrap; gap: 6px; }
-  .tag {
-    font-family: var(--mono);
-    font-size: 9px;
-    letter-spacing: 1px;
-    text-transform: uppercase;
-    padding: 4px 10px;
-    border: 1px solid var(--border);
-    border-radius: 2px;
-    color: var(--muted);
-  }
-
-  /* ── HOW IT WORKS ── */
-  .how {
-    padding: 100px 60px;
-    background: var(--navy2);
-    border-top: 1px solid var(--border);
-    border-bottom: 1px solid var(--border);
-  }
-
-  .how h2 {
-    font-family: var(--serif);
-    font-size: clamp(32px, 3.5vw, 48px);
-    margin-bottom: 16px;
-    line-height: 1.15;
-  }
-
-  .how-sub {
-    color: var(--muted);
-    font-size: 16px;
-    max-width: 540px;
-    line-height: 1.7;
-    margin-bottom: 64px;
-    font-weight: 300;
-  }
-
-  .how-steps {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 1px;
-    background: var(--border);
-  }
-
-  .how-step {
-    background: var(--navy);
-    padding: 36px 28px;
-    position: relative;
-  }
-
-  .step-num {
-    font-family: var(--mono);
-    font-size: 11px;
-    color: var(--teal2);
-    letter-spacing: 2px;
-    margin-bottom: 16px;
-  }
-
-  .step-title {
-    font-size: 16px;
-    font-weight: 600;
-    margin-bottom: 10px;
-    color: var(--white);
-  }
-
-  .step-desc {
-    font-size: 13px;
-    color: var(--muted);
-    line-height: 1.6;
-    font-weight: 300;
-  }
-
-  /* ── BETA ── */
-  .beta {
-    padding: 100px 60px;
-    border-top: 1px solid var(--border);
-  }
-
-  .beta-inner {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 80px;
-    align-items: center;
-  }
-
-  .beta-text h2 {
-    font-family: var(--serif);
-    font-size: clamp(32px, 3.5vw, 48px);
-    line-height: 1.15;
-    margin-bottom: 20px;
-  }
-
-  .beta-text p {
-    color: var(--muted);
-    font-size: 16px;
-    line-height: 1.8;
-    margin-bottom: 24px;
-    font-weight: 300;
-  }
-
-  .beta-links { display: flex; gap: 16px; flex-wrap: wrap; }
-
-  .link-card {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 16px 24px;
-    background: var(--navy2);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    text-decoration: none;
-    color: var(--white);
-    font-size: 14px;
-    font-family: var(--mono);
-    transition: all 0.2s;
-    flex: 1;
-    min-width: 180px;
-  }
-  .link-card:hover {
-    border-color: var(--teal);
-    color: var(--teal2);
-    transform: translateY(-2px);
-  }
-
-  .link-card svg { flex-shrink: 0; }
-
-  /* Contact form */
-  .contact-form {
-    background: var(--navy2);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    padding: 40px;
-  }
-
-  .contact-form h3 {
-    font-family: var(--serif);
-    font-size: 24px;
-    margin-bottom: 8px;
-  }
-
-  .form-sub {
-    font-size: 13px;
-    color: var(--muted);
-    margin-bottom: 28px;
-    font-weight: 300;
-  }
-
-  .form-group { margin-bottom: 16px; }
-
-  .form-group label {
-    display: block;
-    font-family: var(--mono);
-    font-size: 10px;
-    letter-spacing: 1.5px;
-    text-transform: uppercase;
-    color: var(--muted);
-    margin-bottom: 6px;
-  }
-
-  .form-group input,
-  .form-group select,
-  .form-group textarea {
-    width: 100%;
-    background: var(--navy);
-    border: 1px solid var(--border);
-    color: var(--white);
-    padding: 12px 16px;
-    border-radius: 3px;
-    font-family: var(--sans);
-    font-size: 14px;
-    outline: none;
-    transition: border-color 0.2s;
-    appearance: none;
-  }
-
-  .form-group input:focus,
-  .form-group select:focus,
-  .form-group textarea:focus { border-color: var(--teal); }
-
-  .form-group textarea { resize: vertical; min-height: 100px; }
-
-  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-
-  .form-submit {
-    width: 100%;
-    background: var(--teal);
-    color: var(--white);
-    border: none;
-    padding: 14px;
-    border-radius: 3px;
-    font-family: var(--mono);
-    font-size: 12px;
-    letter-spacing: 2px;
-    text-transform: uppercase;
-    cursor: pointer;
-    transition: all 0.2s;
-    margin-top: 8px;
-  }
-  .form-submit:hover { background: var(--teal2); }
-  .form-submit:disabled { opacity: 0.5; cursor: not-allowed; }
-
-  .form-msg {
-    margin-top: 12px;
-    font-size: 13px;
-    text-align: center;
-    display: none;
-  }
-  .form-msg.success { color: #4ade80; display: block; }
-  .form-msg.error   { color: #f87171; display: block; }
-
-  /* ── FOOTER ── */
-  footer {
-    padding: 40px 60px;
-    border-top: 1px solid var(--border);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 16px;
-  }
-
-  .footer-logo {
-    font-family: var(--mono);
-    font-size: 13px;
-    color: var(--muted);
-    letter-spacing: 2px;
-    text-transform: uppercase;
-  }
-
-  .footer-note {
-    font-size: 12px;
-    color: var(--muted);
-    font-family: var(--mono);
-  }
-
-  /* ── HERO SPLIT ── */
-  .hero-split {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 60px;
-    align-items: center;
-    min-height: 88vh;
-    padding: 80px 60px;
-    position: relative;
-    overflow: hidden;
-  }
-  .hero-split::before {
-    content: '';
-    position: absolute;
-    top: -100px; left: -100px;
-    width: 700px; height: 700px;
-    background: radial-gradient(circle, rgba(13,115,119,0.12) 0%, transparent 70%);
-    pointer-events: none;
-  }
-  .hero-left  { position: relative; z-index: 1; }
-  .hero-right { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: flex-end; }
-
-  .index-display { text-align: right; }
-  .index-display-label {
-    font-family: var(--mono);
-    font-size: 11px;
-    letter-spacing: 3px;
-    text-transform: uppercase;
-    color: var(--teal2);
-    margin-bottom: 16px;
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 8px;
-  }
-  .index-display-value {
-    font-family: var(--serif);
-    font-size: 160px;
-    line-height: 0.9;
-    color: #4ade80;
-    transition: color 0.5s;
-    letter-spacing: -4px;
-  }
-  .index-display-value.amber { color: var(--gold2); }
-  .index-display-value.red   { color: #f87171; }
-  .index-display-sub {
-    font-family: var(--mono);
-    font-size: 11px;
-    color: var(--muted);
-    text-align: right;
-    margin-top: 16px;
-    letter-spacing: 1px;
-    line-height: 1.6;
-  }
-
-  @media (max-width: 900px) {
-    .hero-split {
-      grid-template-columns: 1fr;
-      padding: 60px 24px;
-      min-height: auto;
-      gap: 40px;
-    }
-    .hero-right { align-items: flex-start; }
-    .index-display { text-align: left; }
-    .index-display-label { justify-content: flex-start; }
-    .index-display-sub { text-align: left; }
-    .index-display-value { font-size: 100px; }
-  }
-
-  /* ── INDEX GAUGE ── */
-  .gauge-wrap { width: 100%; max-width: 320px; margin: 0 0 8px auto; }
-  .gauge-svg { width: 100%; overflow: visible; }
-  .gauge-track { fill: none; stroke: rgba(255,255,255,0.07); stroke-width: 18; stroke-linecap: round; }
-  .gauge-fill  { fill: none; stroke-width: 18; stroke-linecap: round;
-    transition: stroke-dashoffset 1.2s cubic-bezier(.4,0,.2,1), stroke 0.6s; }
-  .gauge-center-val { font-family: var(--serif); font-size: 52px; fill: var(--white);
-    text-anchor: middle; dominant-baseline: middle; }
-  .gauge-status { font-family: var(--mono); font-size: 11px; letter-spacing: 3px;
-    text-anchor: middle; dominant-baseline: middle; }
-
-  .index-context { font-size: 13px; color: var(--muted); line-height: 1.6;
-    margin: 8px 0; text-align: right; max-width: 320px; margin-left: auto; font-style: italic; }
-  .index-movement { display: flex; align-items: center; justify-content: flex-end;
-    gap: 8px; margin: 6px 0; padding: 6px 12px; border-radius: 4px;
-    border: 1px solid rgba(255,255,255,0.06); transition: background 0.5s; }
-  .movement-arrow { font-size: 16px; font-weight: 700; }
-  .movement-pct { font-family: var(--mono); font-size: 13px; }
-  .movement-label { font-size: 11px; color: var(--muted); font-family: var(--mono); }
-  .movement-up   { color: #f87171; }
-  .movement-down { color: #4ade80; }
-  .movement-flat { color: var(--muted); }
-
-  .sparkline-wrap { width: 100%; max-width: 320px; margin-left: auto; }
-  .sparkline-label { font-family: var(--mono); font-size: 9px; color: var(--muted);
-    letter-spacing: 1px; text-transform: uppercase; margin-bottom: 4px; text-align: right; }
-  .sparkline-svg { width: 100%; height: 48px; overflow: visible; }
-  .sparkline-path { fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
-  .sparkline-area { opacity: 0.15; }
-
-  @media (max-width: 900px) {
-    .gauge-wrap, .sparkline-wrap { max-width: 100%; margin-left: 0; margin-right: auto; }
-    .index-context, .index-movement { text-align: left; justify-content: flex-start; }
-  }
-
-  /* ── ANIMATIONS ── */
-  @keyframes fadeUp {
-    from { opacity: 0; transform: translateY(24px); }
-    to   { opacity: 1; transform: translateY(0); }
-  }
-
-  .hero-eyebrow { animation: fadeUp 0.6s ease both; }
-  .hero-title   { animation: fadeUp 0.7s 0.1s ease both; }
-  .hero-sub     { animation: fadeUp 0.7s 0.2s ease both; }
-  .hero-actions { animation: fadeUp 0.7s 0.3s ease both; }
-  .hero-ticker  { animation: fadeUp 0.7s 0.4s ease both; }
-
-  /* ── RESPONSIVE ── */
-  @media (max-width: 900px) {
-    nav { padding: 16px 24px; }
-    .nav-links { gap: 16px; }
-    .hero, .problem, .horizons, .audience, .how, .beta, footer { padding-left: 24px; padding-right: 24px; }
-    .problem-grid, .beta-inner { grid-template-columns: 1fr; gap: 40px; }
-    .horizons-grid, .audience-grid { grid-template-columns: 1fr; }
-    .how-steps { grid-template-columns: 1fr 1fr; }
-    .form-row { grid-template-columns: 1fr; }
-  }
-
-  @media (max-width: 600px) {
-    .how-steps { grid-template-columns: 1fr; }
-    .hero-ticker { gap: 16px; }
-    .nav-links a:not(.nav-cta) { display: none; }
-  }
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --accent: #F59E0B;
+  --dark:   #0A0A0A;
+  --dark2:  #0D1117;
+  --light:  #F8F9FA;
+  --white:  #FFFFFF;
+  --muted:  #6B7280;
+  --muted2: #9CA3AF;
+  --text:   #111827;
+  --text2:  #374151;
+  --sans:   'Inter', sans-serif;
+}
+
+html { scroll-behavior: smooth; }
+body { font-family: var(--sans); background: var(--dark); color: var(--white); overflow-x: hidden; }
+
+/* ── NAV ── */
+nav {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 20px 48px;
+  background: rgba(10,10,10,0.85);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+
+.nav-logo {
+  font-size: 14px; font-weight: 700; letter-spacing: 2px;
+  text-transform: uppercase; color: var(--white); text-decoration: none;
+}
+
+.nav-btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 10px 22px;
+  background: var(--white); color: var(--dark);
+  font-size: 13px; font-weight: 600; text-decoration: none;
+  border-radius: 6px; border: 1px solid rgba(255,255,255,0.2);
+  transition: all 0.2s;
+}
+.nav-btn:hover { background: var(--accent); color: var(--dark); border-color: var(--accent); }
+
+/* ── SCREEN 1 — HERO ── */
+#screen1 {
+  height: 100vh; background: var(--dark);
+  display: flex; flex-direction: column;
+  justify-content: center; align-items: center;
+  text-align: center; position: relative;
+  padding: 0 24px;
+}
+
+.hero-headline {
+  font-size: clamp(42px, 7vw, 72px);
+  font-weight: 700; color: var(--white);
+  letter-spacing: -1px; line-height: 1.0;
+  margin-bottom: 16px;
+}
+
+.hero-sub {
+  font-size: clamp(16px, 2.5vw, 20px);
+  font-weight: 400; color: var(--muted2);
+  margin-bottom: 48px;
+}
+
+.hero-index {
+  font-size: clamp(32px, 5vw, 48px);
+  font-weight: 600; color: var(--accent);
+  letter-spacing: -0.5px;
+  margin-bottom: 12px;
+  display: flex; align-items: center; justify-content: center; gap: 12px;
+}
+
+.live-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--accent);
+  animation: pulse-dot 1.5s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); box-shadow: 0 0 0 0 rgba(245,158,11,0.4); }
+  50% { opacity: 0.7; transform: scale(0.8); box-shadow: 0 0 0 6px rgba(245,158,11,0); }
+}
+
+.index-glow {
+  transition: color 0.5s, text-shadow 0.5s;
+}
+.index-glow.updated {
+  text-shadow: 0 0 30px rgba(245,158,11,0.6);
+}
+
+.hero-tagline {
+  font-size: 16px; color: var(--muted); margin-top: 0;
+}
+
+.scroll-indicator {
+  position: absolute; bottom: 32px; left: 50%; transform: translateX(-50%);
+  color: var(--muted); font-size: 20px;
+  animation: bounce 2s ease-in-out infinite;
+  transition: opacity 0.5s;
+}
+@keyframes bounce {
+  0%, 100% { transform: translateX(-50%) translateY(0); }
+  50% { transform: translateX(-50%) translateY(8px); }
+}
+
+/* ── SCREEN 2 — WHAT IS THIS ── */
+#screen2 {
+  min-height: 100vh; background: var(--white);
+  display: flex; align-items: center;
+  padding: 100px 48px;
+}
+
+.screen2-inner {
+  max-width: 1200px; margin: 0 auto; width: 100%;
+  display: grid; grid-template-columns: 55% 45%; gap: 80px; align-items: center;
+}
+
+.s2-label {
+  font-size: 12px; letter-spacing: 0.15em; color: var(--muted);
+  text-transform: uppercase; margin-bottom: 32px; font-weight: 500;
+}
+
+.s2-text {
+  font-size: clamp(18px, 2.5vw, 22px);
+  line-height: 1.7; color: var(--text); font-weight: 400;
+  margin-bottom: 16px;
+}
+
+.s2-bold {
+  font-size: clamp(16px, 2vw, 18px);
+  font-weight: 600; color: var(--text);
+  margin-top: 32px; line-height: 1.6;
+}
+
+.s2-card {
+  background: var(--dark2); border-radius: 16px;
+  padding: 48px 40px; text-align: center;
+  box-shadow: 0 40px 80px rgba(0,0,0,0.3);
+  border: 1px solid rgba(255,255,255,0.06);
+}
+
+.s2-card-label {
+  font-size: 11px; letter-spacing: 2px; text-transform: uppercase;
+  color: var(--muted); margin-bottom: 16px; font-weight: 500;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+}
+
+.s2-card-value {
+  font-size: clamp(64px, 10vw, 96px);
+  font-weight: 700; color: var(--accent);
+  letter-spacing: -2px; line-height: 1;
+  margin-bottom: 12px;
+  transition: color 0.5s;
+}
+
+.s2-card-name {
+  font-size: 13px; color: var(--muted2); font-weight: 400;
+}
+
+/* ── SCREEN 3 — WHAT'S NEW ── */
+#screen3 {
+  min-height: 100vh; background: var(--dark2);
+  display: flex; flex-direction: column;
+  justify-content: center; align-items: center;
+  text-align: center; padding: 100px 48px;
+}
+
+.s3-label {
+  font-size: 12px; letter-spacing: 0.15em; color: var(--muted);
+  text-transform: uppercase; margin-bottom: 64px; font-weight: 500;
+}
+
+.s3-line {
+  font-size: clamp(22px, 3.5vw, 32px);
+  font-weight: 400; color: var(--white);
+  line-height: 1.8; max-width: 800px;
+  opacity: 0; transform: translateY(20px);
+  transition: opacity 0.7s ease, transform 0.7s ease;
+}
+.s3-line.muted { color: var(--muted2); }
+.s3-line.accent { color: var(--accent); font-weight: 600; }
+.s3-line.visible { opacity: 1; transform: translateY(0); }
+
+.s3-signals {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  gap: 0; margin-top: 80px; width: 100%; max-width: 800px;
+  border: 1px solid rgba(255,255,255,0.08); border-radius: 8px;
+  overflow: hidden;
+  opacity: 0; transform: translateY(20px);
+  transition: opacity 0.7s 0.4s ease, transform 0.7s 0.4s ease;
+}
+.s3-signals.visible { opacity: 1; transform: translateY(0); }
+
+.s3-signal {
+  padding: 36px 28px; text-align: center;
+  border-right: 1px solid rgba(255,255,255,0.08);
+}
+.s3-signal:last-child { border-right: none; }
+
+.s3-signal-icon { font-size: 20px; margin-bottom: 12px; }
+.s3-signal-dir {
+  font-size: 13px; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--muted); margin-bottom: 8px; font-weight: 500;
+}
+.s3-signal-name {
+  font-size: 16px; color: var(--white); font-weight: 600; margin-bottom: 8px;
+}
+.s3-signal-desc { font-size: 14px; color: var(--muted2); line-height: 1.5; }
+
+/* ── SCREEN 4 — THIS IS REAL ── */
+#screen4 {
+  min-height: 100vh; background: var(--light);
+  display: flex; align-items: center;
+  padding: 100px 48px;
+}
+
+.screen4-inner {
+  max-width: 1200px; margin: 0 auto; width: 100%;
+  display: grid; grid-template-columns: 40% 60%; gap: 60px; align-items: center;
+}
+
+.s4-headline {
+  font-size: clamp(28px, 5vw, 42px);
+  font-weight: 700; color: var(--text);
+  margin-bottom: 24px; line-height: 1.1;
+}
+
+.s4-text {
+  font-size: 18px; line-height: 1.7;
+  color: var(--text2); margin-bottom: 36px;
+}
+
+.s4-btn {
+  display: inline-flex; align-items: center; gap: 10px;
+  padding: 16px 32px; background: var(--text);
+  color: var(--white); font-size: 15px; font-weight: 600;
+  text-decoration: none; border-radius: 8px;
+  transition: all 0.2s;
+}
+.s4-btn:hover { background: var(--accent); color: var(--dark); transform: translateY(-2px); }
+
+.s4-embed {
+  border-radius: 12px; overflow: hidden;
+  box-shadow: 0 40px 80px rgba(0,0,0,0.15);
+  border: 1px solid #E5E7EB;
+  height: 500px;
+}
+.s4-embed iframe { width: 100%; height: 100%; border: none; display: block; }
+
+/* ── SCREEN 5 — JOIN ── */
+#screen5 {
+  min-height: 100vh; background: var(--dark);
+  display: flex; flex-direction: column;
+  justify-content: center; align-items: center;
+  text-align: center; padding: 100px 24px;
+}
+
+.s5-headline {
+  font-size: clamp(36px, 6vw, 52px);
+  font-weight: 700; color: var(--white);
+  margin-bottom: 20px;
+}
+
+.s5-sub {
+  font-size: 18px; color: var(--muted2);
+  margin-bottom: 48px; max-width: 440px; line-height: 1.6;
+}
+
+.s5-form {
+  display: flex; gap: 12px; width: 100%; max-width: 480px;
+}
+
+.s5-input {
+  flex: 1; padding: 14px 20px;
+  background: var(--white); color: var(--dark);
+  font-size: 16px; font-family: var(--sans);
+  border: none; border-radius: 8px; outline: none;
+}
+.s5-input::placeholder { color: #9CA3AF; }
+
+.s5-btn {
+  padding: 14px 24px;
+  background: var(--accent); color: var(--dark);
+  font-size: 14px; font-weight: 700;
+  border: none; border-radius: 8px;
+  cursor: pointer; white-space: nowrap;
+  transition: all 0.2s; font-family: var(--sans);
+}
+.s5-btn:hover { background: #D97706; transform: translateY(-1px); }
+
+.s5-note {
+  font-size: 13px; color: var(--muted);
+  margin-top: 16px;
+}
+
+.s5-msg { font-size: 14px; margin-top: 12px; display: none; }
+.s5-msg.ok  { color: #4ade80; display: block; }
+.s5-msg.err { color: #f87171; display: block; }
+
+/* ── FOOTER ── */
+footer {
+  padding: 32px 48px;
+  background: var(--dark);
+  border-top: 1px solid rgba(255,255,255,0.06);
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 12px;
+}
+.footer-logo { font-size: 13px; color: var(--muted); letter-spacing: 1px; }
+.footer-links { display: flex; gap: 24px; }
+.footer-links a { font-size: 12px; color: var(--muted); text-decoration: none; transition: color 0.2s; }
+.footer-links a:hover { color: var(--white); }
+.footer-note { font-size: 11px; color: var(--muted); }
+
+/* ── RESPONSIVE ── */
+@media (max-width: 900px) {
+  nav { padding: 16px 24px; }
+  .screen2-inner, .screen4-inner { grid-template-columns: 1fr; gap: 40px; }
+  #screen2, #screen4 { padding: 80px 24px; }
+  #screen3 { padding: 80px 24px; }
+  .s3-signals { grid-template-columns: 1fr; }
+  .s3-signal { border-right: none; border-bottom: 1px solid rgba(255,255,255,0.08); }
+  .s3-signal:last-child { border-bottom: none; }
+  .s4-embed { height: 300px; }
+  .s5-form { flex-direction: column; }
+  footer { flex-direction: column; align-items: flex-start; gap: 8px; }
+}
 </style>
 </head>
 <body>
 
 <!-- NAV -->
 <nav>
-  <a href="#" class="nav-logo">
-    <span class="logo-pulse"></span>
-    <span style="color:var(--white)">Quan</span><span style="color:var(--teal2)">tara</span>
+  <a href="#" class="nav-logo">Quantara</a>
+  <a href="https://quantara-7fdc.onrender.com" target="_blank" class="nav-btn">
+    Open Platform →
   </a>
-  <div class="nav-links">
-    <a href="#how">How it works</a>
-    <a href="#audience">Who it's for</a>
-    <a href="https://discord.gg/6sRavNzH3X" target="_blank" style="display:flex;align-items:center;gap:6px">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="flex-shrink:0"><path d="M20.317 4.37a19.791 19.791 0 00-4.885-1.515.074.074 0 00-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 00-5.487 0 12.64 12.64 0 00-.617-1.25.077.077 0 00-.079-.037A19.736 19.736 0 003.677 4.37a.07.07 0 00-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 00.031.057 19.9 19.9 0 005.993 3.03.078.078 0 00.084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 00-.041-.106 13.107 13.107 0 01-1.872-.892.077.077 0 01-.008-.128 10.2 10.2 0 00.372-.292.074.074 0 01.077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 01.078.01c.12.098.246.198.373.292a.077.077 0 01-.006.127 12.299 12.299 0 01-1.873.892.077.077 0 00-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 00.084.028 19.839 19.839 0 006.002-3.03.077.077 0 00.032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 00-.031-.03z"/></svg>
-      Discord
-    </a>
-    <a href="https://quantara-7fdc.onrender.com" target="_blank" class="nav-cta">Live Platform →</a>
-  </div>
 </nav>
 
-<!-- HERO -->
-<section>
-  <div class="hero-split">
-    <div class="hero-left">
-      <div class="hero-eyebrow">Exchange — Private Beta 2026</div>
-      <h1 class="hero-title">
-        Trade <em>real-world risk</em><br>like never before
-      </h1>
-      <p class="hero-sub">
-        Quantara is an exchange for a new asset class — contracts tied to real-world, measurable events. Any risk that can be indexed can be traded here. Buy and sell positions. Take a view. Create markets where none existed before.
+<!-- SCREEN 1 — HERO -->
+<section id="screen1">
+  <h1 class="hero-headline">Risk Exchange.</h1>
+  <p class="hero-sub">The first exchange for real-world operational risk.</p>
+
+  <div class="hero-index">
+    <span class="live-dot"></span>
+    <span>Delivery Pulse™ —</span>
+    <span class="index-glow" id="hero-index-val">—</span>
+  </div>
+  <p class="hero-tagline">Delivery risk. Live. Right now.</p>
+
+  <div class="scroll-indicator" id="scroll-ind">↓</div>
+</section>
+
+<!-- SCREEN 2 — WHAT IS THIS -->
+<section id="screen2">
+  <div class="screen2-inner">
+    <div>
+      <div class="s2-label">What is this</div>
+      <p class="s2-text">
+        You know how futures work — traders take
+        positions on oil prices without owning
+        a single barrel of oil.
       </p>
-      <div class="hero-actions">
-        <a href="#contact" class="btn-primary">Get in touch</a>
-        <a href="https://quantara-7fdc.onrender.com" target="_blank" class="btn-secondary">
-          View live demo
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-        </a>
-        <a href="https://discord.gg/6sRavNzH3X" target="_blank" class="btn-secondary">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M20.317 4.37a19.791 19.791 0 00-4.885-1.515.074.074 0 00-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 00-5.487 0 12.64 12.64 0 00-.617-1.25.077.077 0 00-.079-.037A19.736 19.736 0 003.677 4.37a.07.07 0 00-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 00.031.057 19.9 19.9 0 005.993 3.03.078.078 0 00.084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 00-.041-.106 13.107 13.107 0 01-1.872-.892.077.077 0 01-.008-.128 10.2 10.2 0 00.372-.292.074.074 0 01.077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 01.078.01c.12.098.246.198.373.292a.077.077 0 01-.006.127 12.299 12.299 0 01-1.873.892.077.077 0 00-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 00.084.028 19.839 19.839 0 006.002-3.03.077.077 0 00.032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 00-.031-.03z"/>
-          </svg>
-          Discord
-        </a>
-        <a href="mailto:info@quantara-tech.me" class="btn-secondary">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
-            <polyline points="22,6 12,13 2,6"/>
-          </svg>
-          Email us
-        </a>
-      </div>
+      <p class="s2-text">
+        Quantara does the same thing. But instead
+        of oil, the underlying is real-world
+        uncertainty. Things that happen every day.
+        Things that are fully measurable. Things
+        that until now had no market attached to them.
+      </p>
+      <p class="s2-bold">
+        Delivery failure. Machine downtime.<br>
+        Supply disruption. Any measurable risk<br>
+        — now tradable.
+      </p>
     </div>
-
-    <div class="hero-right">
-
-      <!-- Label -->
-      <div class="index-display-label" style="justify-content:flex-end;margin-bottom:12px">
+    <div class="s2-card">
+      <div class="s2-card-label">
         <span class="live-dot"></span>
-        Delivery Pulse™ — Live
+        Delivery Pulse™
       </div>
-
-      <!-- Arc gauge -->
-      <div class="gauge-wrap">
-        <svg class="gauge-svg" viewBox="0 0 220 130" xmlns="http://www.w3.org/2000/svg">
-          <path class="gauge-track"
-            d="M 20 115 A 90 90 0 0 1 200 115"
-            stroke-dasharray="283" stroke-dashoffset="0"/>
-          <path class="gauge-fill" id="gauge-fill"
-            d="M 20 115 A 90 90 0 0 1 200 115"
-            stroke="#4ade80"
-            stroke-dasharray="283" stroke-dashoffset="283"/>
-          <text class="gauge-center-val" id="gauge-val" x="110" y="95">—</text>
-          <text class="gauge-status" id="gauge-status" x="110" y="118" fill="#4ade80">LOADING</text>
-        </svg>
-      </div>
-
-      <!-- Movement indicator -->
-      <div class="index-movement" id="index-movement" style="display:none">
-        <span class="movement-arrow" id="movement-arrow"></span>
-        <span class="movement-pct" id="movement-pct"></span>
-        <span class="movement-label">vs 1h ago</span>
-      </div>
-
-      <!-- Plain English context -->
-      <div class="index-context" id="index-context"></div>
-
-      <!-- Mini chart -->
-      <div class="sparkline-wrap">
-        <div class="sparkline-label">Last 10 minutes — Delivery Pulse™</div>
-        <svg class="sparkline-svg" id="sparkline" viewBox="0 0 320 80" preserveAspectRatio="none"
-             style="height:80px">
-          <defs>
-            <linearGradient id="spark-grad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stop-color="#4ade80" stop-opacity="0.25"/>
-              <stop offset="100%" stop-color="#4ade80" stop-opacity="0"/>
-            </linearGradient>
-          </defs>
-          <!-- Grid lines -->
-          <line id="grid-100" x1="32" y1="4"  x2="316" y2="4"  stroke="rgba(255,255,255,0.05)" stroke-width="1"/>
-          <line id="grid-50"  x1="32" y1="27" x2="316" y2="27" stroke="rgba(255,255,255,0.05)" stroke-width="1"/>
-          <line id="grid-0"   x1="32" y1="70" x2="316" y2="70" stroke="rgba(255,255,255,0.07)" stroke-width="1"/>
-          <!-- Threshold line at 20% -->
-          <line id="threshold-line" x1="32" y1="57" x2="316" y2="57"
-                stroke="rgba(201,168,76,0.5)" stroke-width="1" stroke-dasharray="4 3"/>
-          <text id="threshold-txt" x="2" y="60" fill="rgba(201,168,76,0.7)"
-                font-size="7" font-family="monospace">20</text>
-          <!-- Y axis labels -->
-          <text id="lbl-100" x="2" y="7"  fill="rgba(255,255,255,0.25)" font-size="7" font-family="monospace">100</text>
-          <text id="lbl-50"  x="4" y="30" fill="rgba(255,255,255,0.25)" font-size="7" font-family="monospace">50</text>
-          <text id="lbl-0"   x="6" y="73" fill="rgba(255,255,255,0.25)" font-size="7" font-family="monospace">0</text>
-          <!-- Data -->
-          <path id="sparkline-area" fill="url(#spark-grad)"/>
-          <path id="sparkline-path" class="sparkline-path" stroke="#4ade80"/>
-          <!-- Current value dot -->
-          <circle id="spark-dot" r="3" fill="#4ade80" opacity="0"/>
-        </svg>
-        <div style="display:flex;justify-content:space-between;margin-top:2px">
-          <span style="font-family:var(--mono);font-size:9px;color:var(--muted)">10 min ago</span>
-          <span style="font-family:var(--mono);font-size:9px;color:rgba(201,168,76,0.7)">── settlement threshold 20%</span>
-          <span style="font-family:var(--mono);font-size:9px;color:var(--muted)">now</span>
-        </div>
-      </div>
-
+      <div class="s2-card-value" id="s2-index-val">—</div>
+      <div class="s2-card-name">Live delivery risk index · 0 = calm · 100 = critical</div>
     </div>
   </div>
 </section>
 
-<!-- VIDEO -->
-<section style="padding:60px 60px 0;border-top:1px solid var(--border);position:relative;z-index:1">
-  <div style="max-width:900px;margin:0 auto">
-    <div class="section-label" style="margin-bottom:16px">See It In Action</div>
-    <div style="position:relative;padding-bottom:56.25%;height:0;overflow:hidden;border-radius:6px;
-      border:1px solid var(--border);box-shadow:0 24px 60px rgba(0,0,0,0.4)">
+<!-- SCREEN 3 — WHAT'S NEW -->
+<section id="screen3">
+  <div class="s3-label">What's genuinely new</div>
+
+  <p class="s3-line" id="s3-l1">Risk has always been assessed looking backwards.</p>
+  <p class="s3-line muted" id="s3-l2" style="transition-delay:0.15s">Historical data. Actuarial tables. Rearview mirrors.</p>
+  <p class="s3-line accent" id="s3-l3" style="transition-delay:0.3s;margin-top:24px">
+    For the first time — risk is live.<br>
+    And the market tells you what it expects next.
+  </p>
+
+  <div class="s3-signals" id="s3-signals">
+    <div class="s3-signal">
+      <div class="s3-signal-icon">←</div>
+      <div class="s3-signal-dir">History</div>
+      <div class="s3-signal-name">What happened</div>
+      <div class="s3-signal-desc">What actually happened. The evidence base for every trading decision.</div>
+    </div>
+    <div class="s3-signal">
+      <div class="s3-signal-icon">●</div>
+      <div class="s3-signal-dir">Present</div>
+      <div class="s3-signal-name">What is happening</div>
+      <div class="s3-signal-desc">A live index reflecting real-world conditions. Updates continuously.</div>
+    </div>
+    <div class="s3-signal">
+      <div class="s3-signal-icon">→</div>
+      <div class="s3-signal-dir">Future</div>
+      <div class="s3-signal-name">What the market expects</div>
+      <div class="s3-signal-desc">What buyers and sellers believe will happen — priced in real time.</div>
+    </div>
+  </div>
+</section>
+
+<!-- SCREEN 4 — THIS IS REAL -->
+<section id="screen4">
+  <div class="screen4-inner">
+    <div>
+      <h2 class="s4-headline">This is real.</h2>
+      <p class="s4-text">
+        A live index. Real contracts.<br>
+        Real market mechanics.<br><br>
+        Watch the index move. See the
+        market price risk in real time.
+        Take a position.<br><br>
+        This is not a concept.<br>
+        It exists. Right now.
+      </p>
+      <a href="https://quantara-7fdc.onrender.com" target="_blank" class="s4-btn">
+        Open Platform →
+      </a>
+    </div>
+    <div class="s4-embed">
       <iframe
-        src="https://www.youtube.com/embed/AIAnoB-sSNk"
-        title="Quantara — Platform Demo"
-        frameborder="0"
-        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-        allowfullscreen
-        style="position:absolute;top:0;left:0;width:100%;height:100%">
+        src="https://quantara-7fdc.onrender.com"
+        title="Quantara — Live Platform"
+        loading="lazy"
+        allow="accelerometer">
       </iframe>
     </div>
   </div>
 </section>
 
-<!-- THE PROBLEM -->
-<section class="problem" id="problem">
-  <div class="section-label">The Opportunity</div>
-  <div class="problem-grid">
-    <div class="problem-text">
-      <h2>A new asset class that nobody has traded yet</h2>
-      <p>
-        Real-world events — from delivery conditions to energy disruptions, weather patterns to industrial failures — move money every day. They are <strong>measurable in real time</strong>, they have clear financial consequences, and yet most have <strong>no exchange where they can be traded</strong>.
-      </p>
-      <p>
-        Traditional derivatives cover commodities, rates, and weather. Nothing covers the operational risks that affect businesses most directly. That gap is the opportunity.
-      </p>
-      <p>
-        <strong>Quantara is the first exchange built specifically for this asset class.</strong>
-      </p>
-    </div>
-    <div>
-      <div class="problem-stat">
-        <div class="stat-number">€12B+</div>
-        <div class="stat-desc">Annual SLA penalty exposure in European road freight — with zero tradable instruments</div>
-      </div>
-      <div class="problem-stat" style="border-left-color: var(--gold)">
-        <div class="stat-number">~15%</div>
-        <div class="stat-desc">Average late delivery rate on B2B road freight lanes in Europe</div>
-      </div>
-      <div class="problem-stat" style="border-left-color: var(--teal2)">
-        <div class="stat-number">∞</div>
-        <div class="stat-desc">Real-world risk events that can be measured, indexed, and traded on Quantara</div>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- THREE HORIZONS -->
-<section class="horizons" id="how">
-  <div class="horizons-intro">
-    <div class="section-label">How It Works</div>
-    <h2>Three signals. One edge.</h2>
-    <p>
-      Every market on Quantara is built around a real-world index. You trade contracts that settle against that index — giving you three distinct sources of information and opportunity.
-    </p>
-  </div>
-
-  <div class="horizons-grid">
-    <div class="horizon-card">
-      <div class="horizon-tag">← Backward</div>
-      <div class="horizon-name">Delivery Pulse™ History</div>
-      <div class="horizon-formula">60min chart · daily rate bars · factor log</div>
-      <div class="horizon-desc">
-        What actually happened. Each index on Quantara has a live history chart, daily settlement records, and a factor log. The evidence base for every trading decision.
-      </div>
-      <div class="horizon-number">1</div>
-    </div>
-
-    <div class="horizon-card">
-      <div class="horizon-tag">● Present</div>
-      <div class="horizon-name">Delivery Pulse™</div>
-      <div class="horizon-formula">live · 0–100 · updates every 10 seconds</div>
-      <div class="horizon-desc">
-        What is happening right now. Each index reflects live real-world conditions, updated continuously. Drives all Cover pricing in real time. The Delivery Pulse™ is the first — more indices are coming.
-      </div>
-      <div class="horizon-number">2</div>
-    </div>
-
-    <div class="horizon-card">
-      <div class="horizon-tag">→ Forward</div>
-      <div class="horizon-name">Market-Implied Forward Rate</div>
-      <div class="horizon-formula">from traded prices · ↯ % implied settlement</div>
-      <div class="horizon-desc">
-        What the market expects. Every trade on the secondary market implies a forward forecast of where the index will settle. This is pure price discovery — not a model output, but what real buyers and sellers believe the future looks like. For a trader, this is the edge.
-      </div>
-      <div class="horizon-number">3</div>
-    </div>
-  </div>
-</section>
-
-<!-- WHO IT'S FOR -->
-<section class="audience" id="audience">
-  <div class="section-label">Who Trades Here</div>
-  <h2>Built for traders.<br>Open to all.</h2>
-
-  <div class="audience-grid">
-    <div class="audience-card">
-      <div class="audience-icon">📈</div>
-      <div class="audience-title">Traders &amp; Speculators</div>
-      <div class="audience-desc">
-        A genuinely new asset class with real economic underpinnings. Take long or short positions on operational risk indices. The market-implied forward rate creates pricing inefficiencies — especially on longer-duration contracts where information asymmetry is highest.
-      </div>
-      <div class="audience-tags">
-        <span class="tag">New asset class</span>
-        <span class="tag">Long / short</span>
-        <span class="tag">Implied rate arb</span>
-      </div>
-    </div>
-
-    <div class="audience-card">
-      <div class="audience-icon">🏭</div>
-      <div class="audience-title">Hedgers</div>
-      <div class="audience-desc">
-        Companies with real exposure to delivery risk, port congestion, or supply chain disruption can buy Covers sized to their exposure. If conditions deteriorate beyond the threshold, they receive a payout — automatically, with no claims process.
-      </div>
-      <div class="audience-tags">
-        <span class="tag">Operational hedging</span>
-        <span class="tag">Automatic settlement</span>
-        <span class="tag">No claims process</span>
-      </div>
-    </div>
-
-    <div class="audience-card">
-      <div class="audience-icon">⚖️</div>
-      <div class="audience-title">Market Makers</div>
-      <div class="audience-desc">
-        Provide liquidity across multiple indices and contract durations. Earn the spread between bid and ask. As more indices are added to the platform, market makers who establish early will have a structural advantage in a growing market.
-      </div>
-      <div class="audience-tags">
-        <span class="tag">Spread income</span>
-        <span class="tag">Multiple indices</span>
-        <span class="tag">Early mover</span>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- HOW IT WORKS -->
-<section class="how">
-  <div class="section-label">The Mechanics</div>
-  <h2>Simple by design.</h2>
-  <p class="how-sub">
-    Each market on Quantara is built around a live index. The index drives pricing. The daily settlement rate drives settlement. Everything in between is the market.
+<!-- SCREEN 5 — JOIN -->
+<section id="screen5">
+  <h2 class="s5-headline">Join the Exchange.</h2>
+  <p class="s5-sub">
+    Free access. No experience required.
+    Be among the first to trade a new asset class.
   </p>
 
-  <div class="how-steps">
-    <div class="how-step">
-      <div class="step-num">01 —</div>
-      <div class="step-title">Index updates every 10s</div>
-      <div class="step-desc">
-        Each index on Quantara reflects real-world conditions updating continuously. Higher index = higher risk = higher Cover prices. We start with delivery risk. More indices follow.
-      </div>
-    </div>
-    <div class="how-step">
-      <div class="step-num">02 —</div>
-      <div class="step-title">Buy or sell a Cover</div>
-      <div class="step-desc">
-        Select your duration (1h to 7d) and size (Standard / Plus / Pro).
-        Buyers pay a premium and become HOLDERs. Sellers lock collateral and become WRITERs.
-      </div>
-    </div>
-    <div class="how-step">
-      <div class="step-num">03 —</div>
-      <div class="step-title">Daily Settlement Rate published</div>
-      <div class="step-desc">
-        At midnight UTC, the official Daily Settlement Rate is calculated from 24 hours of index data.
-        All expired Covers settle against this number automatically.
-      </div>
-    </div>
-    <div class="how-step">
-      <div class="step-num">04 —</div>
-      <div class="step-title">Automatic settlement</div>
-      <div class="step-desc">
-        Rate above 20%: HOLDERs receive full collateral payout.
-        Rate at or below 20%: WRITERs keep their collateral and the premiums collected.
-        No claims. No paperwork. Instant settlement.
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- BETA + CONTACT -->
-<section class="beta" id="contact">
-  <div class="beta-inner">
-    <div class="beta-text">
-      <div class="section-label">Private Beta</div>
-      <h2>Join the exchange. Trade the first contracts.</h2>
-      <p>
-        Quantara is in private beta. The platform is live and trading. We are looking for traders, speculators, and market makers who want early access to a genuinely new asset class — operational risk derivatives — before it opens to the public.
-      </p>
-      <p>
-        Early participants shape the market. Get in now.
-      </p>
-
-      <div class="beta-links" style="margin-top: 32px;">
-        <a href="https://quantara-7fdc.onrender.com" target="_blank" class="link-card">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h6M9 12h6M9 15h4"/>
-          </svg>
-          Live Platform
-        </a>
-        <a href="https://discord.gg/6sRavNzH3X" target="_blank" class="link-card">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path d="M20.317 4.37a19.791 19.791 0 00-4.885-1.515.074.074 0 00-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 00-5.487 0 12.64 12.64 0 00-.617-1.25.077.077 0 00-.079-.037A19.736 19.736 0 003.677 4.37a.07.07 0 00-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 00.031.057 19.9 19.9 0 005.993 3.03.078.078 0 00.084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 00-.041-.106 13.107 13.107 0 01-1.872-.892.077.077 0 01-.008-.128 10.2 10.2 0 00.372-.292.074.074 0 01.077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 01.078.01c.12.098.246.198.373.292a.077.077 0 01-.006.127 12.299 12.299 0 01-1.873.892.077.077 0 00-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 00.084.028 19.839 19.839 0 006.002-3.03.077.077 0 00.032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 00-.031-.03z"/>
-          </svg>
-          Discord Community
-        </a>
-      </div>
-    </div>
-
-    <div class="contact-form">
-      <h3>Get in touch</h3>
-      <p class="form-sub">Tell us who you are and why you're interested. We read every message.</p>
-
-      <form id="contact-form" action="https://formspree.io/f/xzdyqkkb" method="POST">
-        <div class="form-row">
-          <div class="form-group">
-            <label>First name</label>
-            <input type="text" name="first_name" required placeholder="Anna">
-          </div>
-          <div class="form-group">
-            <label>Last name</label>
-            <input type="text" name="last_name" required placeholder="Müller">
-          </div>
-        </div>
-        <div class="form-group">
-          <label>Email</label>
-          <input type="email" name="email" required placeholder="anna@company.com">
-        </div>
-        <div class="form-group">
-          <label>I work in</label>
-          <select name="role">
-            <option value="">Select your field...</option>
-            <option value="insurance">Cargo / Parametric Insurance</option>
-            <option value="reinsurance">Reinsurance</option>
-            <option value="freight-data">Freight Data / Visibility</option>
-            <option value="logistics">Logistics / Supply Chain</option>
-            <option value="trading">Trading / Finance</option>
-            <option value="other">Other</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label>Message</label>
-          <textarea name="message" placeholder="What caught your attention, and what would you like to discuss?"></textarea>
-        </div>
-        <button type="submit" class="form-submit" id="submit-btn">Send Message</button>
-        <div class="form-msg" id="form-msg"></div>
-      </form>
-    </div>
-  </div>
+  <form class="s5-form" id="s5-form" action="https://formspree.io/f/xzdyqkkb" method="POST">
+    <input class="s5-input" type="email" name="email"
+           placeholder="your email address" required>
+    <button class="s5-btn" type="submit">Get Early Access →</button>
+  </form>
+  <p class="s5-note">No spam. No commitment. Cancel anytime.</p>
+  <div class="s5-msg" id="s5-msg"></div>
 </section>
 
 <!-- FOOTER -->
 <footer>
-  <div class="footer-logo">Quantara — The Delivery Pulse™ Exchange</div>
-  <div class="footer-note">
-    <a href="mailto:info@quantara-tech.me" style="color:var(--muted);text-decoration:none;transition:color 0.2s"
-       onmouseover="this.style.color='var(--white)'" onmouseout="this.style.color='var(--muted)'">
-      info@quantara-tech.me
-    </a>
-    &nbsp;·&nbsp; Private Beta · Munich, 2026 · Not a regulated financial product
+  <div class="footer-logo">QUANTARA</div>
+  <div class="footer-links">
+    <a href="https://quantara-7fdc.onrender.com" target="_blank">Platform</a>
+    <a href="https://discord.gg/6sRavNzH3X" target="_blank">Discord</a>
+    <a href="mailto:info@quantara-tech.me">Contact</a>
   </div>
+  <div class="footer-note">Private Beta · Not a regulated financial product</div>
 </footer>
 
 <script>
-  const APP = 'https://quantara-7fdc.onrender.com';
+const APP = 'https://quantara-7fdc.onrender.com';
+let prevVal = null;
 
-  // ── Live ticker ──
-  let prevPulse = null;
-  let sparkHistory = [];
+// ── Live index ──
+async function loadIndex() {
+  try {
+    const data = await fetch(`${APP}/api/index`).then(r => r.json());
+    const val = data.index ?? 0;
 
-  function getColor(v) {
-    if (v < 20) return '#4ade80';
-    if (v < 40) return '#facc15';
-    if (v < 60) return '#fb923c';
-    return '#f87171';
-  }
-
-  function getStatus(v) {
-    if (v < 20) return 'NORMAL';
-    if (v < 35) return 'ELEVATED';
-    if (v < 55) return 'HIGH RISK';
-    return 'CRITICAL';
-  }
-
-  function getContext(v) {
-    if (v < 15) return 'Delivery conditions are stable. Low disruption expected.';
-    if (v < 25) return 'Mild disruption signals detected. Most deliveries on schedule.';
-    if (v < 40) return 'Elevated conditions — roughly 1 in 4 deliveries may face delays.';
-    if (v < 55) return 'Significant disruption. Expect delays across major lanes.';
-    if (v < 70) return 'Severe conditions. High probability of widespread delivery failures.';
-    return 'Extreme risk. Major disruptions likely across the network.';
-  }
-
-  function updateGauge(v) {
-    const color  = getColor(v);
-    const status = getStatus(v);
-    const pct    = Math.min(v / 100, 1);
-    const arcLen = 283;
-    const offset = arcLen * (1 - pct);
-
-    const fill = document.getElementById('gauge-fill');
-    const val  = document.getElementById('gauge-val');
-    const stat = document.getElementById('gauge-status');
-    if (fill) { fill.style.strokeDashoffset = offset; fill.style.stroke = color; }
-    if (val)  { val.textContent = v.toFixed(1); val.style.fill = color; }
-    if (stat) { stat.textContent = status; stat.style.fill = color; }
-  }
-
-  function updateMovement(curr, prev) {
-    const wrap = document.getElementById('index-movement');
-    const arrow = document.getElementById('movement-arrow');
-    const pct   = document.getElementById('movement-pct');
-    if (!wrap || prev === null) return;
-    const delta = curr - prev;
-    const deltaPct = prev > 0 ? ((delta / prev) * 100).toFixed(1) : '0.0';
-    wrap.style.display = 'flex';
-    if (Math.abs(delta) < 0.5) {
-      arrow.textContent = '→'; arrow.className = 'movement-arrow movement-flat';
-      pct.textContent = 'Stable'; pct.className = 'movement-pct movement-flat';
-    } else if (delta > 0) {
-      arrow.textContent = '↑'; arrow.className = 'movement-arrow movement-up';
-      pct.textContent = `+${deltaPct}% in the last hour`; pct.className = 'movement-pct movement-up';
-    } else {
-      arrow.textContent = '↓'; arrow.className = 'movement-arrow movement-down';
-      pct.textContent = `${deltaPct}% in the last hour`; pct.className = 'movement-pct movement-down';
-    }
-  }
-
-  function updateSparkline(history) {
-    if (!history || history.length < 2) return;
-    const vals = history.map(h => typeof h === 'number' ? h : h[0]);
-    // Fixed scale: 0-100, with padding
-    const W = 320, H = 80;
-    const xLeft = 32, xRight = 316, yTop = 4, yBottom = 70;
-    const xRange = xRight - xLeft;
-    const yRange = yBottom - yTop;
-
-    const toX = (i) => xLeft + (i / (vals.length - 1)) * xRange;
-    const toY = (v) => yBottom - (v / 100) * yRange;
-
-    const pts = vals.map((v, i) => [toX(i), toY(v)]);
-    const line = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ');
-    const area = line + ` L${pts[pts.length-1][0]},${yBottom} L${pts[0][0]},${yBottom} Z`;
-
-    const color = getColor(vals[vals.length - 1]);
-    const path  = document.getElementById('sparkline-path');
-    const apath = document.getElementById('sparkline-area');
-    const dot   = document.getElementById('spark-dot');
-    const grad  = document.getElementById('spark-grad');
-
-    if (path)  { path.setAttribute('d', line); path.style.stroke = color; }
-    if (apath) { apath.setAttribute('d', area); }
-    if (grad)  { grad.children[0].setAttribute('stop-color', color); grad.children[1].setAttribute('stop-color', color); }
-
-    // Current value dot at rightmost point
-    if (dot) {
-      const last = pts[pts.length - 1];
-      dot.setAttribute('cx', last[0]);
-      dot.setAttribute('cy', last[1]);
-      dot.setAttribute('fill', color);
-      dot.setAttribute('opacity', '1');
+    // Hero
+    const heroEl = document.getElementById('hero-index-val');
+    if (heroEl) {
+      heroEl.textContent = val.toFixed(1);
+      heroEl.classList.add('updated');
+      setTimeout(() => heroEl.classList.remove('updated'), 1000);
     }
 
-    // Update threshold line position (always at y for value 20)
-    const threshY = toY(20).toFixed(1);
-    const tLine = document.getElementById('threshold-line');
-    const tTxt  = document.getElementById('threshold-txt');
-    if (tLine) { tLine.setAttribute('y1', threshY); tLine.setAttribute('y2', threshY); }
-    if (tTxt)  { tTxt.setAttribute('y', (parseFloat(threshY) + 3).toFixed(1)); }
-  }
-
-  async function loadTicker() {
-    try {
-      const [idx, rate, contracts] = await Promise.all([
-        fetch(`${APP}/api/index`).then(r => r.json()),
-        fetch(`${APP}/api/published_rates/current`).then(r => r.json()),
-        fetch(`${APP}/api/contracts`).then(r => r.json()),
-      ]);
-
-      const pulse = idx.index ?? 0;
-      const h1avg = idx.h1_avg ?? pulse;
-
-      // Gauge
-      updateGauge(pulse);
-
-      // Context sentence
-      const ctx = document.getElementById('index-context');
-      if (ctx) ctx.textContent = getContext(pulse);
-
-      // Movement vs 1h average
-      updateMovement(pulse, h1avg);
-
-      // Sparkline from history
-      // history is a flat array of index values (last ~60 ticks)
-      if (idx.history && idx.history.length > 1) {
-        updateSparkline(idx.history);
-      }
-
-      // Prev for next tick delta
-      prevPulse = pulse;
-
-    } catch (e) {
-      // Silently fail when app is asleep
+    // Screen 2 card
+    const s2El = document.getElementById('s2-index-val');
+    if (s2El) {
+      s2El.textContent = val.toFixed(1);
+      s2El.style.color = val < 20 ? '#4ade80' : val < 40 ? '#F59E0B' : '#f87171';
     }
-  }
 
-  loadTicker();
-  setInterval(loadTicker, 10000);
+    prevVal = val;
+  } catch(e) {}
+}
 
-  // ── Contact form ──
-  const form = document.getElementById('contact-form');
-  const btn  = document.getElementById('submit-btn');
-  const msg  = document.getElementById('form-msg');
+loadIndex();
+setInterval(loadIndex, 10000);
 
-  form.addEventListener('submit', async function(e) {
-    e.preventDefault();
-    btn.disabled = true;
-    btn.textContent = 'Sending...';
-    msg.className = 'form-msg';
+// ── Scroll indicator ──
+window.addEventListener('scroll', () => {
+  const ind = document.getElementById('scroll-ind');
+  if (ind) ind.style.opacity = window.scrollY > 80 ? '0' : '1';
+}, { passive: true });
 
-    try {
-      const res = await fetch(form.action, {
-        method: 'POST',
-        body: new FormData(form),
-        headers: { 'Accept': 'application/json' }
-      });
-      if (res.ok) {
-        msg.textContent = 'Message sent. We will be in touch shortly.';
-        msg.className = 'form-msg success';
-        form.reset();
-        btn.textContent = 'Sent';
-      } else {
-        throw new Error();
-      }
-    } catch {
-      msg.textContent = 'Something went wrong. Email us directly at info@quantara-tech.me';
-      msg.className = 'form-msg error';
-      btn.disabled = false;
-      btn.textContent = 'Send Message';
-    }
+// ── Scroll animations for screen 3 ──
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    if (e.isIntersecting) e.target.classList.add('visible');
   });
+}, { threshold: 0.2 });
+
+['s3-l1','s3-l2','s3-l3','s3-signals'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) observer.observe(el);
+});
+
+// ── Email form ──
+const form = document.getElementById('s5-form');
+const msg  = document.getElementById('s5-msg');
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const btn = form.querySelector('button');
+  btn.textContent = 'Sending...'; btn.disabled = true;
+  try {
+    const res = await fetch(form.action, {
+      method: 'POST', body: new FormData(form),
+      headers: { 'Accept': 'application/json' }
+    });
+    if (res.ok) {
+      msg.textContent = "You're on the list. We'll be in touch.";
+      msg.className = 's5-msg ok';
+      form.reset(); btn.textContent = 'Done ✓';
+    } else throw new Error();
+  } catch {
+    msg.textContent = 'Something went wrong. Email us at info@quantara-tech.me';
+    msg.className = 's5-msg err';
+    btn.textContent = 'Get Early Access →'; btn.disabled = false;
+  }
+});
 </script>
 </body>
 </html>

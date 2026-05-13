@@ -2436,6 +2436,11 @@ setInterval(async()=>{
   if(currentUser.isAdmin||currentUser.isMM)await refreshMM();
   else await refreshTrader();
 },3000);
+
+// Auto-login as guest when embedded with ?guest=1
+if(new URLSearchParams(window.location.search).get('guest')==='1'){
+  doGuestLogin();
+}
 </script>
 </body>
 </html>

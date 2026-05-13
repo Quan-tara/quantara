@@ -431,10 +431,21 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
 <div id="login-screen" style="min-height:calc(100vh - 54px);display:flex;align-items:center;justify-content:center;position:relative;z-index:1">
   <div class="login-box">
     <h2>QUANTARA</h2>
-    <p>Enter your Discord User ID to access your dashboard.</p>
-    <input type="text" id="login-input" placeholder="e.g. 1496179139118633080" maxlength="25"
+    <p>Explore the platform instantly as a guest, or log in with your Discord ID for a persistent account.</p>
+    <button onclick="doGuestLogin()" style="width:100%;padding:13px;background:var(--accent);color:#000;border:none;
+      border-radius:6px;font-family:var(--mono);font-size:12px;letter-spacing:1px;cursor:pointer;margin-bottom:12px">
+      ▶ EXPLORE AS GUEST
+    </button>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+      <div style="flex:1;height:1px;background:var(--border)"></div>
+      <span style="font-size:11px;color:var(--muted);font-family:var(--mono)">or</span>
+      <div style="flex:1;height:1px;background:var(--border)"></div>
+    </div>
+    <input type="text" id="login-input" placeholder="Discord User ID (for persistent account)" maxlength="25"
            onkeydown="if(event.key==='Enter')doLogin()">
-    <button onclick="doLogin()">ENTER</button>
+    <button onclick="doLogin()" style="background:var(--s2);color:var(--text);border:1px solid var(--border)">
+      LOG IN WITH DISCORD ID
+    </button>
     <div class="login-err" id="login-err"></div>
     <div style="margin-top:20px;padding:14px 16px;background:rgba(0,0,0,0.2);border:1px solid var(--border);border-radius:6px;font-size:11px;color:var(--muted);line-height:1.8">
       <div style="color:var(--accent);font-family:var(--mono);letter-spacing:1px;font-size:10px;margin-bottom:8px">HOW TO GET YOUR DISCORD USER ID — 2 MINUTES</div>
@@ -1624,6 +1635,27 @@ async function loadSeriesMarketplace(seriesId){
 // ============================================================
 // LOGIN
 // ============================================================
+async function doGuestLogin(){
+  // Generate a temporary guest ID (negative random number so it never clashes with real Discord IDs)
+  const guestId = 'guest_' + Math.random().toString(36).slice(2, 10);
+  currentUser = {
+    id: guestId,
+    name: 'Guest',
+    isAdmin: false,
+    isMM: false,
+    isGuest: true
+  };
+  document.getElementById('ub-name').textContent = 'Guest';
+  document.getElementById('ub-id').textContent = 'Guest session';
+  const roleEl = document.getElementById('ub-role');
+  roleEl.textContent = 'TRADER'; roleEl.className = 'ub-role ub-trader';
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  document.getElementById('layout-trader').style.display = 'block';
+  document.getElementById('layout-mm').style.display = 'none';
+  await refreshTrader();
+}
+
 async function doLogin(){
   const raw=document.getElementById('login-input').value.trim();
   document.getElementById('login-err').textContent='';
@@ -1657,11 +1689,38 @@ function doLogout(){
 }
 
 // ============================================================
+// GUEST SESSION
+// ============================================================
+let _guestWallet = { cash: 100000, locked: 0 };
+let _guestPositions = [];
+let _guestOrders = [];
+
+function renderGuestWallet(){
+  const cash = document.getElementById('t-cash');
+  const locked = document.getElementById('t-locked');
+  const avail = document.getElementById('t-avail');
+  if(cash)  cash.textContent  = fmt(_guestWallet.cash);
+  if(locked)locked.textContent= fmt(_guestWallet.locked);
+  if(avail) avail.textContent = fmt(_guestWallet.cash - _guestWallet.locked);
+  // Clear positions and trades for guest
+  const posEl = document.getElementById('t-positions');
+  if(posEl && _guestPositions.length === 0)
+    posEl.innerHTML = '<div class="empty">No open positions yet</div>';
+  const trEl = document.getElementById('t-my-trades');
+  if(trEl && _guestPositions.length === 0)
+    trEl.innerHTML = '<div class="empty" style="padding:14px">No trades yet this session</div>';
+}
+
+// ============================================================
 // ORDER PLACEMENT
 // ============================================================
 async function placeOrder(side){
   if(!selectedSeriesId){showRes('t-res','Select a contract series from the grid first',false);return;}
   if(!currentUser){showRes('t-res','Not logged in',false);return;}
+  if(currentUser.isGuest){
+    showRes('t-res','💡 Guest session — log in with a Discord ID to place real orders and save your positions',false);
+    return;
+  }
   const s=seriesCache.find(x=>x.series_id===selectedSeriesId);
   if(!s||!s.active_contract_id){showRes('t-res','No active contract for this series. Ask MM to launch.',false);return;}
   const price=parseFloat(document.getElementById('ord-price').value);
@@ -2358,7 +2417,8 @@ async function mmSettle(result){
 // ============================================================
 async function refreshTrader(){
   await Promise.all([loadIndex(),loadPublishedRate(),loadSeries()]);
-  if(currentUser)await Promise.all([loadWallet(),loadPositions(),loadMyTrades()]);
+  if(currentUser && !currentUser.isGuest) await Promise.all([loadWallet(),loadPositions(),loadMyTrades()]);
+  if(currentUser && currentUser.isGuest) renderGuestWallet();
   if(selectedSeriesId){await loadSeriesBook(selectedSeriesId);await loadSeriesMarketplace(selectedSeriesId);}
   await loadRateHistory();
   await loadLedger();

@@ -55,12 +55,12 @@ nav {
 .nav-btn {
   display: inline-flex; align-items: center; gap: 8px;
   padding: 10px 22px;
-  background: var(--white); color: var(--dark);
+  background: transparent; color: var(--white);
   font-size: 13px; font-weight: 600; text-decoration: none;
-  border-radius: 6px; border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 6px; border: 1px solid var(--accent);
   transition: all 0.2s;
 }
-.nav-btn:hover { background: var(--accent); color: var(--dark); border-color: var(--accent); }
+.nav-btn:hover { background: var(--accent2); color: var(--white); border-color: var(--accent2); }
 
 /* ── SCREEN 1 — HERO ── */
 #screen1 {
@@ -88,7 +88,7 @@ nav {
 .hero-index {
   font-size: clamp(32px, 5vw, 48px);
   font-family: var(--mono);
-  font-weight: 500; color: var(--accent);
+  font-weight: 500; color: var(--gold);
   letter-spacing: -0.5px;
   margin-bottom: 12px;
   display: flex; align-items: center; justify-content: center; gap: 12px;
@@ -96,21 +96,21 @@ nav {
 
 .live-dot {
   width: 8px; height: 8px; border-radius: 50%;
-  background: var(--accent);
+  background: var(--accent2);
   animation: pulse-dot 1.5s ease-in-out infinite;
   flex-shrink: 0;
 }
 
 @keyframes pulse-dot {
-  0%, 100% { opacity: 1; transform: scale(1); box-shadow: 0 0 0 0 rgba(245,158,11,0.4); }
-  50% { opacity: 0.7; transform: scale(0.8); box-shadow: 0 0 0 6px rgba(245,158,11,0); }
+  0%, 100% { opacity: 1; transform: scale(1); box-shadow: 0 0 0 0 rgba(13,115,119,0.4); }
+  50% { opacity: 0.7; transform: scale(0.8); box-shadow: 0 0 0 6px rgba(13,115,119,0); }
 }
 
 .index-glow {
   transition: color 0.5s, text-shadow 0.5s;
 }
 .index-glow.updated {
-  text-shadow: 0 0 30px rgba(245,158,11,0.6);
+  text-shadow: 0 0 30px rgba(201,168,76,0.7);
 }
 
 .hero-tagline {
@@ -128,9 +128,25 @@ nav {
   50% { transform: translateX(-50%) translateY(8px); }
 }
 
+/* ── HERO GAUGE ── */
+.gauge-wrap {
+  width: 260px; margin: 20px auto 8px;
+}
+.gauge-svg { width: 100%; overflow: visible; }
+.gauge-track { fill: none; stroke: rgba(255,255,255,0.06); stroke-width: 14; stroke-linecap: round; }
+.gauge-fill {
+  fill: none; stroke-width: 14; stroke-linecap: round;
+  transition: stroke-dashoffset 1.2s cubic-bezier(.4,0,.2,1), stroke 0.6s;
+  stroke: #C9A84C;
+}
+.gauge-status-txt {
+  font-family: var(--mono); font-size: 10px; letter-spacing: 2px;
+  text-anchor: middle; dominant-baseline: middle; text-transform: uppercase;
+}
+
 /* ── SCREEN 2 — WHAT IS THIS ── */
 #screen2 {
-  min-height: 100vh; background: var(--white);
+  min-height: 100vh; background: #EAF3FB;
   display: flex; align-items: center;
   padding: 100px 48px;
 }
@@ -173,7 +189,7 @@ nav {
 .s2-card-value {
   font-size: clamp(64px, 10vw, 96px);
   font-family: var(--serif);
-  font-weight: 700; color: var(--accent);
+  font-weight: 700; color: var(--gold);
   letter-spacing: -2px; line-height: 1;
   margin-bottom: 12px;
   transition: color 0.5s;
@@ -204,7 +220,7 @@ nav {
   transition: opacity 0.7s ease, transform 0.7s ease;
 }
 .s3-line.muted { color: var(--muted2); }
-.s3-line.accent { color: var(--accent); font-weight: 600; }
+.s3-line.accent { color: var(--accent2); font-weight: 600; }
 .s3-line.visible { opacity: 1; transform: translateY(0); }
 
 .s3-signals {
@@ -264,7 +280,7 @@ nav {
   text-decoration: none; border-radius: 8px;
   transition: all 0.2s;
 }
-.s4-btn:hover { background: var(--accent); color: var(--dark); transform: translateY(-2px); }
+.s4-btn:hover { background: var(--accent); color: var(--white); transform: translateY(-2px); }
 
 .s4-embed {
   border-radius: 12px; overflow: hidden;
@@ -308,13 +324,13 @@ nav {
 
 .s5-btn {
   padding: 14px 24px;
-  background: var(--accent); color: var(--dark);
+  background: var(--accent); color: var(--white);
   font-size: 14px; font-weight: 700;
   border: none; border-radius: 8px;
   cursor: pointer; white-space: nowrap;
   transition: all 0.2s; font-family: var(--sans);
 }
-.s5-btn:hover { background: #D97706; transform: translateY(-1px); }
+.s5-btn:hover { background: var(--accent2); transform: translateY(-1px); }
 
 .s5-note {
   font-size: 13px; color: var(--muted);
@@ -374,6 +390,18 @@ footer {
     <span>Delivery Pulse™ —</span>
     <span class="index-glow" id="hero-index-val">—</span>
   </div>
+  <!-- Arc Gauge -->
+  <div class="gauge-wrap">
+    <svg class="gauge-svg" viewBox="0 0 200 110" xmlns="http://www.w3.org/2000/svg">
+      <path class="gauge-track" d="M 16 100 A 84 84 0 0 1 184 100"/>
+      <path class="gauge-fill" id="hero-gauge-fill"
+        d="M 16 100 A 84 84 0 0 1 184 100"
+        stroke-dasharray="264" stroke-dashoffset="264"/>
+      <text class="gauge-status-txt" id="hero-gauge-status"
+        x="100" y="88" fill="rgba(255,255,255,0.4)">LOADING</text>
+    </svg>
+  </div>
+
   <p class="hero-tagline">Delivery risk. Live. Right now.</p>
 
   <div class="scroll-indicator" id="scroll-ind">↓</div>
@@ -525,7 +553,24 @@ async function loadIndex() {
     const s2El = document.getElementById('s2-index-val');
     if (s2El) {
       s2El.textContent = val.toFixed(1);
-      s2El.style.color = val < 20 ? '#4ade80' : val < 40 ? '#F59E0B' : '#f87171';
+      s2El.style.color = val < 20 ? '#0D7377' : val < 40 ? '#C9A84C' : '#f87171';
+    }
+
+    // Drive hero gauge
+    const fill = document.getElementById('hero-gauge-fill');
+    const stat = document.getElementById('hero-gauge-status');
+    if (fill) {
+      const pct = Math.min(val / 100, 1);
+      const arcLen = 264;
+      fill.style.strokeDashoffset = arcLen * (1 - pct);
+      const color = val < 20 ? '#0D7377' : val < 40 ? '#C9A84C' : val < 60 ? '#fb923c' : '#f87171';
+      fill.style.stroke = color;
+    }
+    if (stat) {
+      const label = val < 20 ? 'NORMAL' : val < 35 ? 'ELEVATED' : val < 55 ? 'HIGH RISK' : 'CRITICAL';
+      const color = val < 20 ? '#0D7377' : val < 40 ? '#C9A84C' : val < 60 ? '#fb923c' : '#f87171';
+      stat.textContent = label;
+      stat.style.fill = color;
     }
 
     prevVal = val;

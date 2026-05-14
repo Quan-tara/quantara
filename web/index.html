@@ -283,6 +283,17 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
 .pos-tag{margin-top:3px;font-size:10px;color:var(--purple);font-family:var(--mono)}
 .pos-sid{margin-top:4px;font-size:10px;color:var(--muted);font-family:var(--mono)}
 .pos-cancel{margin-top:5px;padding:3px 8px;border:1px solid var(--red);background:transparent;
+.pos-countdown{margin:8px 0 4px;padding:8px 10px;background:rgba(0,0,0,0.2);border-radius:4px;border:1px solid var(--border)}
+.pos-countdown-row{display:flex;justify-content:space-between;align-items:center;font-size:10px;font-family:var(--mono);margin-bottom:3px}
+.pos-countdown-row:last-child{margin-bottom:0}
+.pcd-lbl{color:var(--muted)}
+.pcd-val{font-weight:700}
+.pcd-bar-wrap{height:3px;background:var(--border);border-radius:2px;margin-top:4px;overflow:hidden}
+.pcd-bar{height:100%;border-radius:2px;transition:width 0.8s,background 0.5s}
+.pcd-verdict{font-size:10px;text-align:center;margin-top:5px;font-style:italic;color:var(--muted)}
+.pcd-verdict.v-yes{color:var(--red)}
+.pcd-verdict.v-no{color:var(--green)}
+.pcd-verdict.v-close{color:var(--amber)}
   color:var(--red);font-family:var(--mono);font-size:9px;border-radius:3px;cursor:pointer}
 .pos-cancel:hover{background:rgba(255,61,90,.1)}
 
@@ -1904,6 +1915,55 @@ async function loadWallet(){
   const a=document.getElementById('t-avail');if(a)a.textContent=fmt(d.available);
 }
 
+function buildCountdown(p, runEst, threshold){
+  if(!p.expires_at) return '';
+  const now = Date.now();
+  const exp = new Date(p.expires_at + 'Z').getTime();
+  const created = new Date((p.created_at||p.expires_at) + 'Z').getTime();
+  const totalMs = Math.max(1, exp - created);
+  const remMs   = Math.max(0, exp - now);
+  const remMins = Math.round(remMs / 60000);
+  const pctTime = Math.max(0, Math.min(100, (remMs / totalMs) * 100));
+
+  let timeStr;
+  if(remMins <= 0)        timeStr = 'Settling soon...';
+  else if(remMins < 60)   timeStr = `${remMins}m remaining`;
+  else if(remMins < 1440) timeStr = `${Math.floor(remMins/60)}h ${remMins%60}m remaining`;
+  else                    timeStr = `${Math.floor(remMins/1440)}d ${Math.floor((remMins%1440)/60)}h remaining`;
+
+  const thr = threshold || 20;
+  const est = runEst != null ? runEst : null;
+  const estStr = est != null ? `${est.toFixed(2)}%` : '—';
+  const barClr = pctTime > 50 ? 'var(--green)' : pctTime > 20 ? 'var(--amber)' : 'var(--red)';
+
+  let distStr = '—', distClr = 'var(--muted)', verdict = '', vCls = '';
+  if(est != null){
+    const d = est - thr;
+    distStr = (d >= 0 ? '+' : '') + d.toFixed(2) + '% vs ' + thr + '% threshold';
+    distClr = d > 2 ? 'var(--red)' : d < -2 ? 'var(--green)' : 'var(--amber)';
+    if(d > 2)       { verdict = 'On track for YES settlement'; vCls = 'v-yes'; }
+    else if(d < -2) { verdict = 'On track for NO settlement';  vCls = 'v-no'; }
+    else            { verdict = `Too close to call — ${Math.abs(d).toFixed(1)}% from threshold`; vCls = 'v-close'; }
+  }
+
+  return `<div class="pos-countdown">
+    <div class="pos-countdown-row">
+      <span class="pcd-lbl">⏱ Time remaining</span>
+      <span class="pcd-val" style="color:${barClr}">${timeStr}</span>
+    </div>
+    <div class="pcd-bar-wrap"><div class="pcd-bar" style="width:${pctTime.toFixed(1)}%;background:${barClr}"></div></div>
+    <div class="pos-countdown-row" style="margin-top:6px">
+      <span class="pcd-lbl">Running avg</span>
+      <span class="pcd-val">${estStr}</span>
+    </div>
+    <div class="pos-countdown-row">
+      <span class="pcd-lbl">Distance</span>
+      <span class="pcd-val" style="color:${distClr}">${distStr}</span>
+    </div>
+    ${verdict ? `<div class="pcd-verdict ${vCls}">${verdict}</div>` : ''}
+  </div>`;
+}
+
 async function loadPositions(){
   if(!currentUser)return;
   const data=await fetch(`${API}/api/positions/${currentUser.id}`).then(r=>r.json()).catch(()=>[]);
@@ -1913,6 +1973,8 @@ async function loadPositions(){
     const pnlCls=p.pnl>=0?'pnl-pos':'pnl-neg';const sign=p.pnl>=0?'+':'';
     const lr=p.role==='WRITER'?`<div class="pos-lock">🔒 Locked: ${fmt(p.locked_total)}</div>`:'';
     const tr=p.listed_for_sale?`<div class="pos-tag">🏷️ Listed @ ${fmt(p.listed_price)}</div>`:'';
+    const runEst = lastSnap && lastSnap.stats ? lastSnap.stats.h1_avg : null;
+    const countdown = buildCountdown(p, runEst, p.settlement_threshold||20);
     return `<div class="pos-card ${p.listed_for_sale?'listed':''}">
       <div class="pos-hdr">
         <span class="pos-role pr-${p.role.toLowerCase()}">${p.role}</span>
@@ -1924,6 +1986,7 @@ async function loadPositions(){
         <div>Mark</div><span>${fmt(p.mark_price)}</span>
         <div>Collateral</div><span>${fmt(p.collateral)}</span>
       </div>
+      ${countdown}
       ${lr}${tr}
       <div class="pos-sid">Short ID: <strong>${p.short_id}</strong></div>
       <button class="pos-cancel" onclick="cancelPos('${p.short_id}')">✕ Cancel</button>

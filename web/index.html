@@ -159,6 +159,25 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
 .factor-status{font-size:10px;font-weight:700;letter-spacing:0.5px;flex-shrink:0;width:80px;text-align:right}
 .factor-narrative{font-size:10px;color:var(--muted);font-style:italic;
   padding:2px 18px 6px;line-height:1.4;transition:color 0.4s;}
+.factor-anim{width:48px;height:36px;flex-shrink:0;display:flex;align-items:center;justify-content:center;}
+.factor-anim svg{overflow:visible;}
+/* Weather animations */
+@keyframes cloud-drift{0%,100%{transform:translateX(0)}50%{transform:translateX(2px)}}
+@keyframes rain-fall{0%{transform:translateY(0);opacity:1}100%{transform:translateY(6px);opacity:0}}
+@keyframes lightning{0%,90%,100%{opacity:0}92%,96%{opacity:1}}
+@keyframes sun-spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+/* Traffic animations */
+@keyframes car-move{0%,100%{transform:translateX(0)}50%{transform:translateX(3px)}}
+@keyframes car-slow{0%,100%{transform:translateX(0)}50%{transform:translateX(1px)}}
+/* Driver animations */
+@keyframes person-bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-1px)}}
+@keyframes person-fade{0%{opacity:1}100%{opacity:0.2}}
+/* Volume animations */
+@keyframes box-fill{0%{height:0}100%{height:var(--fill-h)}}
+@keyframes box-pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.04)}}
+/* Route animations */
+@keyframes road-pulse{0%,100%{stroke-dashoffset:0}100%{stroke-dashoffset:-12}}
+@keyframes warning-blink{0%,100%{opacity:1}50%{opacity:0.3}}
 .factor-narrative.fn-elevated{color:var(--amber);}
 .factor-narrative.fn-high{color:#fb923c;}
 .factor-narrative.fn-critical{color:var(--red);}
@@ -1360,6 +1379,122 @@ function renderRateBars(barsId, datesId, data, runEst){
 // ============================================================
 // RENDER HELPERS
 // ============================================================
+// SVG animation generators for each factor
+function weatherSVG(v) {
+  const tier = v < 25 ? 0 : v < 50 ? 1 : v < 75 ? 2 : 3;
+  if(tier===0) return `<svg width="48" height="36" viewBox="0 0 48 36">
+    <g style="animation:sun-spin 8s linear infinite;transform-origin:14px 14px">
+      <circle cx="14" cy="14" r="5" fill="#facc15"/>
+      ${[0,45,90,135,180,225,270,315].map(a=>`<line x1="14" y1="14" x2="${14+Math.cos(a*Math.PI/180)*9}" y2="${14+Math.sin(a*Math.PI/180)*9}" stroke="#facc15" stroke-width="1.5" stroke-linecap="round"/>`).join('')}
+    </g></svg>`;
+  if(tier===1) return `<svg width="48" height="36" viewBox="0 0 48 36">
+    <circle cx="14" cy="16" r="4" fill="#facc15" opacity="0.6"/>
+    <ellipse cx="20" cy="20" rx="8" ry="5" fill="#94a3b8" style="animation:cloud-drift 3s ease-in-out infinite"/>
+    <ellipse cx="26" cy="22" rx="6" ry="4" fill="#cbd5e1" style="animation:cloud-drift 3s ease-in-out infinite 0.5s"/>
+    </svg>`;
+  if(tier===2) return `<svg width="48" height="36" viewBox="0 0 48 36">
+    <ellipse cx="22" cy="12" rx="10" ry="6" fill="#64748b"/>
+    <ellipse cx="30" cy="14" rx="8" ry="5" fill="#475569"/>
+    ${[14,19,24,29,34].map((x,i)=>`<line x1="${x}" y1="20" x2="${x-2}" y2="28" stroke="#60a5fa" stroke-width="1.5" stroke-linecap="round" style="animation:rain-fall 0.8s linear infinite;animation-delay:${i*0.15}s"/>`).join('')}
+    </svg>`;
+  return `<svg width="48" height="36" viewBox="0 0 48 36">
+    <ellipse cx="22" cy="10" rx="11" ry="6" fill="#374151"/>
+    <ellipse cx="31" cy="12" rx="8" ry="5" fill="#1f2937"/>
+    ${[13,18,23,28,33].map((x,i)=>`<line x1="${x}" y1="18" x2="${x-3}" y2="28" stroke="#93c5fd" stroke-width="2" stroke-linecap="round" style="animation:rain-fall 0.5s linear infinite;animation-delay:${i*0.1}s"/>`).join('')}
+    <polyline points="26,14 22,22 25,22 20,30" fill="none" stroke="#fbbf24" stroke-width="2" stroke-linejoin="round" style="animation:lightning 1.5s ease-in-out infinite"/>
+    </svg>`;
+}
+
+function trafficSVG(v) {
+  const tier = v < 25 ? 0 : v < 50 ? 1 : v < 75 ? 2 : 3;
+  const cars = tier===0?['#4ade80','#22c55e']:tier===1?['#facc15','#4ade80','#22c55e']:tier===2?['#f97316','#facc15','#4ade80']:['#f87171','#f97316','#facc15'];
+  const spacing = tier===0?10:tier===1?7:tier===2?5:3;
+  const anim = tier<2?'car-move':'car-slow';
+  const dur = tier===0?'1s':tier===1?'1.5s':tier===2?'3s':'6s';
+  return `<svg width="48" height="36" viewBox="0 0 48 36">
+    <rect x="0" y="16" width="48" height="4" fill="#374151" rx="2"/>
+    <rect x="0" y="19" width="48" height="1" fill="#4b5563"/>
+    ${cars.map((c,i)=>`<g style="animation:${anim} ${dur} ease-in-out infinite;animation-delay:${i*0.3}s">
+      <rect x="${8+i*spacing}" y="11" width="8" height="5" rx="1" fill="${c}"/>
+      <rect x="${9+i*spacing}" y="10" width="6" height="2" rx="1" fill="${c}" opacity="0.7"/>
+      <circle cx="${10+i*spacing}" cy="16" r="1.5" fill="#1f2937"/>
+      <circle cx="${14+i*spacing}" cy="16" r="1.5" fill="#1f2937"/>
+    </g>`).join('')}
+  </svg>`;
+}
+
+function driverSVG(v) {
+  const tier = v < 25 ? 0 : v < 50 ? 1 : v < 75 ? 2 : 3;
+  const total = 5;
+  const active = tier===0?5:tier===1?4:tier===2?2:1;
+  return `<svg width="48" height="36" viewBox="0 0 48 36">
+    ${Array.from({length:total},(_, i)=>{
+      const x = 4 + i*9;
+      const isActive = i < active;
+      const delay = `${i*0.2}s`;
+      return `<g opacity="${isActive?1:0.15}" style="${isActive?`animation:person-bob 1.5s ease-in-out infinite;animation-delay:${delay}`:''}">
+        <circle cx="${x}" cy="10" r="3" fill="${isActive?'#60a5fa':'#6b7280'}"/>
+        <rect x="${x-2.5}" y="14" width="5" height="8" rx="1" fill="${isActive?'#3b82f6':'#4b5563'}"/>
+        <line x1="${x-2.5}" y1="16" x2="${x-5}" y2="22" stroke="${isActive?'#60a5fa':'#6b7280'}" stroke-width="1.5" stroke-linecap="round"/>
+        <line x1="${x+2.5}" y1="16" x2="${x+5}" y2="22" stroke="${isActive?'#60a5fa':'#6b7280'}" stroke-width="1.5" stroke-linecap="round"/>
+      </g>`;
+    }).join('')}
+    ${tier>=2?`<text x="40" y="14" font-size="10" fill="#f87171" style="animation:warning-blink 1s ease-in-out infinite">!</text>`:''}
+  </svg>`;
+}
+
+function routeSVG(v) {
+  const tier = v < 25 ? 0 : v < 50 ? 1 : v < 75 ? 2 : 3;
+  if(tier===0) return `<svg width="48" height="36" viewBox="0 0 48 36">
+    <path d="M4,28 C12,28 16,8 24,8 C32,8 36,28 44,28" fill="none" stroke="#4ade80" stroke-width="2" stroke-linecap="round"
+      stroke-dasharray="6 3" style="animation:road-pulse 1s linear infinite"/>
+    <circle cx="44" cy="28" r="3" fill="#4ade80"/>
+    </svg>`;
+  if(tier===1) return `<svg width="48" height="36" viewBox="0 0 48 36">
+    <path d="M4,28 C10,28 14,12 20,12 C26,12 28,20 34,20 C38,20 40,28 44,28" fill="none" stroke="#facc15" stroke-width="2" stroke-linecap="round"/>
+    <circle cx="44" cy="28" r="3" fill="#facc15"/>
+    </svg>`;
+  if(tier===2) return `<svg width="48" height="36" viewBox="0 0 48 36">
+    <path d="M4,28 C8,28 10,10 16,10 C20,10 20,28 26,28" fill="none" stroke="#f97316" stroke-width="2" stroke-linecap="round" stroke-dasharray="4 2"/>
+    <line x1="28" y1="24" x2="44" y2="24" stroke="#f87171" stroke-width="3" stroke-linecap="round" style="animation:warning-blink 1s ease-in-out infinite"/>
+    <text x="30" y="20" font-size="9" fill="#f87171" style="animation:warning-blink 1s ease-in-out infinite">⛔</text>
+    </svg>`;
+  return `<svg width="48" height="36" viewBox="0 0 48 36">
+    <path d="M4,28 C8,28 10,10 16,10" fill="none" stroke="#f87171" stroke-width="2" stroke-linecap="round" stroke-dasharray="3 2"/>
+    <line x1="16" y1="6" x2="28" y2="18" stroke="#f87171" stroke-width="2"/>
+    <line x1="28" y1="6" x2="16" y2="18" stroke="#f87171" stroke-width="2"/>
+    <text x="30" y="20" font-size="10" fill="#f87171" style="animation:warning-blink 0.7s ease-in-out infinite">⛔</text>
+    </svg>`;
+}
+
+function volumeSVG(v) {
+  const tier = v < 25 ? 0 : v < 50 ? 1 : v < 75 ? 2 : 3;
+  const fillH = Math.round((v/100)*18);
+  const fillColor = tier===0?'#4ade80':tier===1?'#60a5fa':tier===2?'#f97316':'#f87171';
+  const overflow = tier===3;
+  return `<svg width="48" height="36" viewBox="0 0 48 36">
+    <rect x="10" y="8" width="20" height="20" rx="2" fill="none" stroke="#4b5563" stroke-width="1.5"/>
+    <rect x="11" y="${28-fillH}" width="18" height="${fillH}" rx="1" fill="${fillColor}" opacity="0.8"
+      style="animation:box-pulse ${tier>=2?'0.8':'2'}s ease-in-out infinite"/>
+    <text x="32" y="14" font-size="9" fill="${fillColor}">${Math.round(v)}%</text>
+    ${overflow?`
+    <rect x="8" y="4" width="4" height="4" rx="1" fill="${fillColor}" style="animation:warning-blink 0.6s ease-in-out infinite"/>
+    <rect x="30" y="4" width="4" height="4" rx="1" fill="${fillColor}" style="animation:warning-blink 0.6s ease-in-out infinite 0.3s"/>
+    `:''}
+  </svg>`;
+}
+
+function getFactorSVG(key, value) {
+  switch(key) {
+    case 'weather': return weatherSVG(value);
+    case 'traffic': return trafficSVG(value);
+    case 'driver':  return driverSVG(value);
+    case 'route':   return routeSVG(value);
+    case 'volume':  return volumeSVG(value);
+    default: return volumeSVG(value);
+  }
+}
+
 // Factor narrative data keyed by factor name
 const FACTOR_META = {
   weather: {
@@ -1439,13 +1574,21 @@ function renderFactors(elId,factors){
     const spike=f.spiking?`<span class="spike-badge">⚡</span>`:'';
     const key=getFactorKey(f.name);
     const meta=getFactorMeta(key,f.value);
-    return `<div class="factor-row">
-      <span class="factor-name" title="${f.desc}">${meta.icon} ${f.name}</span>${spike}
-      <div class="factor-bar-wrap"><div class="factor-bar" style="width:${w}%;background:${clr}"></div></div>
-      <span class="factor-val" style="color:${clr}">${fmt1(f.value)}</span>
-      <span class="factor-status" style="color:${meta.clrStatus}">${meta.status}</span>
-    </div>
-    <div class="factor-narrative ${meta.cls}">${meta.narrative}</div>`;
+    const svg=getFactorSVG(key,f.value);
+    return `<div style="padding:8px 12px 0;border-bottom:1px solid var(--border)">
+      <div style="display:flex;align-items:center;gap:8px">
+        <div class="factor-anim">${svg}</div>
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:4px;margin-bottom:4px">
+            <span class="factor-name" title="${f.desc}" style="flex:1">${f.name}</span>${spike}
+            <span class="factor-val" style="color:${clr}">${fmt1(f.value)}</span>
+            <span class="factor-status" style="color:${meta.clrStatus};font-size:10px;font-weight:700;letter-spacing:0.5px;width:70px;text-align:right">${meta.status}</span>
+          </div>
+          <div class="factor-bar-wrap" style="width:100%"><div class="factor-bar" style="width:${w}%;background:${clr}"></div></div>
+        </div>
+      </div>
+      <div class="factor-narrative ${meta.cls}" style="padding:4px 0 6px;margin-left:56px">${meta.narrative}</div>
+    </div>`;
   }).join('');
 }
 

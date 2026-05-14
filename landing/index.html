@@ -21,12 +21,12 @@
 
 :root {
   --accent: #F59E0B;
-  --dark:   #0A0A0A;
-  --dark2:  #0D1117;
+  --dark:   #0B1F20;
+  --dark2:  #0D2426;
   --light:  #F8F9FA;
-  --white:  #FFFFFF;
-  --muted:  #6B7280;
-  --muted2: #9CA3AF;
+  --white:  #E8F4F5;
+  --muted:  #6B9E9F;
+  --muted2: #8ABCBD;
   --text:   #111827;
   --text2:  #374151;
   --serif:  'DM Serif Display', serif;
@@ -42,7 +42,7 @@ nav {
   position: fixed; top: 0; left: 0; right: 0; z-index: 100;
   display: flex; align-items: center; justify-content: space-between;
   padding: 20px 48px;
-  background: rgba(10,10,10,0.85);
+  background: rgba(11,31,32,0.92);
   backdrop-filter: blur(12px);
   border-bottom: 1px solid rgba(255,255,255,0.06);
 }
@@ -64,7 +64,7 @@ nav {
 
 /* ── SCREEN 1 — HERO ── */
 #screen1 {
-  height: 100vh; background: var(--dark);
+  height: 100vh; background: linear-gradient(160deg, #0B1F20 0%, #0D2426 60%, #112820 100%);
   display: flex; flex-direction: column;
   justify-content: center; align-items: center;
   text-align: center; position: relative;
@@ -174,7 +174,7 @@ nav {
 }
 
 .s2-card {
-  background: var(--dark2); border-radius: 16px;
+  background: #0D2426; border-radius: 16px;
   padding: 48px 40px; text-align: center;
   box-shadow: 0 40px 80px rgba(0,0,0,0.3);
   border: 1px solid rgba(255,255,255,0.06);
@@ -201,7 +201,7 @@ nav {
 
 /* ── SCREEN 3 — WHAT'S NEW ── */
 #screen3 {
-  min-height: 100vh; background: var(--dark2);
+  min-height: 100vh; background: linear-gradient(160deg, #0D2426 0%, #0B1F20 100%);
   display: flex; flex-direction: column;
   justify-content: center; align-items: center;
   text-align: center; padding: 100px 48px;
@@ -226,7 +226,7 @@ nav {
 .s3-signals {
   display: grid; grid-template-columns: repeat(3, 1fr);
   gap: 0; margin-top: 80px; width: 100%; max-width: 800px;
-  border: 1px solid rgba(255,255,255,0.08); border-radius: 8px;
+  border: 1px solid rgba(13,115,119,0.25); border-radius: 8px;
   overflow: hidden;
   opacity: 0; transform: translateY(20px);
   transition: opacity 0.7s 0.4s ease, transform 0.7s 0.4s ease;
@@ -235,7 +235,7 @@ nav {
 
 .s3-signal {
   padding: 36px 28px; text-align: center;
-  border-right: 1px solid rgba(255,255,255,0.08);
+  border-right: 1px solid rgba(13,115,119,0.2);
 }
 .s3-signal:last-child { border-right: none; }
 
@@ -285,14 +285,14 @@ nav {
 .s4-embed {
   border-radius: 12px; overflow: hidden;
   box-shadow: 0 40px 80px rgba(0,0,0,0.15);
-  border: 1px solid #E5E7EB;
+  border: 1px solid rgba(13,115,119,0.2);
   height: 500px;
 }
 .s4-embed iframe { width: 100%; height: 100%; border: none; display: block; }
 
 /* ── SCREEN 5 — JOIN ── */
 #screen5 {
-  min-height: 100vh; background: var(--dark);
+  min-height: 100vh; background: linear-gradient(160deg, #0B1F20 0%, #0D2426 100%);
   display: flex; flex-direction: column;
   justify-content: center; align-items: center;
   text-align: center; padding: 100px 24px;
@@ -344,8 +344,8 @@ nav {
 /* ── FOOTER ── */
 footer {
   padding: 32px 48px;
-  background: var(--dark);
-  border-top: 1px solid rgba(255,255,255,0.06);
+  background: #091819;
+  border-top: 1px solid rgba(13,115,119,0.3);
   display: flex; align-items: center; justify-content: space-between;
   flex-wrap: wrap; gap: 12px;
 }
@@ -544,7 +544,7 @@ async function loadIndex() {
     // Hero
     const heroEl = document.getElementById('hero-index-val');
     if (heroEl) {
-      heroEl.textContent = val.toFixed(1);
+      heroEl.textContent = val.toFixed(2);
       heroEl.classList.add('updated');
       setTimeout(() => heroEl.classList.remove('updated'), 1000);
     }
@@ -552,7 +552,7 @@ async function loadIndex() {
     // Screen 2 card
     const s2El = document.getElementById('s2-index-val');
     if (s2El) {
-      s2El.textContent = val.toFixed(1);
+      s2El.textContent = val.toFixed(2);
       s2El.style.color = val < 20 ? '#0D7377' : val < 40 ? '#C9A84C' : '#f87171';
     }
 

@@ -610,21 +610,10 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
             <div class="spark-lbl"><span>Last 60 min σ</span><span id="t-vol-spark-range" style="font-family:var(--mono);font-size:10px;color:var(--text)">—</span></div>
             <canvas id="t-vol-sparkline" width="400" height="50"></canvas>
           </div>
-          <div class="sh"><span class="sh-title">Index mini chart</span></div>
-          <div class="mini-chart-wrap">
-            <div class="mini-chart-title">Index history (last hour)<span id="t-mini-range">—</span></div>
-            <canvas id="t-mini-chart" width="244" height="48"></canvas>
-          </div>
-          <div class="sh"><span class="sh-title">Volatility</span></div>
-          <div class="prob-section" style="padding:10px 18px">
-            <div class="vol-row">
-              <span class="vol-lbl">Volatility (60 min σ)</span>
-              <span class="vol-val" id="t-vol">—</span>
-            </div>
-            <div style="margin-top:10px">
-              <div class="mini-chart-title" style="margin-bottom:5px">Volatility history<span id="t-vol-range">—</span></div>
-              <canvas id="t-vol-chart" width="244" height="36"></canvas>
-            </div>
+          <div class="sh"><span class="sh-title">Volatility (60 min σ)</span></div>
+          <div style="padding:10px 18px;border-bottom:1px solid var(--border)">
+            <span class="vol-val" id="t-vol" style="font-family:var(--mono);font-size:18px;color:var(--accent)">—</span>
+            <span style="font-size:10px;color:var(--muted);margin-left:8px">current rolling volatility</span>
           </div>
         </div>
         <div class="col">
@@ -667,6 +656,9 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
           <div id="t-spike-log" style="max-height:140px;overflow-y:auto;border-bottom:1px solid var(--border)"></div>
         </div>
       </div>
+    <!-- Hidden canvases kept for JS compatibility -->
+    <canvas id="t-mini-chart" width="1" height="1" style="display:none"></canvas>
+    <canvas id="t-vol-chart" width="1" height="1" style="display:none"></canvas>
     </div><!-- /t-page2 -->
 
     <!-- TAB 3: ANALYSIS — ledger, trade history, loss estimator -->

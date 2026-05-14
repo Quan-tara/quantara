@@ -156,6 +156,12 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
 .factor-bar{height:100%;border-radius:3px;transition:width .8s}
 .factor-val{font-family:var(--mono);font-size:11px;font-weight:700;width:30px;text-align:right;flex-shrink:0}
 .factor-wt{font-size:9px;color:#b8cce0;width:26px;text-align:right;flex-shrink:0}
+.factor-status{font-size:10px;font-weight:700;letter-spacing:0.5px;flex-shrink:0;width:80px;text-align:right}
+.factor-narrative{font-size:10px;color:var(--muted);font-style:italic;
+  padding:2px 18px 6px;line-height:1.4;transition:color 0.4s;}
+.factor-narrative.fn-elevated{color:var(--amber);}
+.factor-narrative.fn-high{color:#fb923c;}
+.factor-narrative.fn-critical{color:var(--red);}
 .spike-badge{background:rgba(255,179,0,.2);color:var(--amber);font-size:9px;
   font-family:var(--mono);padding:1px 4px;border-radius:2px;animation:fl 1s infinite}
 @keyframes fl{0%,100%{opacity:1}50%{opacity:.4}}
@@ -1348,17 +1354,92 @@ function renderRateBars(barsId, datesId, data, runEst){
 // ============================================================
 // RENDER HELPERS
 // ============================================================
+// Factor narrative data keyed by factor name
+const FACTOR_META = {
+  weather: {
+    icon: ['☀️','🌥️','⛈️','🌪️'],
+    status: ['Clear','Cloudy','Storm','Severe Storm'],
+    narrative: [
+      'Clear skies across major lanes. Minimal weather impact expected.',
+      'Overcast conditions developing. Monitoring for deterioration.',
+      'Storm system active. Expect delays on exposed routes.',
+      'Severe weather emergency. Major disruption to delivery network.'
+    ]
+  },
+  traffic: {
+    icon: ['🟢','🟡','🟠','🔴'],
+    status: ['Low','Moderate','High','Critical'],
+    narrative: [
+      'Traffic flowing freely. No significant congestion detected.',
+      'Moderate congestion on key corridors. Minor delays possible.',
+      'Heavy congestion reported. Average delay: 1.5–2.5 hours.',
+      'Gridlock conditions. Severe delays across the network.'
+    ]
+  },
+  driver: {
+    icon: ['👥','👤','⚠️','🚨'],
+    status: ['Surplus','Normal','Shortage','Critical'],
+    narrative: [
+      'Driver supply exceeds demand. Full coverage available.',
+      'Driver availability within normal range.',
+      'Driver shortage detected. Reduced coverage on some lanes.',
+      'Critical driver shortage. Significant capacity constraints.'
+    ]
+  },
+  route: {
+    icon: ['🛣️','↗️','⚠️','🚧'],
+    status: ['Open','Minor','Disrupted','Blocked'],
+    narrative: [
+      'All major routes clear. Optimal conditions for transit.',
+      'Minor route complexity. Some diversions in effect.',
+      'Multiple route disruptions active. Expect longer transit times.',
+      'Critical route blockages. Major rerouting required.'
+    ]
+  },
+  volume: {
+    icon: ['📦','📬','📮','🔥'],
+    status: ['Low','Normal','Elevated','Overload'],
+    narrative: [
+      'Network operating well below capacity. Smooth processing.',
+      'Volume within normal operating range.',
+      'Elevated shipment volume. Network approaching stress threshold.',
+      'Network at or beyond capacity. Processing delays likely.'
+    ]
+  }
+};
+
+function getFactorMeta(key, value) {
+  const meta = FACTOR_META[key] || FACTOR_META.volume;
+  const tier = value < 25 ? 0 : value < 50 ? 1 : value < 75 ? 2 : 3;
+  const cls  = tier === 0 ? '' : tier === 1 ? 'fn-elevated' : tier === 2 ? 'fn-high' : 'fn-critical';
+  const clrStatus = tier === 0 ? 'var(--green)' : tier === 1 ? 'var(--amber)' : tier === 2 ? '#fb923c' : 'var(--red)';
+  return { icon: meta.icon[tier], status: meta.status[tier], narrative: meta.narrative[tier], cls, clrStatus };
+}
+
+function getFactorKey(name) {
+  const n = name.toLowerCase();
+  if(n.includes('weather')) return 'weather';
+  if(n.includes('traffic')) return 'traffic';
+  if(n.includes('driver')) return 'driver';
+  if(n.includes('route')) return 'route';
+  if(n.includes('volume')) return 'volume';
+  return 'volume';
+}
+
 function renderFactors(elId,factors){
   const el=document.getElementById(elId);if(!el)return;
   el.innerHTML=factors.map(f=>{
     const clr=idxColor(f.value);const w=Math.min(100,f.value);
     const spike=f.spiking?`<span class="spike-badge">⚡</span>`:'';
+    const key=getFactorKey(f.name);
+    const meta=getFactorMeta(key,f.value);
     return `<div class="factor-row">
-      <span class="factor-name" title="${f.desc}">${f.name}</span>${spike}
+      <span class="factor-name" title="${f.desc}">${meta.icon} ${f.name}</span>${spike}
       <div class="factor-bar-wrap"><div class="factor-bar" style="width:${w}%;background:${clr}"></div></div>
       <span class="factor-val" style="color:${clr}">${fmt1(f.value)}</span>
-      <span class="factor-wt">${f.weight_pct}%</span>
-    </div>`;
+      <span class="factor-status" style="color:${meta.clrStatus}">${meta.status}</span>
+    </div>
+    <div class="factor-narrative ${meta.cls}">${meta.narrative}</div>`;
   }).join('');
 }
 

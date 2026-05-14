@@ -21,8 +21,8 @@
 
 :root {
   --accent: #F59E0B;
-  --dark:   #2C3E1C;
-  --dark2:  #2C3E1C;
+  --dark:   #3A5025;
+  --dark2:  #3A5025;
   --light:  #F8F9FA;
   --white:  #FFFFFF;
   --muted:  #C8D8B8;
@@ -42,7 +42,7 @@ nav {
   position: fixed; top: 0; left: 0; right: 0; z-index: 100;
   display: flex; align-items: center; justify-content: space-between;
   padding: 20px 48px;
-  background: rgba(36,51,24,0.95);
+  background: rgba(58,80,37,0.95);
   backdrop-filter: blur(12px);
   border-bottom: 1px solid rgba(255,255,255,0.06);
 }
@@ -64,7 +64,7 @@ nav {
 
 /* ── SCREEN 1 — HERO ── */
 #screen1 {
-  height: 100vh; background: linear-gradient(160deg, #2C3E1C 0%, #2C3E1C 60%, #2C3E1C 100%);
+  height: 100vh; background: linear-gradient(160deg, #3A5025 0%, #3A5025 60%, #3A5025 100%);
   display: flex; flex-direction: column;
   justify-content: center; align-items: center;
   text-align: center; position: relative;
@@ -137,7 +137,7 @@ nav {
 .gauge-fill {
   fill: none; stroke-width: 16; stroke-linecap: round;
   transition: stroke-dashoffset 1.2s cubic-bezier(.4,0,.2,1), stroke 0.6s;
-  stroke: #C9A84C;
+  stroke: #7EC850;
 }
 .gauge-status-txt {
   font-family: var(--mono); font-size: 10px; letter-spacing: 2px;
@@ -174,7 +174,7 @@ nav {
 }
 
 .s2-card {
-  background: #2C3E1C; border-radius: 16px;
+  background: #3A5025; border-radius: 16px;
   padding: 48px 40px; text-align: center;
   box-shadow: 0 40px 80px rgba(0,0,0,0.3);
   border: 1px solid rgba(255,255,255,0.06);
@@ -201,7 +201,7 @@ nav {
 
 /* ── SCREEN 3 — WHAT'S NEW ── */
 #screen3 {
-  min-height: 100vh; background: linear-gradient(160deg, #2C3E1C 0%, #2C3E1C 100%);
+  min-height: 100vh; background: linear-gradient(160deg, #3A5025 0%, #3A5025 100%);
   display: flex; flex-direction: column;
   justify-content: center; align-items: center;
   text-align: center; padding: 100px 48px;
@@ -292,7 +292,7 @@ nav {
 
 /* ── SCREEN 5 — JOIN ── */
 #screen5 {
-  min-height: 100vh; background: linear-gradient(160deg, #2C3E1C 0%, #2C3E1C 100%);
+  min-height: 100vh; background: linear-gradient(160deg, #3A5025 0%, #3A5025 100%);
   display: flex; flex-direction: column;
   justify-content: center; align-items: center;
   text-align: center; padding: 100px 24px;
@@ -344,7 +344,7 @@ nav {
 /* ── FOOTER ── */
 footer {
   padding: 32px 48px;
-  background: #1A2610;
+  background: #253618;
   border-top: 1px solid rgba(120,150,60,0.3);
   display: flex; align-items: center; justify-content: space-between;
   flex-wrap: wrap; gap: 12px;
@@ -553,7 +553,7 @@ async function loadIndex() {
     const s2El = document.getElementById('s2-index-val');
     if (s2El) {
       s2El.textContent = val.toFixed(2);
-      s2El.style.color = val < 20 ? '#0D7377' : val < 40 ? '#C9A84C' : '#f87171';
+      s2El.style.color = val < 20 ? '#7EC850' : val < 40 ? '#C9A84C' : '#f87171';
     }
 
     // Drive hero gauge
@@ -563,12 +563,12 @@ async function loadIndex() {
       const pct = Math.min(val / 100, 1);
       const arcLen = 264;
       fill.style.strokeDashoffset = arcLen * (1 - pct);
-      const color = val < 20 ? '#0D7377' : val < 40 ? '#C9A84C' : val < 60 ? '#fb923c' : '#f87171';
+      const color = val < 20 ? '#7EC850' : val < 40 ? '#C9A84C' : val < 60 ? '#fb923c' : '#f87171';
       fill.style.stroke = color;
     }
     if (stat) {
       const label = val < 20 ? 'NORMAL' : val < 35 ? 'ELEVATED' : val < 55 ? 'HIGH RISK' : 'CRITICAL';
-      const color = val < 20 ? '#0D7377' : val < 40 ? '#C9A84C' : val < 60 ? '#fb923c' : '#f87171';
+      const color = val < 20 ? '#7EC850' : val < 40 ? '#C9A84C' : val < 60 ? '#fb923c' : '#f87171';
       stat.textContent = label;
       stat.style.fill = color;
     }

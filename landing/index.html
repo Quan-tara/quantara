@@ -21,8 +21,8 @@
 
 :root {
   --accent: #F59E0B;
-  --dark:   #0B1F20;
-  --dark2:  #0D2426;
+  --dark:   #2D3B1F;
+  --dark2:  #354522;
   --light:  #F8F9FA;
   --white:  #E8F4F5;
   --muted:  #6B9E9F;
@@ -42,7 +42,7 @@ nav {
   position: fixed; top: 0; left: 0; right: 0; z-index: 100;
   display: flex; align-items: center; justify-content: space-between;
   padding: 20px 48px;
-  background: rgba(11,31,32,0.92);
+  background: rgba(45,59,31,0.92);
   backdrop-filter: blur(12px);
   border-bottom: 1px solid rgba(255,255,255,0.06);
 }
@@ -64,7 +64,7 @@ nav {
 
 /* ── SCREEN 1 — HERO ── */
 #screen1 {
-  height: 100vh; background: linear-gradient(160deg, #0B1F20 0%, #0D2426 60%, #112820 100%);
+  height: 100vh; background: linear-gradient(160deg, #2D3B1F 0%, #354522 60%, #3A4A20 100%);
   display: flex; flex-direction: column;
   justify-content: center; align-items: center;
   text-align: center; position: relative;
@@ -174,7 +174,7 @@ nav {
 }
 
 .s2-card {
-  background: #0D2426; border-radius: 16px;
+  background: #354522; border-radius: 16px;
   padding: 48px 40px; text-align: center;
   box-shadow: 0 40px 80px rgba(0,0,0,0.3);
   border: 1px solid rgba(255,255,255,0.06);
@@ -201,7 +201,7 @@ nav {
 
 /* ── SCREEN 3 — WHAT'S NEW ── */
 #screen3 {
-  min-height: 100vh; background: linear-gradient(160deg, #0D2426 0%, #0B1F20 100%);
+  min-height: 100vh; background: linear-gradient(160deg, #354522 0%, #2D3B1F 100%);
   display: flex; flex-direction: column;
   justify-content: center; align-items: center;
   text-align: center; padding: 100px 48px;
@@ -226,7 +226,7 @@ nav {
 .s3-signals {
   display: grid; grid-template-columns: repeat(3, 1fr);
   gap: 0; margin-top: 80px; width: 100%; max-width: 800px;
-  border: 1px solid rgba(13,115,119,0.25); border-radius: 8px;
+  border: 1px solid rgba(90,110,40,0.3); border-radius: 8px;
   overflow: hidden;
   opacity: 0; transform: translateY(20px);
   transition: opacity 0.7s 0.4s ease, transform 0.7s 0.4s ease;
@@ -235,7 +235,7 @@ nav {
 
 .s3-signal {
   padding: 36px 28px; text-align: center;
-  border-right: 1px solid rgba(13,115,119,0.2);
+  border-right: 1px solid rgba(90,110,40,0.2);
 }
 .s3-signal:last-child { border-right: none; }
 
@@ -285,14 +285,14 @@ nav {
 .s4-embed {
   border-radius: 12px; overflow: hidden;
   box-shadow: 0 40px 80px rgba(0,0,0,0.15);
-  border: 1px solid rgba(13,115,119,0.2);
+  border: 1px solid rgba(90,110,40,0.2);
   height: 500px;
 }
 .s4-embed iframe { width: 100%; height: 100%; border: none; display: block; }
 
 /* ── SCREEN 5 — JOIN ── */
 #screen5 {
-  min-height: 100vh; background: linear-gradient(160deg, #0B1F20 0%, #0D2426 100%);
+  min-height: 100vh; background: linear-gradient(160deg, #2D3B1F 0%, #354522 100%);
   display: flex; flex-direction: column;
   justify-content: center; align-items: center;
   text-align: center; padding: 100px 24px;
@@ -344,8 +344,8 @@ nav {
 /* ── FOOTER ── */
 footer {
   padding: 32px 48px;
-  background: #091819;
-  border-top: 1px solid rgba(13,115,119,0.3);
+  background: #1E2912;
+  border-top: 1px solid rgba(90,110,40,0.35);
   display: flex; align-items: center; justify-content: space-between;
   flex-wrap: wrap; gap: 12px;
 }

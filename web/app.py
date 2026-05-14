@@ -987,6 +987,9 @@ def api_positions(user_id_str: str):
                 "status":        p.status,
                 "listed_for_sale": p.id in listed_ids,
                 "listed_price":    listed_ids.get(p.id),
+                "expires_at":      str(contracts_map[p.contract_id].expires_at) if p.contract_id in contracts_map and contracts_map[p.contract_id].expires_at else None,
+                "created_at":      str(contracts_map[p.contract_id].created_at) if p.contract_id in contracts_map and contracts_map[p.contract_id].created_at else None,
+                "settlement_threshold": contracts_map[p.contract_id].settlement_threshold if p.contract_id in contracts_map else 20.0,
             }
             for p in positions
         ]

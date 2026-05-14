@@ -40,6 +40,12 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
 .hp-idx{font-family:var(--mono);font-size:20px;font-weight:700;transition:color .5s}
 .hp-idx.low{color:var(--green)}.hp-idx.mid{color:var(--amber)}.hp-idx.high{color:var(--red)}
 .hp-prob{font-size:11px;color:var(--muted)}
+.risk-narrative{font-size:10px;color:var(--muted);font-style:italic;
+  text-align:center;padding:2px 12px;max-width:340px;line-height:1.4;
+  transition:color 0.5s;}
+.risk-narrative.elevated{color:var(--amber);}
+.risk-narrative.high{color:#fb923c;}
+.risk-narrative.critical{color:var(--red);}
 .rate-pill{display:flex;align-items:center;gap:8px;padding:6px 12px;
   border-radius:6px;border:1px solid var(--border);background:var(--s1)}
 .rp-lbl{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px}
@@ -421,6 +427,7 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
       <div><div class="rp-lbl">Daily Settlement Rate</div><div class="rp-val" id="hdr-rate-val">—</div></div>
       <div class="rp-itm" id="hdr-rate-itm" style="color:var(--muted)">vs 20% threshold</div>
     </div>
+    <div class="risk-narrative" id="risk-narrative"></div>
   </div>
   <div style="display:flex;align-items:center;gap:6px;font-size:10px;color:var(--muted)">
     <span class="live-dot"></span>LIVE
@@ -1114,6 +1121,37 @@ async function loadIndex(){
 
   const hEl=document.getElementById('hdr-idx');if(hEl){hEl.textContent=fmt2(idx);hEl.className=`hp-idx ${cls}`;}
   const hpEl=document.getElementById('hdr-prob');if(hpEl)hpEl.textContent=probTxt;
+
+  // ── Risk narrative ──
+  const narEl=document.getElementById('risk-narrative');
+  if(narEl){
+    const f=snap.factors||{};
+    const w=f.weather||0, tr=f.traffic||0, dr=f.driver||0, ro=f.route||0, vo=f.volume||0;
+    const elevated = [w,tr,dr,ro,vo].filter(v=>v>40).length;
+    const critical = [w,tr,dr,ro,vo].filter(v=>v>65).length;
+    let txt='', cls='';
+    if(critical>=2){
+      txt=`⚠️ Multiple critical factors converging — high probability of index spike`;
+      cls='critical';
+    } else if(critical===1){
+      const names={weather:'Weather',traffic:'Traffic',driver:'Driver availability',route:'Route complexity',volume:'Volume pressure'};
+      const facs={weather:w,traffic:tr,driver:dr,route:ro,volume:vo};
+      const crit=Object.entries(facs).find(([k,v])=>v>65);
+      txt=`⚡ ${names[crit[0]]} at critical levels — monitor closely`;
+      cls='high';
+    } else if(elevated>=2){
+      txt=`Emerging disruption detected — multiple factors elevated`;
+      cls='elevated';
+    } else if(idx>25){
+      txt=`Conditions slightly elevated — delivery risk above baseline`;
+      cls='elevated';
+    } else {
+      txt=`Conditions favorable — low delivery risk environment`;
+      cls='';
+    }
+    narEl.textContent=txt;
+    narEl.className=`risk-narrative${cls?' '+cls:''}`;
+  }
 
   ['t','m'].forEach(p=>{
     const num=document.getElementById(`${p}-rp-num`);if(num){num.textContent=fmt2(idx);num.className=`rp-num ${cls}`;}

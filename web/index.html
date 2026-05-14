@@ -498,15 +498,16 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
   <!-- ── TRADER ── -->
   <div id="layout-trader" style="display:none">
     <div class="dash-tabs">
-      <button class="dash-tab at" id="tt1" onclick="switchTraderTab(1)">📈 Risk &amp; Trade</button>
-      <button class="dash-tab" id="tt2" onclick="switchTraderTab(2)">📊 Analysis</button>
+      <button class="dash-tab at" id="tt1" onclick="switchTraderTab(1)">📈 Trade</button>
+      <button class="dash-tab" id="tt2" onclick="switchTraderTab(2)">📡 Market</button>
+      <button class="dash-tab" id="tt3" onclick="switchTraderTab(3)">📊 Analysis</button>
     </div>
 
-    <!-- TRADER TAB 1 -->
+    <!-- TAB 1: TRADE — index, factors, grid, order, positions -->
     <div class="page active" id="t-page1">
       <div class="cols cols-3">
 
-        <!-- LEFT: Index + Rate + Calculator + Factors -->
+        <!-- LEFT: Index + Factors -->
         <div class="col">
           <div class="sh"><span class="sh-title">Delivery Pulse™</span></div>
           <div class="risk-panel">
@@ -519,46 +520,6 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
               <div class="rp-stat"><div class="rp-stat-lbl">1h Max</div><div class="rp-stat-val" id="t-h1-max">—</div></div>
             </div>
           </div>
-          <!-- Index mini chart -->
-          <div class="mini-chart-wrap">
-            <div class="mini-chart-title">Index history (last hour)<span id="t-mini-range">—</span></div>
-            <canvas id="t-mini-chart" width="244" height="48"></canvas>
-          </div>
-          <!-- Published rate panel -->
-          <div class="sh"><span class="sh-title">Daily Settlement Rate</span><span class="sh-sub">settles covers at midnight UTC</span></div>
-          <div class="rate-panel">
-            <div class="rate-big">
-              <div class="rate-num" id="t-rate-num" style="color:var(--green)">—</div>
-              <div class="rate-itm-badge itm-no" id="t-rate-badge">OUT OF MONEY</div>
-            </div>
-            <div class="rate-threshold">20% threshold — contracts settle YES if rate exceeds this</div>
-            <div class="rate-bar-wrap">
-              <div class="rate-bar-fill" id="t-rate-bar" style="width:0%"></div>
-              <div class="rate-threshold-line" style="left:20%"></div>
-            </div>
-            <div class="rate-legend"><span>0%</span><span>20%</span><span>100%</span></div>
-            <div style="margin-top:8px;display:flex;justify-content:space-between;align-items:center">
-              <span style="font-size:10px;color:var(--muted)">↑ Last Daily Settlement Rate (fixed at midnight UTC)</span>
-              <span style="font-size:10px;color:var(--muted)">Today's estimate:
-                <strong style="font-family:var(--mono);color:var(--accent)" id="t-running-est">—</strong>
-              </span>
-            </div>
-            <span style="display:none" id="t-est-fill"></span>
-            <span style="display:none" id="t-pub-fill"></span>
-          </div>
-          <!-- Prob distribution + vol -->
-          <div class="prob-section">
-            <div class="prob-title" id="t-bucket-title">Distribution — last 1h</div>
-            <div id="t-buckets"></div>
-            <div class="vol-row">
-              <span class="vol-lbl">Volatility (60 min σ)</span>
-              <span class="vol-val" id="t-vol">—</span>
-            </div>
-            <div style="margin-top:10px">
-              <div class="mini-chart-title" style="margin-bottom:5px">Volatility history<span id="t-vol-range">—</span></div>
-              <canvas id="t-vol-chart" width="244" height="36"></canvas>
-            </div>
-          </div>
           <div class="sh"><span class="sh-title">Factors</span></div>
           <div id="t-factors" class="scrollable"></div>
         </div>
@@ -567,31 +528,23 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
         <div class="col">
           <div class="sh"><span class="sh-title">Delivery Pulse™ Covers</span>
             <span class="sh-sub" id="t-sel-label">click a cell to trade</span></div>
-
-          <!-- Series grid -->
           <div class="grid-container">
             <div class="grid-col-hdr">
               <div class="gch">Standard</div><div class="gch">Plus</div>
               <div class="gch">Pro</div><div class="gch"></div>
             </div>
-            <div class="series-grid" id="t-series-grid">
-              <!-- populated by JS -->
-            </div>
+            <div class="series-grid" id="t-series-grid"></div>
             <div style="padding:4px 8px;font-size:9px;color:var(--muted);line-height:1.5;border-top:1px solid var(--border)">
               Spot price from MM quotes &nbsp;·&nbsp;
               <span style="color:var(--amber)">↯ implied %</span> = market's forward forecast of the Daily Settlement Rate &nbsp;·&nbsp;
               last = most recent traded price
             </div>
           </div>
-
-          <!-- Market bar for selected series -->
           <div class="mbar-3">
             <div class="mc"><div class="mc-lbl">Best Bid</div><div class="mc-val bid" id="t-bid">—</div></div>
             <div class="mc"><div class="mc-lbl">Best Ask</div><div class="mc-val ask" id="t-ask">—</div></div>
             <div class="mc"><div class="mc-lbl">Fair Mid</div><div class="mc-val mid" id="t-mid">—</div></div>
           </div>
-
-          <!-- Order form -->
           <div class="order-form-wrap" id="t-order-form" style="display:none">
             <div class="of-title" id="t-of-title">Order Details</div>
             <div class="of-info" id="t-of-info">Select Buy Protection or Sell Protection below.</div>
@@ -618,15 +571,11 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
             </div>
             <div class="fres" id="t-res"></div>
           </div>
-
-          <!-- Order book -->
           <div class="sh"><span class="sh-title">Order Book</span></div>
           <div class="book-wrap">
             <div class="bside bids"><div class="bst bids">🟢 Bids</div><div id="t-bids"></div></div>
             <div class="bside asks"><div class="bst asks">🔴 Asks</div><div id="t-asks"></div></div>
           </div>
-
-          <!-- Secondary market -->
           <div class="sh"><span class="sh-title">🏪 Secondary Market</span><span class="sh-sub" id="mkt-sub">—</span></div>
           <div id="t-marketplace" class="scrollable" style="max-height:180px">
             <div class="empty">Select a contract series above</div>
@@ -641,13 +590,102 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
             <div class="wc"><div class="wc-lbl">Locked</div><div class="wc-val" id="t-locked" style="color:var(--amber)">—</div></div>
             <div class="wc"><div class="wc-lbl">Available</div><div class="wc-val" id="t-avail">—</div></div>
           </div>
-          <!-- Loss calculator -->
+          <div class="sh"><span class="sh-title">My Covers</span><span class="sh-sub" id="t-idx-lbl"></span></div>
+          <div id="t-positions" class="scrollable"></div>
+        </div>
+      </div>
+    </div><!-- /t-page1 -->
+
+    <!-- TAB 2: MARKET — charts, rate, distribution, spike log -->
+    <div class="page" id="t-page2">
+      <div class="cols" style="grid-template-columns:1fr 1fr">
+        <div class="col">
+          <div class="sh"><span class="sh-title">Index History (60 min)</span></div>
+          <div class="spark-wrap">
+            <div class="spark-lbl"><span>Last 60 min</span><span id="t-spark-range" style="font-family:var(--mono);font-size:10px;color:var(--text)">—</span></div>
+            <canvas id="t-sparkline" width="400" height="60"></canvas>
+          </div>
+          <div class="sh"><span class="sh-title">Volatility History</span></div>
+          <div class="spark-wrap">
+            <div class="spark-lbl"><span>Last 60 min σ</span><span id="t-vol-spark-range" style="font-family:var(--mono);font-size:10px;color:var(--text)">—</span></div>
+            <canvas id="t-vol-sparkline" width="400" height="50"></canvas>
+          </div>
+          <div class="sh"><span class="sh-title">Index mini chart</span></div>
+          <div class="mini-chart-wrap">
+            <div class="mini-chart-title">Index history (last hour)<span id="t-mini-range">—</span></div>
+            <canvas id="t-mini-chart" width="244" height="48"></canvas>
+          </div>
+          <div class="sh"><span class="sh-title">Volatility</span></div>
+          <div class="prob-section" style="padding:10px 18px">
+            <div class="vol-row">
+              <span class="vol-lbl">Volatility (60 min σ)</span>
+              <span class="vol-val" id="t-vol">—</span>
+            </div>
+            <div style="margin-top:10px">
+              <div class="mini-chart-title" style="margin-bottom:5px">Volatility history<span id="t-vol-range">—</span></div>
+              <canvas id="t-vol-chart" width="244" height="36"></canvas>
+            </div>
+          </div>
+        </div>
+        <div class="col">
+          <div class="sh"><span class="sh-title">Daily Settlement Rate</span><span class="sh-sub">settles covers at midnight UTC</span></div>
+          <div class="rate-panel">
+            <div class="rate-big">
+              <div class="rate-num" id="t-rate-num" style="color:var(--green)">—</div>
+              <div class="rate-itm-badge itm-no" id="t-rate-badge">OUT OF MONEY</div>
+            </div>
+            <div class="rate-threshold">20% threshold — contracts settle YES if rate exceeds this</div>
+            <div class="rate-bar-wrap">
+              <div class="rate-bar-fill" id="t-rate-bar" style="width:0%"></div>
+              <div class="rate-threshold-line" style="left:20%"></div>
+            </div>
+            <div class="rate-legend"><span>0%</span><span>20%</span><span>100%</span></div>
+            <div style="margin-top:8px;display:flex;justify-content:space-between;align-items:center">
+              <span style="font-size:10px;color:var(--muted)">↑ Last Daily Settlement Rate (fixed at midnight UTC)</span>
+              <span style="font-size:10px;color:var(--muted)">Today's estimate:
+                <strong style="font-family:var(--mono);color:var(--accent)" id="t-running-est">—</strong>
+              </span>
+            </div>
+            <span style="display:none" id="t-est-fill"></span>
+            <span style="display:none" id="t-pub-fill"></span>
+          </div>
+          <div class="sh"><span class="sh-title">Daily Settlement Rate History</span></div>
+          <div style="padding:10px 18px;border-bottom:1px solid var(--border)">
+            <div id="t-rate-history-rows"></div>
+            <div style="margin-top:6px;font-size:9px;color:var(--muted);font-family:var(--mono)">
+              Red line = 20% threshold &nbsp;·&nbsp;
+              <span style="color:var(--red)">YES</span> = settled above threshold &nbsp;·&nbsp;
+              <span style="color:var(--green)">NO</span> = settled below
+            </div>
+          </div>
+          <div class="sh"><span class="sh-title">Probability Distribution</span></div>
+          <div class="prob-section">
+            <div class="prob-title" id="t-bucket-title">Distribution — last 1h</div>
+            <div id="t-buckets"></div>
+          </div>
+          <div class="sh"><span class="sh-title">Spike Log</span></div>
+          <div id="t-spike-log" style="max-height:140px;overflow-y:auto;border-bottom:1px solid var(--border)"></div>
+        </div>
+      </div>
+    </div><!-- /t-page2 -->
+
+    <!-- TAB 3: ANALYSIS — ledger, trade history, loss estimator -->
+    <div class="page" id="t-page3">
+      <div class="cols" style="grid-template-columns:1fr 1fr">
+        <div class="col">
+          <div class="sh"><span class="sh-title">Series Ledger</span>
+            <span class="sh-sub">settled contracts</span></div>
+          <div id="t-series-ledger" class="scrollable"></div>
+        </div>
+        <div class="col">
+          <div class="sh"><span class="sh-title">My Trade History</span>
+            <span class="sh-sub">all your trades across all series</span></div>
+          <div id="t-my-trades" class="scrollable" style="max-height:280px;overflow-y:auto;border-bottom:1px solid var(--border)"></div>
           <div class="sh"><span class="sh-title">💡 Loss Estimator</span></div>
           <div class="loss-calc">
             <div class="lc-title">At the current Delivery Pulse™, how much could you lose?</div>
             <div style="font-size:10px;color:var(--muted);margin-bottom:8px;line-height:1.5">
               Enter the value of the shipment you want to protect and the share of it at risk.
-              The estimator shows your expected loss at the current index — this is what buying protection hedges.
             </div>
             <div class="lc-row"><label>Shipment value €</label>
               <input type="number" id="lc-insured" value="100000" step="1000" oninput="updateLossCalc()"></div>
@@ -663,48 +701,9 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
               Protection cost ≈ collateral × (index ÷ 100). Select a series from the grid to see exact premiums.
             </div>
           </div>
-          <div class="sh"><span class="sh-title">My Covers</span><span class="sh-sub" id="t-idx-lbl"></span></div>
-          <div id="t-positions" class="scrollable"></div>
         </div>
       </div>
-    </div><!-- /t-page1 -->
-
-    <!-- TRADER TAB 2 -->
-    <div class="page" id="t-page2">
-      <div class="cols" style="grid-template-columns:1fr 1fr">
-        <div class="col">
-          <div class="sh"><span class="sh-title">Index History (60 min)</span></div>
-          <div class="spark-wrap">
-            <div class="spark-lbl"><span>Last 60 min</span><span id="t-spark-range" style="font-family:var(--mono);font-size:10px;color:var(--text)">—</span></div>
-            <canvas id="t-sparkline" width="400" height="60"></canvas>
-          </div>
-          <div class="sh"><span class="sh-title">Volatility History</span></div>
-          <div class="spark-wrap">
-            <div class="spark-lbl"><span>Last 60 min σ</span><span id="t-vol-spark-range" style="font-family:var(--mono);font-size:10px;color:var(--text)">—</span></div>
-            <canvas id="t-vol-sparkline" width="400" height="50"></canvas>
-          </div>
-          <div class="sh"><span class="sh-title">Daily Settlement Rate History</span></div>
-          <div style="padding:10px 18px;border-bottom:1px solid var(--border)">
-            <div id="t-rate-history-rows"></div>
-            <div style="margin-top:6px;font-size:9px;color:var(--muted);font-family:var(--mono)">
-              Red line = 20% threshold &nbsp;·&nbsp;
-              <span style="color:var(--red)">YES</span> = settled above threshold &nbsp;·&nbsp;
-              <span style="color:var(--green)">NO</span> = settled below
-            </div>
-          </div>
-          <div class="sh"><span class="sh-title">Spike Log</span></div>
-          <div id="t-spike-log" style="max-height:120px;overflow-y:auto;border-bottom:1px solid var(--border)"></div>
-        </div>
-        <div class="col">
-          <div class="sh"><span class="sh-title">My Trade History</span>
-            <span class="sh-sub">all your trades across all series</span></div>
-          <div id="t-my-trades" class="scrollable" style="max-height:280px;overflow-y:auto;border-bottom:1px solid var(--border)"></div>
-          <div class="sh"><span class="sh-title">Series Ledger</span>
-            <span class="sh-sub">settled contracts</span></div>
-          <div id="t-series-ledger" class="scrollable"></div>
-        </div>
-      </div>
-    </div><!-- /t-page2 -->
+    </div><!-- /t-page3 -->
   </div><!-- /trader -->
 
   <!-- ── MM ── -->
@@ -1008,8 +1007,12 @@ function switchTraderTab(n){
   traderTab=n;
   document.getElementById('t-page1').className=`page ${n===1?'active':''}`;
   document.getElementById('t-page2').className=`page ${n===2?'active':''}`;
+  document.getElementById('t-page3').className=`page ${n===3?'active':''}`;
   document.getElementById('tt1').className=`dash-tab ${n===1?'at':''}`;
   document.getElementById('tt2').className=`dash-tab ${n===2?'at':''}`;
+  document.getElementById('tt3').className=`dash-tab ${n===3?'at':''}`;
+  if(n===2) loadRateHistory();
+  if(n===3) { loadRateHistory(); loadMyTrades(); }
 }
 function switchMMTab(n){
   mmTabN=n;

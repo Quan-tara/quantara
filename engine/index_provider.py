@@ -160,62 +160,58 @@ def _tick():
         _history.append((_index, now_ts))
 
         # ── Generate narrative events ──
-        ts = time.strftime("%H:%M")
-        for f in _factors:
-            fname = f["name"]
-            fval  = round(f["value"], 1)
-            prev  = _prev_factors.get(fname, fval)
-            delta = fval - prev
+        try:
+            ts = time.strftime("%H:%M")
+            for f in FACTORS:
+                fname = f["name"]
+                fval  = round(f["value"], 1)
+                prev  = _prev_factors.get(fname, fval)
 
-            # Spike event — already in spike_log, add rich narrative
-            if f["spike"] and not _prev_factors.get(fname+"_spiking"):
-                mag = f["spike"]["magnitude"]
-                narratives = {
-                    "Weather Severity":    f"⛈️  Storm system detected. Weather severity surging +{mag:.0f} pts.",
-                    "Traffic Congestion":  f"🚗  Major congestion reported. Traffic index spiking +{mag:.0f} pts.",
-                    "Driver Availability": f"👤  Driver shortage emerging. Availability dropping sharply.",
-                    "Route Complexity":    f"🚧  Route disruption active. Complexity elevated +{mag:.0f} pts.",
-                    "Volume Pressure":     f"📦  Volume surge detected. Network load increasing rapidly.",
-                }
-                msg = narratives.get(fname, f"⚡  {fname} spiking +{mag:.0f} pts.")
-                _event_feed.appendleft({"time": ts, "msg": msg, "level": "spike"})
+                if f["spike"] and not _prev_factors.get(fname+"_spiking"):
+                    mag = f["spike"]["magnitude"]
+                    narratives = {
+                        "Weather Severity":    f"⛈️  Storm system detected. Weather severity surging +{mag:.0f} pts.",
+                        "Traffic Congestion":  f"🚗  Major congestion reported. Traffic index spiking +{mag:.0f} pts.",
+                        "Driver Availability": f"👤  Driver shortage emerging. Availability dropping sharply.",
+                        "Route Complexity":    f"🚧  Route disruption active. Complexity elevated +{mag:.0f} pts.",
+                        "Volume Pressure":     f"📦  Volume surge detected. Network load increasing rapidly.",
+                    }
+                    msg = narratives.get(fname, f"⚡  {fname} spiking +{mag:.0f} pts.")
+                    _event_feed.appendleft({"time": ts, "msg": msg, "level": "spike"})
+                elif prev > 55 and fval < prev - 8 and not f["spike"]:
+                    recoveries = {
+                        "Weather Severity":    "☀️  Storm system weakening. Conditions improving.",
+                        "Traffic Congestion":  "🟢  Congestion clearing. Traffic flow normalising.",
+                        "Driver Availability": "👥  Driver availability recovering.",
+                        "Route Complexity":    "🛣️  Route disruptions resolving. Network stabilising.",
+                        "Volume Pressure":     "📦  Volume pressure easing. Network returning to normal.",
+                    }
+                    msg = recoveries.get(fname, f"↓  {fname} recovering.")
+                    _event_feed.appendleft({"time": ts, "msg": msg, "level": "recovery"})
+                elif prev < 20 and fval >= 20:
+                    _event_feed.appendleft({"time": ts,
+                        "msg": f"⚠️  {fname} crossed settlement threshold. Monitor closely.",
+                        "level": "warning"})
+                elif prev >= 20 and fval < 20:
+                    _event_feed.appendleft({"time": ts,
+                        "msg": f"✅  {fname} back below threshold.",
+                        "level": "recovery"})
 
-            # Recovery event — factor was high, now dropping
-            elif prev > 55 and fval < prev - 8 and not f["spike"]:
-                recoveries = {
-                    "Weather Severity":    "☀️  Storm system weakening. Conditions improving.",
-                    "Traffic Congestion":  "🟢  Congestion clearing. Traffic flow normalising.",
-                    "Driver Availability": "👥  Driver availability recovering.",
-                    "Route Complexity":    "🛣️  Route disruptions resolving. Network stabilising.",
-                    "Volume Pressure":     "📦  Volume pressure easing. Network returning to normal.",
-                }
-                msg = recoveries.get(fname, f"↓  {fname} recovering.")
-                _event_feed.appendleft({"time": ts, "msg": msg, "level": "recovery"})
+                _prev_factors[fname] = fval
+                _prev_factors[fname+"_spiking"] = bool(f["spike"])
 
-            # Threshold crossing — factor crosses 20% (settlement threshold)
-            elif prev < 20 and fval >= 20:
-                _event_feed.appendleft({"time": ts,
-                    "msg": f"⚠️  {fname} crossed settlement threshold. Monitor closely.",
-                    "level": "warning"})
-            elif prev >= 20 and fval < 20:
-                _event_feed.appendleft({"time": ts,
-                    "msg": f"✅  {fname} back below threshold.",
-                    "level": "recovery"})
-
-            _prev_factors[fname] = fval
-            _prev_factors[fname+"_spiking"] = bool(f["spike"])
-
-        # Index level events
-        prev_idx = _prev_factors.get("__index__", _index)
-        if prev_idx < 35 and _index >= 35:
-            _event_feed.appendleft({"time": ts, "msg": "🔴  Index entering elevated zone. Risk rising.", "level": "warning"})
-        elif prev_idx >= 35 and _index < 35:
-            _event_feed.appendleft({"time": ts, "msg": "🟢  Index returned to normal range.", "level": "recovery"})
-        elif prev_idx < 20 and _index >= 20:
-            _event_feed.appendleft({"time": ts, "msg": "⚠️  Index crossed settlement threshold.", "level": "warning"})
-        elif prev_idx >= 20 and _index < 20:
-            _event_feed.appendleft({"time": ts, "msg": "✅  Index back below settlement threshold.", "level": "recovery"})
-        _prev_factors["__index__"] = _index
+            prev_idx = _prev_factors.get("__index__", _index)
+            if prev_idx < 35 and _index >= 35:
+                _event_feed.appendleft({"time": ts, "msg": "🔴  Index entering elevated zone. Risk rising.", "level": "warning"})
+            elif prev_idx >= 35 and _index < 35:
+                _event_feed.appendleft({"time": ts, "msg": "🟢  Index returned to normal range.", "level": "recovery"})
+            elif prev_idx < 20 and _index >= 20:
+                _event_feed.appendleft({"time": ts, "msg": "⚠️  Index crossed settlement threshold.", "level": "warning"})
+            elif prev_idx >= 20 and _index < 20:
+                _event_feed.appendleft({"time": ts, "msg": "✅  Index back below settlement threshold.", "level": "recovery"})
+            _prev_factors["__index__"] = _index
+        except Exception:
+            pass  # never let event feed crash the ticker
         # Compute and store current volatility for the vol history chart
         recent_v = [v for v, _ in list(_history)[-360:]]
         if len(recent_v) >= 2:

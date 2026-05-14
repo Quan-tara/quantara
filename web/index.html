@@ -316,6 +316,19 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
 .pcd-verdict.v-no{color:var(--green)}
 .pcd-verdict.v-close{color:var(--amber)}
 
+/* EVENT FEED */
+.event-feed{max-height:220px;overflow-y:auto;border-bottom:1px solid var(--border);}
+.event-item{display:flex;gap:10px;padding:7px 16px;border-bottom:1px solid rgba(255,255,255,0.03);
+  font-size:11px;line-height:1.5;align-items:flex-start;}
+.event-item:last-child{border-bottom:none}
+.event-time{font-family:var(--mono);font-size:10px;color:var(--muted);flex-shrink:0;padding-top:1px}
+.event-msg{flex:1}
+.event-item.spike .event-msg{color:#fca5a5}
+.event-item.warning .event-msg{color:var(--amber)}
+.event-item.recovery .event-msg{color:#86efac}
+.event-item.info .event-msg{color:var(--muted2)}
+.event-feed-empty{padding:14px 16px;font-size:11px;color:var(--muted);font-style:italic}
+
 /* MM GRID */
 .mm-grid-cell{border:1px solid var(--border);border-radius:5px;padding:8px 6px;text-align:center;
   cursor:pointer;transition:all .2s;background:var(--s1);position:relative}
@@ -671,8 +684,13 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
             <div class="prob-title" id="t-bucket-title">Distribution — last 1h</div>
             <div id="t-buckets"></div>
           </div>
+          <div class="sh"><span class="sh-title">Live Event Feed</span>
+            <span class="sh-sub">real-time market narrative</span></div>
+          <div class="event-feed" id="t-event-feed">
+            <div class="event-feed-empty">Monitoring conditions — events will appear here</div>
+          </div>
           <div class="sh"><span class="sh-title">Spike Log</span></div>
-          <div id="t-spike-log" style="max-height:140px;overflow-y:auto;border-bottom:1px solid var(--border)"></div>
+          <div id="t-spike-log" style="max-height:120px;overflow-y:auto;border-bottom:1px solid var(--border)"></div>
         </div>
       </div>
     <!-- Hidden canvases kept for JS compatibility -->
@@ -1192,6 +1210,7 @@ async function loadIndex(){
   });
 
   drawIndexChart('t-mini-chart','t-mini-range',snap.history_full);
+  if(snap.event_feed) renderEventFeed(snap.event_feed);
   drawIndexChart('m-mini-chart','m-mini-range',snap.history_full);
   drawIndexChart('t-sparkline','t-spark-range',snap.history_full);
   drawIndexChart('mm-sparkline','m-spark-range',snap.history_full);
@@ -1626,6 +1645,20 @@ function renderVolatility(elId,vol){
   const el=document.getElementById(elId);if(!el)return;
   let cls='vol-low',lbl='LOW';if(vol>5){cls='vol-high';lbl='HIGH';}else if(vol>2){cls='vol-mid';lbl='MED';}
   el.textContent=`${vol.toFixed(2)}  ${lbl}`;el.className=`vol-val ${cls}`;
+}
+
+function renderEventFeed(events){
+  const el = document.getElementById('t-event-feed'); if(!el) return;
+  if(!events || !events.length){
+    el.innerHTML = '<div class="event-feed-empty">Monitoring conditions — events will appear here</div>';
+    return;
+  }
+  el.innerHTML = events.map(e =>
+    `<div class="event-item ${e.level||'info'}">
+      <span class="event-time">${e.time}</span>
+      <span class="event-msg">${e.msg}</span>
+    </div>`
+  ).join('');
 }
 
 function renderSpikeLog(log){

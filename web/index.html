@@ -1264,6 +1264,9 @@ function drawSettlementChart(svgId, lblId, history){
   const lastMean = means[means.length-1];
   const clr = lastMean > thr ? '#f87171' : lastMean > thr*0.85 ? 'var(--amber)' : '#4ade80';
 
+  // Store means for hover access
+  window._settleChartMeans = means;
+
   svg.innerHTML = `
     <defs><linearGradient id="settle-grad" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%" stop-color="${clr}" stop-opacity="0.2"/>
@@ -1280,7 +1283,7 @@ function drawSettlementChart(svgId, lblId, history){
       stroke="${clr}" stroke-width="1" stroke-dasharray="2 2" opacity="0" pointer-events="none"/>
     <circle id="${svgId}-hdot" cx="0" cy="0" r="3" fill="${clr}" opacity="0" pointer-events="none"/>
     <rect x="${pad}" y="${pad}" width="${W-pad*2}" height="${H-pad*2}" fill="transparent"
-      onmousemove="settleChartHover(event,this,'${svgId}','${lblId}',${JSON.stringify(means)},${W},${H},${pad})"
+      onmousemove="settleChartHover(event,this,'${svgId}','${lblId}',window._settleChartMeans,${W},${H},${pad},${lastMean.toFixed(2)},${(lastMean-thr).toFixed(2)},'${clr}')"
       onmouseleave="settleChartLeave('${svgId}','${lblId}',${lastMean.toFixed(2)},${(lastMean-thr).toFixed(2)},'${clr}')"/>`;
 
   const lbl = document.getElementById(lblId);
@@ -1754,6 +1757,7 @@ function drawFactorSparkline(svgId, values, color){
   });
   const line = pts.map((p,i)=>`${i===0?'M':'L'}${p[0]},${p[1]}`).join(' ');
   const area = line + ` L${pts[pts.length-1][0]},${H} L${pts[0][0]},${H} Z`;
+  window['_fspd_'+svgId] = values;
   svg.innerHTML = `
     <defs><linearGradient id="sg-${svgId}" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%" stop-color="${color}" stop-opacity="0.3"/>
@@ -1766,7 +1770,7 @@ function drawFactorSparkline(svgId, values, color){
       stroke-dasharray="2 2" opacity="0" pointer-events="none"/>
     <circle id="${svgId}-hdot" cx="0" cy="0" r="3" fill="${color}" opacity="0" pointer-events="none"/>
     <rect x="0" y="0" width="${W}" height="${H}" fill="transparent"
-      onmousemove="factorSparkHover(event,this,'${svgId}',${JSON.stringify(values)},${min},${range},${W},${H},${pad})"
+      onmousemove="factorSparkHover(event,this,'${svgId}',window['_fspd_'+'${svgId}'],${min},${range},${W},${H},${pad})"
       onmouseleave="factorSparkLeave('${svgId}')"/>`;
 }
 

@@ -160,6 +160,10 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
 .factor-narrative{font-size:10px;color:var(--muted);font-style:italic;
   padding:2px 18px 6px;line-height:1.4;transition:color 0.4s;}
 .factor-anim{width:48px;height:36px;flex-shrink:0;display:flex;align-items:center;justify-content:center;}
+.factor-spark-wrap{padding:2px 12px 8px 56px;}
+.factor-spark-label{font-family:var(--mono);font-size:8px;color:var(--muted);letter-spacing:1px;
+  text-transform:uppercase;margin-bottom:2px;display:flex;justify-content:space-between;}
+.factor-spark-svg{width:100%;height:24px;overflow:visible;}
 .factor-anim svg{overflow:visible;}
 /* Weather animations */
 @keyframes cloud-drift{0%,100%{transform:translateX(0)}50%{transform:translateX(2px)}}
@@ -1240,6 +1244,7 @@ async function loadIndex(){
 
   drawIndexChart('t-mini-chart','t-mini-range',snap.history_full);
   if(snap.event_feed) renderEventFeed(snap.event_feed);
+  if(snap.factor_history) _lastFactorHistory = snap.factor_history;
   drawIndexChart('m-mini-chart','m-mini-range',snap.history_full);
   drawIndexChart('t-sparkline','t-spark-range',snap.history_full);
   drawIndexChart('mm-sparkline','m-spark-range',snap.history_full);
@@ -1615,6 +1620,30 @@ function getFactorKey(name) {
   return 'volume';
 }
 
+function drawFactorSparkline(svgId, values, color){
+  const svg = document.getElementById(svgId); if(!svg || !values || values.length < 2) return;
+  const W = svg.getBoundingClientRect().width || 200, H = 24, pad = 2;
+  const min = Math.min(...values), max = Math.max(...values, min+1);
+  const range = max - min;
+  const pts = values.map((v,i) => {
+    const x = pad + (i/(values.length-1))*(W-pad*2);
+    const y = H - pad - ((v-min)/range)*(H-pad*2);
+    return [x.toFixed(1), y.toFixed(1)];
+  });
+  const line = pts.map((p,i)=>`${i===0?'M':'L'}${p[0]},${p[1]}`).join(' ');
+  const area = line + ` L${pts[pts.length-1][0]},${H} L${pts[0][0]},${H} Z`;
+  svg.innerHTML = `
+    <defs><linearGradient id="sg-${svgId}" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="${color}" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="${color}" stop-opacity="0"/>
+    </linearGradient></defs>
+    <path d="${area}" fill="url(#sg-${svgId})"/>
+    <path d="${line}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="${pts[pts.length-1][0]}" cy="${pts[pts.length-1][1]}" r="2.5" fill="${color}"/>`;
+}
+
+let _lastFactorHistory = {};
+
 function renderFactors(elId,factors){
   const el=document.getElementById(elId);if(!el)return;
   el.innerHTML=factors.map(f=>{
@@ -1623,6 +1652,7 @@ function renderFactors(elId,factors){
     const key=getFactorKey(f.name);
     const meta=getFactorMeta(key,f.value);
     const svg=getFactorSVG(key,f.value);
+    const sparkId = `fsp-${key}-${elId}`;
     return `<div style="padding:8px 12px 0;border-bottom:1px solid var(--border)">
       <div style="display:flex;align-items:center;gap:8px">
         <div class="factor-anim">${svg}</div>
@@ -1635,9 +1665,33 @@ function renderFactors(elId,factors){
           <div class="factor-bar-wrap" style="width:100%"><div class="factor-bar" style="width:${w}%;background:${clr}"></div></div>
         </div>
       </div>
-      <div class="factor-narrative ${meta.cls}" style="padding:4px 0 6px;margin-left:56px">${meta.narrative}</div>
+      <div class="factor-narrative ${meta.cls}" style="padding:4px 0 2px;margin-left:56px">${meta.narrative}</div>
+      <div class="factor-spark-wrap">
+        <div class="factor-spark-label">
+          <span>60 min history</span>
+          <span id="${sparkId}-lbl" style="color:${clr}"></span>
+        </div>
+        <svg class="factor-spark-svg" id="${sparkId}" viewBox="0 0 200 24" preserveAspectRatio="none"></svg>
+      </div>
     </div>`;
   }).join('');
+
+  // Draw sparklines using cached factor history
+  factors.forEach(f => {
+    const key = getFactorKey(f.name);
+    const hist = _lastFactorHistory[key] || [];
+    const sparkId = `fsp-${key}-${elId}`;
+    const clr = idxColor(f.value);
+    if(hist.length > 1) {
+      drawFactorSparkline(sparkId, hist, clr);
+      const lblEl = document.getElementById(sparkId+'-lbl');
+      if(lblEl && hist.length > 0){
+        const mn = Math.min(...hist).toFixed(1);
+        const mx = Math.max(...hist).toFixed(1);
+        lblEl.textContent = `${mn} – ${mx}`;
+      }
+    }
+  });
 }
 
 function renderBuckets(elId, buckets, windowLabel){

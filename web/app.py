@@ -50,6 +50,10 @@ async def startup_event():
                         "ALTER TABLE contracts ADD COLUMN IF NOT EXISTS settlement_rate FLOAT"
                     )
                 )
+                for _col in ["f_weather","f_traffic","f_driver","f_route","f_volume"]:
+                    conn.execute(__import__('sqlalchemy').text(
+                        f"ALTER TABLE index_ticks ADD COLUMN IF NOT EXISTS {_col} FLOAT"
+                    ))
                 conn.commit()
         except Exception as col_err:
             print(f"⚠️ Column migration note: {col_err}")

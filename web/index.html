@@ -2268,12 +2268,15 @@ async function loadPositionChart(shortId, sinceTs, threshold){
   if(!sinceTs) return;
   const meanEl = document.getElementById(`pchart-mean-${shortId}`);
 
+  // Calculate minutes since position opened
+  const minutesAgo = Math.max(1, Math.round((Date.now()/1000 - sinceTs) / 60));
+
   // Draw from cache immediately while fetching fresh data
   if(_posChartCache[shortId]) {
     drawPositionChart(shortId, _posChartCache[shortId].values, _posChartCache[shortId].mean, threshold);
   }
 
-  const data = await fetch(`${API}/api/ticks_since?since_ts=${sinceTs}&limit=360`)
+  const data = await fetch(`${API}/api/ticks_since?minutes_ago=${minutesAgo}&limit=360`)
     .then(r=>r.json()).catch(()=>null);
 
   if(!data || !data.values || data.values.length < 2) {

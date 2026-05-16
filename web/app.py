@@ -129,32 +129,29 @@ def debug_series_paused():
 
 # ── Probability distribution for any time window ──
 @app.get("/api/ticks_since")
-def api_ticks_since(since_ts: float = 0, limit: int = 360):
-    """Return index tick values since a given unix timestamp — for per-position charts."""
+def api_ticks_since(since_ts: float = 0, minutes_ago: float = 0, limit: int = 360):
+    """Return index tick values since a given time — for per-position charts."""
     import time as _time
-    # If since_ts looks wrong (too small or in the future), use last 2 hours
     now = _time.time()
-    if since_ts <= 0 or since_ts > now:
-        since_ts = now - 7200
-    # If since_ts is more than 7 days ago, cap it
-    since_ts = max(since_ts, now - 604800)
+
+    # If minutes_ago is provided, use that (more reliable than absolute timestamps)
+    if minutes_ago > 0:
+        since_ts = now - (minutes_ago * 60)
+    elif since_ts <= 0 or since_ts > now:
+        since_ts = now - 3600
 
     session = SessionLocal()
     try:
         rows = session.query(IndexTick).filter(
             IndexTick.ts >= since_ts
         ).order_by(IndexTick.ts.asc()).limit(limit).all()
+
         if not rows:
-            # Return last 30 ticks regardless as fallback
-            rows = session.query(IndexTick).order_by(
-                IndexTick.ts.desc()
-            ).limit(30).all()
-            rows = list(reversed(rows))
-        if not rows:
-            return {"values": [], "mean": None, "ts": []}
+            return {"values": [], "mean": None, "count": 0}
+
         values = [round(r.value, 2) for r in rows]
         mean   = round(sum(values) / len(values), 2)
-        return {"values": values, "mean": mean, "ts": [r.ts for r in rows]}
+        return {"values": values, "mean": mean, "count": len(values)}
     finally:
         session.close()
 

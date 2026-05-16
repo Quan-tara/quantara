@@ -892,7 +892,6 @@ def api_leaderboard():
     session = SessionLocal()
     try:
         import sqlalchemy as _sa
-        from engine.users import get_display_name
         wallets = session.execute(
             _sa.text("SELECT user_id, cash_balance, locked_balance FROM wallets WHERE user_id != 0 ORDER BY cash_balance DESC")
         ).fetchall()

@@ -676,6 +676,16 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
             <span class="vol-val" id="t-vol" style="font-family:var(--mono);font-size:18px;color:var(--accent)">—</span>
             <span style="font-size:10px;color:var(--muted);margin-left:8px">current rolling volatility</span>
           </div>
+          <div class="sh"><span class="sh-title">Settlement Rate — Last Hour</span>
+            <span class="sh-sub">rolling mean of index · dashed = 20% threshold</span></div>
+          <div class="spark-wrap">
+            <div class="spark-lbl">
+              <span>Running settlement estimate</span>
+              <span id="t-settle-rate-lbl" style="font-family:var(--mono);font-size:10px;color:var(--text)">—</span>
+            </div>
+            <svg id="t-settle-chart" viewBox="0 0 400 60" preserveAspectRatio="none"
+                 style="width:100%;height:60px;overflow:visible;display:block"></svg>
+          </div>
         </div>
         <div class="col">
           <div class="sh"><span class="sh-title">Daily Settlement Rate</span><span class="sh-sub">settles covers at midnight UTC</span></div>
@@ -1196,6 +1206,48 @@ function drawVolChart(id,rangeId,vh){
   _registerChart(id,vh,'vol',rangeId);_drawVolChart(c,vh,rangeId,-1);
 }
 
+function drawSettlementChart(svgId, lblId, history){
+  const svg = document.getElementById(svgId); if(!svg || !history || history.length < 2) return;
+  const W = 400, H = 60, pad = 2;
+  const thr = 20;
+
+  // Build rolling mean at each tick point
+  const means = history.map((_, i) => {
+    const window = history.slice(0, i+1);
+    return window.reduce((a,b) => a+b, 0) / window.length;
+  });
+
+  const toX = i => pad + (i/(means.length-1))*(W-pad*2);
+  const toY = v => H - pad - (Math.min(v,100)/100)*(H-pad*2);
+
+  const pts = means.map((v,i) => [toX(i).toFixed(1), toY(v).toFixed(1)]);
+  const line = pts.map((p,i) => `${i===0?'M':'L'}${p[0]},${p[1]}`).join(' ');
+  const area = line + ` L${pts[pts.length-1][0]},${H-pad} L${pad},${H-pad} Z`;
+  const thrY = toY(thr).toFixed(1);
+  const lastMean = means[means.length-1];
+  const clr = lastMean > thr ? '#f87171' : lastMean > thr*0.85 ? 'var(--amber)' : '#4ade80';
+
+  svg.innerHTML = `
+    <defs><linearGradient id="settle-grad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="${clr}" stop-opacity="0.2"/>
+      <stop offset="100%" stop-color="${clr}" stop-opacity="0"/>
+    </linearGradient></defs>
+    <path d="${area}" fill="url(#settle-grad)"/>
+    <path d="${line}" fill="none" stroke="${clr}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <line x1="${pad}" y1="${thrY}" x2="${W-pad}" y2="${thrY}"
+      stroke="rgba(201,168,76,0.6)" stroke-width="1" stroke-dasharray="4 3"/>
+    <text x="${W-pad-2}" y="${parseFloat(thrY)-3}" font-size="8"
+      fill="rgba(201,168,76,0.7)" text-anchor="end" font-family="monospace">20%</text>
+    <circle cx="${pts[pts.length-1][0]}" cy="${pts[pts.length-1][1]}" r="3" fill="${clr}"/>`;
+
+  const lbl = document.getElementById(lblId);
+  if(lbl){
+    const dist = lastMean - thr;
+    lbl.textContent = `${lastMean.toFixed(2)}% (${dist>=0?'+':''}${dist.toFixed(2)}% vs threshold)`;
+    lbl.style.color = clr;
+  }
+}
+
 // ============================================================
 // LOAD INDEX + RATE
 // ============================================================
@@ -1278,6 +1330,7 @@ async function loadIndex(){
   drawVolChart('t-vol-chart','t-vol-range',snap.vol_history_full);
   drawVolChart('m-vol-chart','m-vol-range',snap.vol_history_full);
   drawVolChart('t-vol-sparkline','t-vol-spark-range',snap.vol_history_full);
+  drawSettlementChart('t-settle-chart','t-settle-rate-lbl',snap.history_full);
 
   renderFactors('t-factors',snap.factors);
   renderFactors('m-factors',snap.factors);

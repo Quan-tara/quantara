@@ -316,6 +316,26 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
 .pcd-verdict.v-no{color:var(--green)}
 .pcd-verdict.v-close{color:var(--amber)}
 
+/* LEADERBOARD */
+.lb-wrap{border-bottom:1px solid var(--border);padding:12px 18px;}
+.lb-row{display:grid;grid-template-columns:28px 1fr 90px 70px 60px 60px;
+  gap:6px;align-items:center;padding:7px 10px;border-radius:4px;font-size:12px;}
+.lb-row.lb-hdr{font-family:var(--mono);font-size:9px;letter-spacing:1px;
+  text-transform:uppercase;color:var(--muted);padding-bottom:4px;}
+.lb-row.lb-me{background:rgba(20,168,174,0.08);border:1px solid rgba(20,168,174,0.2);}
+.lb-row:not(.lb-hdr):hover{background:var(--s2);}
+.lb-rank{font-family:var(--mono);font-size:11px;color:var(--muted);text-align:center;}
+.lb-rank.gold{color:#fbbf24;font-weight:700;}
+.lb-rank.silver{color:#94a3b8;font-weight:700;}
+.lb-rank.bronze{color:#b45309;font-weight:700;}
+.lb-name{font-weight:600;color:var(--text);}
+.lb-bal{font-family:var(--mono);font-size:11px;text-align:right;}
+.lb-pnl{font-family:var(--mono);font-size:11px;text-align:right;font-weight:700;}
+.lb-pnl.pos{color:var(--green);}
+.lb-pnl.neg{color:var(--red);}
+.lb-trades{font-family:var(--mono);font-size:10px;color:var(--muted);text-align:right;}
+.lb-wr{font-family:var(--mono);font-size:10px;text-align:right;}
+
 /* EVENT FEED */
 .event-feed{max-height:220px;overflow-y:auto;border-bottom:1px solid var(--border);}
 .event-item{display:flex;gap:10px;padding:7px 16px;border-bottom:1px solid rgba(255,255,255,0.03);
@@ -700,6 +720,15 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
 
     <!-- TAB 3: ANALYSIS — ledger, trade history, loss estimator -->
     <div class="page" id="t-page3">
+      <!-- LEADERBOARD -->
+      <div class="sh"><span class="sh-title">🏆 Leaderboard</span>
+        <span class="sh-sub">ranked by wallet balance · starting balance €100,000</span></div>
+      <div class="lb-wrap">
+        <div class="lb-row lb-hdr">
+          <span>#</span><span>Player</span><span>Balance</span><span>P&amp;L</span><span>Trades</span><span>Win %</span>
+        </div>
+        <div id="t-leaderboard"><div class="empty" style="padding:12px">Loading...</div></div>
+      </div>
       <div class="cols" style="grid-template-columns:1fr 1fr">
         <div class="col">
           <div class="sh"><span class="sh-title">Series Ledger</span>
@@ -1041,7 +1070,7 @@ function switchTraderTab(n){
   document.getElementById('tt2').className=`dash-tab ${n===2?'at':''}`;
   document.getElementById('tt3').className=`dash-tab ${n===3?'at':''}`;
   if(n===2) loadRateHistory();
-  if(n===3) { loadRateHistory(); loadMyTrades(); }
+  if(n===3) { loadRateHistory(); loadMyTrades(); loadLeaderboard(); }
 }
 function switchMMTab(n){
   mmTabN=n;
@@ -1645,6 +1674,28 @@ function renderVolatility(elId,vol){
   const el=document.getElementById(elId);if(!el)return;
   let cls='vol-low',lbl='LOW';if(vol>5){cls='vol-high';lbl='HIGH';}else if(vol>2){cls='vol-mid';lbl='MED';}
   el.textContent=`${vol.toFixed(2)}  ${lbl}`;el.className=`vol-val ${cls}`;
+}
+
+async function loadLeaderboard(){
+  const data = await fetch(`${API}/api/leaderboard`).then(r=>r.json()).catch(()=>[]);
+  const el = document.getElementById('t-leaderboard'); if(!el) return;
+  if(!data.length){ el.innerHTML='<div class="empty" style="padding:12px">No traders yet</div>'; return; }
+  el.innerHTML = data.map(p => {
+    const rankCls = p.rank===1?'gold':p.rank===2?'silver':p.rank===3?'bronze':'';
+    const rankTxt = p.rank===1?'🥇':p.rank===2?'🥈':p.rank===3?'🥉':p.rank;
+    const pnlCls  = p.pnl>=0?'pos':'neg';
+    const pnlSign = p.pnl>=0?'+':'';
+    const isMe    = currentUser && String(p.user_id) === String(currentUser.id);
+    const wrClr   = p.win_rate>=60?'var(--green)':p.win_rate>=40?'var(--amber)':'var(--red)';
+    return `<div class="lb-row ${isMe?'lb-me':''}">
+      <span class="lb-rank ${rankCls}">${rankTxt}</span>
+      <span class="lb-name">${p.name}${isMe?' <span style="font-size:9px;color:var(--accent)">(you)</span>':''}</span>
+      <span class="lb-bal">€${fmt(p.balance)}</span>
+      <span class="lb-pnl ${pnlCls}">${pnlSign}€${fmt(Math.abs(p.pnl))}</span>
+      <span class="lb-trades">${p.trades}</span>
+      <span class="lb-wr" style="color:${wrClr}">${p.win_rate}%</span>
+    </div>`;
+  }).join('');
 }
 
 function renderEventFeed(events){

@@ -887,6 +887,50 @@ def api_user_trades(user_id: int, limit: int = 200):
     finally:
         session.close()
 
+@app.get("/api/leaderboard")
+def api_leaderboard():
+    session = SessionLocal()
+    try:
+        import sqlalchemy as _sa
+        from engine.users import get_display_name
+        wallets = session.execute(
+            _sa.text("SELECT user_id, cash_balance, locked_balance FROM wallets WHERE user_id != 0 ORDER BY cash_balance DESC")
+        ).fetchall()
+        rows = []
+        for rank, w in enumerate(wallets, 1):
+            uid = w[0]
+            cash = float(w[1] or 0)
+            locked = float(w[2] or 0)
+            total = cash + locked
+            name = get_display_name(uid)
+            trades = session.execute(
+                _sa.text("SELECT COUNT(*) FROM trades WHERE buyer_id = :uid OR seller_id = :uid"),
+                {"uid": uid}
+            ).scalar() or 0
+            wins = session.execute(
+                _sa.text(
+                    "SELECT COUNT(*) FROM positions p JOIN contracts c ON p.contract_id = c.id "
+                    "WHERE p.user_id = :uid AND c.status = 'SETTLED' "
+                    "AND ((p.role = 'HOLDER' AND c.result = 'YES') OR (p.role = 'WRITER' AND c.result = 'NO'))"
+                ), {"uid": uid}
+            ).scalar() or 0
+            settled = session.execute(
+                _sa.text(
+                    "SELECT COUNT(*) FROM positions p JOIN contracts c ON p.contract_id = c.id "
+                    "WHERE p.user_id = :uid AND c.status = 'SETTLED'"
+                ), {"uid": uid}
+            ).scalar() or 0
+            win_rate = round((wins / settled * 100) if settled > 0 else 0, 1)
+            pnl = total - 100000
+            rows.append({
+                "rank": rank, "user_id": uid, "name": name,
+                "balance": round(total, 2), "pnl": round(pnl, 2),
+                "trades": trades, "win_rate": win_rate,
+            })
+        return rows
+    finally:
+        session.close()
+
 @app.get("/api/settlements")
 def api_settlements():
     session = SessionLocal()

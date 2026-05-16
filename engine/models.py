@@ -111,3 +111,8 @@ class IndexTick(Base):
     volatility = Column(Float, nullable=False, default=0.0)
     ts         = Column(Float, nullable=False)  # unix timestamp
     created_at = Column(DateTime, default=datetime.utcnow)
+    f_weather  = Column(Float, nullable=True)
+    f_traffic  = Column(Float, nullable=True)
+    f_driver   = Column(Float, nullable=True)
+    f_route    = Column(Float, nullable=True)
+    f_volume   = Column(Float, nullable=True)

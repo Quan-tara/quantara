@@ -227,7 +227,16 @@ def _tick():
             from db.database import SessionLocal
             from db.models import IndexTick
             session = SessionLocal()
-            session.add(IndexTick(value=round(_index, 4), volatility=cur_vol, ts=now_ts))
+            # Capture current factor values
+            fv = {f["name"]: round(f["value"], 2) for f in FACTORS}
+            session.add(IndexTick(
+                value=round(_index, 4), volatility=cur_vol, ts=now_ts,
+                f_weather = fv.get("Weather Severity"),
+                f_traffic = fv.get("Traffic Congestion"),
+                f_driver  = fv.get("Driver Availability"),
+                f_route   = fv.get("Route Complexity"),
+                f_volume  = fv.get("Volume Pressure"),
+            ))
             # Prune rows older than 70 minutes to keep table small
             cutoff = now_ts - 604800  # keep 7 days of ticks for distribution windows
             session.query(IndexTick).filter(IndexTick.ts < cutoff).delete()
@@ -247,6 +256,30 @@ def _ticker_loop():
 
 
 # ── Restore history from DB on startup ──
+def _get_factor_history():
+    """Return last 60 ticks of factor values from DB for sparklines."""
+    try:
+        from db.database import SessionLocal as _SL
+        from db.models import IndexTick as _IT
+        import sqlalchemy as _sa
+        _s = _SL()
+        cutoff = time.time() - 3600  # last 60 minutes
+        rows = _s.query(_IT).filter(
+            _IT.ts >= cutoff,
+            _IT.f_weather != None
+        ).order_by(_IT.ts.asc()).all()
+        _s.close()
+        return {
+            "weather": [r.f_weather for r in rows],
+            "traffic": [r.f_traffic for r in rows],
+            "driver":  [r.f_driver  for r in rows],
+            "route":   [r.f_route   for r in rows],
+            "volume":  [r.f_volume  for r in rows],
+            "ts":      [r.ts        for r in rows],
+        }
+    except Exception:
+        return {}
+
 def _restore_history():
     """Load last 60 min of ticks from DB so history survives restarts."""
     try:
@@ -346,6 +379,7 @@ def get_index_snapshot() -> dict:
             "history":     history_vals,
             "spike_log":   list(_spike_log)[:10],
             "event_feed":  list(_event_feed)[:30],
+            "factor_history": _get_factor_history(),
             "stats": {
                 "h1_min": h1_min,
                 "h1_max": h1_max,

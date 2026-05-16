@@ -1198,8 +1198,10 @@ function _drawVolChart(canvas,vh,rangeId,hoverIdx){
 }
 
 function settleChartHover(evt, rect, svgId, lblId, means, W, H, pad){
-  const bb = rect.getBoundingClientRect();
-  const mx = evt.clientX - bb.left;
+  const svgEl = document.getElementById(svgId); if(!svgEl || !means || !means.length) return;
+  const bb = svgEl.getBoundingClientRect();
+  const scaleX = W / bb.width;
+  const mx = (evt.clientX - bb.left) * scaleX;
   const pct = Math.max(0, Math.min(1, (mx - pad) / (W - pad*2)));
   const idx = Math.min(means.length-1, Math.round(pct * (means.length-1)));
   const val = means[idx];
@@ -1778,8 +1780,9 @@ let _lastFactorHistory = {};
 
 function factorSparkHover(evt, rect, svgId, values, min, range, W, H, pad){
   const svgEl = document.getElementById(svgId); if(!svgEl) return;
-  const bb = rect.getBoundingClientRect();
-  const mx = evt.clientX - bb.left;
+  const bb = svgEl.getBoundingClientRect();
+  const scaleX = W / bb.width;
+  const mx = (evt.clientX - bb.left) * scaleX;
   const pct = Math.max(0, Math.min(1, (mx - pad) / (W - pad*2)));
   const idx = Math.min(values.length-1, Math.round(pct * (values.length-1)));
   const val = values[idx];

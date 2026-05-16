@@ -2257,12 +2257,11 @@ const _posChartCache = {}; // shortId → {values, mean, ts, threshold}
 const _posChartTimers = {}; // shortId → interval timer
 
 function startPositionChartRefresh(shortId, sinceTs, threshold) {
-  // Clear existing timer for this position
   if(_posChartTimers[shortId]) clearInterval(_posChartTimers[shortId]);
-  // Refresh chart every 15 seconds independently of position re-render
+  // Refresh every 10s matching the index tick interval
   _posChartTimers[shortId] = setInterval(() => {
     loadPositionChart(shortId, sinceTs, threshold);
-  }, 15000);
+  }, 10000);
 }
 
 async function loadPositionChart(shortId, sinceTs, threshold){
@@ -2321,7 +2320,7 @@ function drawPositionChart(shortId, vals, mean, threshold){
   if(meanEl){
     const dist = mean - thr;
     const sign = dist >= 0 ? '+' : '';
-    meanEl.textContent = `avg ${mean.toFixed(2)}% (${sign}${dist.toFixed(2)}% vs threshold)`;
+    meanEl.textContent = `avg ${mean.toFixed(2)}% (${sign}${dist.toFixed(2)}% vs threshold) · ${vals.length} ticks`;
     meanEl.style.color = meanClr;
   }
 }

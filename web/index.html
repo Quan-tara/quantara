@@ -1660,10 +1660,43 @@ function drawFactorSparkline(svgId, values, color){
     </linearGradient></defs>
     <path d="${area}" fill="url(#sg-${svgId})"/>
     <path d="${line}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-    <circle cx="${pts[pts.length-1][0]}" cy="${pts[pts.length-1][1]}" r="2.5" fill="${color}"/>`;
+    <circle cx="${pts[pts.length-1][0]}" cy="${pts[pts.length-1][1]}" r="2.5" fill="${color}"/>
+    <line id="${svgId}-hline" x1="0" y1="0" x2="0" y2="${H}" stroke="${color}" stroke-width="1"
+      stroke-dasharray="2 2" opacity="0" pointer-events="none"/>
+    <circle id="${svgId}-hdot" cx="0" cy="0" r="3" fill="${color}" opacity="0" pointer-events="none"/>
+    <rect x="0" y="0" width="${W}" height="${H}" fill="transparent"
+      onmousemove="factorSparkHover(event,this,'${svgId}',${JSON.stringify(values)},${min},${range},${W},${H},${pad})"
+      onmouseleave="factorSparkLeave('${svgId}')"/>`;
 }
 
 let _lastFactorHistory = {};
+
+function factorSparkHover(evt, rect, svgId, values, min, range, W, H, pad){
+  const svgEl = document.getElementById(svgId); if(!svgEl) return;
+  const bb = rect.getBoundingClientRect();
+  const mx = evt.clientX - bb.left;
+  const pct = Math.max(0, Math.min(1, (mx - pad) / (W - pad*2)));
+  const idx = Math.min(values.length-1, Math.round(pct * (values.length-1)));
+  const val = values[idx];
+  const x = (pad + (idx/(values.length-1))*(W-pad*2)).toFixed(1);
+  const y = (H - pad - ((val-min)/(range||1))*(H-pad*2)).toFixed(1);
+
+  const hline = document.getElementById(svgId+'-hline');
+  const hdot  = document.getElementById(svgId+'-hdot');
+  if(hline){ hline.setAttribute('x1',x); hline.setAttribute('x2',x); hline.setAttribute('opacity','0.7'); }
+  if(hdot) { hdot.setAttribute('cx',x); hdot.setAttribute('cy',y); hdot.setAttribute('opacity','1'); }
+
+  // Update label
+  const lblEl = document.getElementById(svgId+'-lbl');
+  if(lblEl) lblEl.textContent = `▸ ${val.toFixed(1)}`;
+}
+
+function factorSparkLeave(svgId){
+  const hline = document.getElementById(svgId+'-hline');
+  const hdot  = document.getElementById(svgId+'-hdot');
+  if(hline) hline.setAttribute('opacity','0');
+  if(hdot)  hdot.setAttribute('opacity','0');
+}
 
 function renderFactors(elId,factors){
   const el=document.getElementById(elId);if(!el)return;

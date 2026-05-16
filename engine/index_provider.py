@@ -85,8 +85,9 @@ _index        = 10.0          # starting index
 _history      = deque(maxlen=HISTORY_SIZE)   # list of (timestamp, index_value)
 _vol_history  = deque(maxlen=HISTORY_SIZE)   # volatility over time (σ per tick)
 _spike_log    = deque(maxlen=50)             # recent spike events for display
-_event_feed   = deque(maxlen=100)            # narrative event feed
-_prev_factors = {}                           # track factor values for drift detection
+_event_feed      = deque(maxlen=100)         # narrative event feed
+_prev_factors    = {}                        # track factor values for drift detection
+_factor_history  = deque(maxlen=360)         # in-memory factor history (last 60 min at 10s)
 
 
 # =========================================================
@@ -229,6 +230,14 @@ def _tick():
             session = SessionLocal()
             # Capture current factor values
             fv = {f["name"]: round(f["value"], 2) for f in FACTORS}
+            _factor_history.append({
+                "ts":      now_ts,
+                "weather": fv.get("Weather Severity", 0),
+                "traffic": fv.get("Traffic Congestion", 0),
+                "driver":  fv.get("Driver Availability", 0),
+                "route":   fv.get("Route Complexity", 0),
+                "volume":  fv.get("Volume Pressure", 0),
+            })
             session.add(IndexTick(
                 value=round(_index, 4), volatility=cur_vol, ts=now_ts,
                 f_weather = fv.get("Weather Severity"),
@@ -257,28 +266,17 @@ def _ticker_loop():
 
 # ── Restore history from DB on startup ──
 def _get_factor_history():
-    """Return last 60 ticks of factor values from DB for sparklines."""
-    try:
-        from db.database import SessionLocal as _SL
-        from db.models import IndexTick as _IT
-        import sqlalchemy as _sa
-        _s = _SL()
-        cutoff = time.time() - 3600  # last 60 minutes
-        rows = _s.query(_IT).filter(
-            _IT.ts >= cutoff,
-            _IT.f_weather != None
-        ).order_by(_IT.ts.asc()).all()
-        _s.close()
-        return {
-            "weather": [r.f_weather for r in rows],
-            "traffic": [r.f_traffic for r in rows],
-            "driver":  [r.f_driver  for r in rows],
-            "route":   [r.f_route   for r in rows],
-            "volume":  [r.f_volume  for r in rows],
-            "ts":      [r.ts        for r in rows],
-        }
-    except Exception:
+    """Return in-memory factor history for sparklines — no DB hit needed."""
+    rows = list(_factor_history)
+    if not rows:
         return {}
+    return {
+        "weather": [r["weather"] for r in rows],
+        "traffic": [r["traffic"] for r in rows],
+        "driver":  [r["driver"]  for r in rows],
+        "route":   [r["route"]   for r in rows],
+        "volume":  [r["volume"]  for r in rows],
+    }
 
 def _restore_history():
     """Load last 60 min of ticks from DB so history survives restarts."""

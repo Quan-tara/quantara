@@ -238,21 +238,30 @@ def _tick():
                 "route":   fv.get("Route Complexity", 0),
                 "volume":  fv.get("Package Volume", 0),
             })
-            session.add(IndexTick(
+            tick = IndexTick(
                 value=round(_index, 4), volatility=cur_vol, ts=now_ts,
-                f_weather = fv.get("Weather Severity"),
-                f_traffic = fv.get("Traffic Congestion"),
-                f_driver  = fv.get("Driver Availability"),
-                f_route   = fv.get("Route Complexity"),
-                f_volume  = fv.get("Package Volume"),
-            ))
-            # Prune rows older than 70 minutes to keep table small
-            cutoff = now_ts - 604800  # keep 7 days of ticks for distribution windows
+            )
+            # Set factor columns if they exist on the model
+            for attr, val in [
+                ("f_weather", fv.get("Weather Severity")),
+                ("f_traffic", fv.get("Traffic Congestion")),
+                ("f_driver",  fv.get("Driver Availability")),
+                ("f_route",   fv.get("Route Complexity")),
+                ("f_volume",  fv.get("Package Volume")),
+            ]:
+                try:
+                    setattr(tick, attr, val)
+                except Exception:
+                    pass
+            session.add(tick)
+            cutoff = now_ts - 604800  # keep 7 days
             session.query(IndexTick).filter(IndexTick.ts < cutoff).delete()
             session.commit()
             session.close()
-        except Exception:
-            pass  # never let DB errors stop the index
+        except Exception as _e:
+            print(f"⚠️ Tick DB write failed: {_e}")
+            try: session.close()
+            except: pass
 
 
 # =========================================================

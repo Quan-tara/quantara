@@ -175,7 +175,7 @@ def _tick():
                         "Traffic Congestion":  f"🚗  Major congestion reported. Traffic index spiking +{mag:.0f} pts.",
                         "Driver Availability": f"👤  Driver shortage emerging. Availability dropping sharply.",
                         "Route Complexity":    f"🚧  Route disruption active. Complexity elevated +{mag:.0f} pts.",
-                        "Volume Pressure":     f"📦  Volume surge detected. Network load increasing rapidly.",
+                        "Package Volume":      f"📦  Volume surge detected. Network load increasing rapidly.",
                     }
                     msg = narratives.get(fname, f"⚡  {fname} spiking +{mag:.0f} pts.")
                     _event_feed.appendleft({"time": ts, "msg": msg, "level": "spike"})
@@ -185,7 +185,7 @@ def _tick():
                         "Traffic Congestion":  "🟢  Congestion clearing. Traffic flow normalising.",
                         "Driver Availability": "👥  Driver availability recovering.",
                         "Route Complexity":    "🛣️  Route disruptions resolving. Network stabilising.",
-                        "Volume Pressure":     "📦  Volume pressure easing. Network returning to normal.",
+                        "Package Volume":      "📦  Volume pressure easing. Network returning to normal.",
                     }
                     msg = recoveries.get(fname, f"↓  {fname} recovering.")
                     _event_feed.appendleft({"time": ts, "msg": msg, "level": "recovery"})
@@ -236,7 +236,7 @@ def _tick():
                 "traffic": fv.get("Traffic Congestion", 0),
                 "driver":  fv.get("Driver Availability", 0),
                 "route":   fv.get("Route Complexity", 0),
-                "volume":  fv.get("Volume Pressure", 0),
+                "volume":  fv.get("Package Volume", 0),
             })
             session.add(IndexTick(
                 value=round(_index, 4), volatility=cur_vol, ts=now_ts,
@@ -244,7 +244,7 @@ def _tick():
                 f_traffic = fv.get("Traffic Congestion"),
                 f_driver  = fv.get("Driver Availability"),
                 f_route   = fv.get("Route Complexity"),
-                f_volume  = fv.get("Volume Pressure"),
+                f_volume  = fv.get("Package Volume"),
             ))
             # Prune rows older than 70 minutes to keep table small
             cutoff = now_ts - 604800  # keep 7 days of ticks for distribution windows

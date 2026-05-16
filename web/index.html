@@ -2254,6 +2254,16 @@ async function loadWallet(){
 }
 
 const _posChartCache = {}; // shortId → {values, mean, ts, threshold}
+const _posChartTimers = {}; // shortId → interval timer
+
+function startPositionChartRefresh(shortId, sinceTs, threshold) {
+  // Clear existing timer for this position
+  if(_posChartTimers[shortId]) clearInterval(_posChartTimers[shortId]);
+  // Refresh chart every 15 seconds independently of position re-render
+  _posChartTimers[shortId] = setInterval(() => {
+    loadPositionChart(shortId, sinceTs, threshold);
+  }, 15000);
+}
 
 async function loadPositionChart(shortId, sinceTs, threshold){
   if(!sinceTs) return;
@@ -2275,6 +2285,10 @@ async function loadPositionChart(shortId, sinceTs, threshold){
   // Update cache and redraw with fresh data
   _posChartCache[shortId] = {values: data.values, mean: data.mean, threshold};
   drawPositionChart(shortId, data.values, data.mean, threshold);
+  // Start independent refresh timer on first successful load
+  if(!_posChartTimers[shortId]) {
+    startPositionChartRefresh(shortId, sinceTs, threshold);
+  }
 }
 
 function drawPositionChart(shortId, vals, mean, threshold){

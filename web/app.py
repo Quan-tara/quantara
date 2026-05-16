@@ -37,26 +37,24 @@ async def startup_event():
         # Create all tables (safe to run multiple times — no-op if already exist)
         Base.metadata.create_all(bind=engine)
 
-        # Add new columns to existing tables that may predate them
-        try:
-            with engine.connect() as conn:
-                conn.execute(
-                    __import__('sqlalchemy').text(
-                        "ALTER TABLE contract_series ADD COLUMN IF NOT EXISTS paused BOOLEAN DEFAULT FALSE"
-                    )
-                )
-                conn.execute(
-                    __import__('sqlalchemy').text(
-                        "ALTER TABLE contracts ADD COLUMN IF NOT EXISTS settlement_rate FLOAT"
-                    )
-                )
-                for _col in ["f_weather","f_traffic","f_driver","f_route","f_volume"]:
-                    conn.execute(__import__('sqlalchemy').text(
-                        f"ALTER TABLE index_ticks ADD COLUMN IF NOT EXISTS {_col} FLOAT"
-                    ))
-                conn.commit()
-        except Exception as col_err:
-            print(f"⚠️ Column migration note: {col_err}")
+        # Add new columns to existing tables — each runs independently
+        _migrations = [
+            "ALTER TABLE contract_series ADD COLUMN IF NOT EXISTS paused BOOLEAN DEFAULT FALSE",
+            "ALTER TABLE contracts ADD COLUMN IF NOT EXISTS settlement_rate FLOAT",
+            "ALTER TABLE index_ticks ADD COLUMN IF NOT EXISTS f_weather FLOAT",
+            "ALTER TABLE index_ticks ADD COLUMN IF NOT EXISTS f_traffic FLOAT",
+            "ALTER TABLE index_ticks ADD COLUMN IF NOT EXISTS f_driver FLOAT",
+            "ALTER TABLE index_ticks ADD COLUMN IF NOT EXISTS f_route FLOAT",
+            "ALTER TABLE index_ticks ADD COLUMN IF NOT EXISTS f_volume FLOAT",
+        ]
+        for _sql in _migrations:
+            try:
+                with engine.connect() as conn:
+                    conn.execute(__import__('sqlalchemy').text(_sql))
+                    conn.commit()
+                    print(f"✅ Migration: {_sql[:60]}")
+            except Exception as _me:
+                print(f"⚠️ Migration note: {_me}")
 
         session = SessionLocal()
         try:
@@ -141,25 +139,20 @@ def api_ticks_since(since_ts: float = 0, minutes_ago: float = 0, limit: int = 36
 
     session = SessionLocal()
     try:
-        # Check what's actually in the DB
-        total_ticks = session.query(IndexTick).count()
-        latest = session.query(IndexTick).order_by(IndexTick.ts.desc()).first()
-        latest_ts = latest.ts if latest else None
-
         rows = session.query(IndexTick).filter(
             IndexTick.ts >= since_ts
         ).order_by(IndexTick.ts.asc()).limit(limit).all()
 
+        # If no rows found, return last N ticks from DB regardless of timestamp
+        # (handles case where ticker stopped writing temporarily)
         if not rows:
-            return {
-                "values": [], "mean": None, "count": 0,
-                "debug": {
-                    "since_ts": since_ts, "now": now,
-                    "total_ticks_in_db": total_ticks,
-                    "latest_tick_ts": latest_ts,
-                    "diff_seconds": (latest_ts - since_ts) if latest_ts else None
-                }
-            }
+            rows = session.query(IndexTick).order_by(
+                IndexTick.ts.desc()
+            ).limit(limit).all()
+            rows = list(reversed(rows))
+
+        if not rows:
+            return {"values": [], "mean": None, "count": 0}
 
         values = [round(r.value, 2) for r in rows]
         mean   = round(sum(values) / len(values), 2)

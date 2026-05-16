@@ -2253,66 +2253,64 @@ async function loadWallet(){
   const a=document.getElementById('t-avail');if(a)a.textContent=fmt(d.available);
 }
 
+const _posChartCache = {}; // shortId → {values, mean, ts, threshold}
+
 async function loadPositionChart(shortId, sinceTs, threshold){
   if(!sinceTs) return;
   const meanEl = document.getElementById(`pchart-mean-${shortId}`);
+
+  // If we have cached data, draw immediately then refresh in background
+  if(_posChartCache[shortId]) {
+    drawPositionChart(shortId, _posChartCache[shortId].values, _posChartCache[shortId].mean, threshold);
+  }
 
   const data = await fetch(`${API}/api/ticks_since?since_ts=${sinceTs}&limit=360`)
     .then(r=>r.json()).catch(()=>null);
 
   if(!data || !data.values || data.values.length < 2) {
-    if(meanEl) meanEl.textContent = 'building history...';
+    if(meanEl && !_posChartCache[shortId]) meanEl.textContent = 'building history...';
     return;
   }
 
-  const svg = document.getElementById(`pchart-${shortId}`); if(!svg) return;
+  _posChartCache[shortId] = {values: data.values, mean: data.mean, threshold};
+  drawPositionChart(shortId, data.values, data.mean, threshold);
+}
 
-  const vals = data.values;
-  const mean = data.mean;
-  const thr  = threshold || 20;
+function drawPositionChart(shortId, vals, mean, threshold){
+  const svg = document.getElementById(`pchart-${shortId}`); if(!svg) return;
+  const meanEl = document.getElementById(`pchart-mean-${shortId}`);
+  const thr = threshold || 20;
   const W = 280, H = 36, padL = 2, padR = 2, padT = 3, padB = 3;
   const xW = W - padL - padR;
   const yH = H - padT - padB;
-
-  // Fixed scale 0–100 for y axis
   const toX = i => padL + (i/(vals.length-1))*xW;
   const toY = v => H - padB - (v/100)*yH;
-
   const pts = vals.map((v,i) => [toX(i).toFixed(1), toY(v).toFixed(1)]);
   const line = pts.map((p,i)=>`${i===0?'M':'L'}${p[0]},${p[1]}`).join(' ');
   const area = line + ` L${pts[pts.length-1][0]},${H-padB} L${padL},${H-padB} Z`;
-
-  // Colors
-  const lineClr  = mean > thr ? '#f87171' : mean > thr*0.85 ? 'var(--amber)' : '#4ade80';
-  const thrY     = toY(thr).toFixed(1);
-  const meanY    = toY(mean).toFixed(1);
-  const meanClr  = mean > thr ? '#f87171' : mean > thr*0.85 ? 'var(--amber)' : '#4ade80';
-
+  const lineClr = mean > thr ? '#f87171' : mean > thr*0.85 ? 'var(--amber)' : '#4ade80';
+  const thrY  = toY(thr).toFixed(1);
+  const meanY = toY(mean).toFixed(1);
+  const meanClr = mean > thr ? '#f87171' : mean > thr*0.85 ? 'var(--amber)' : '#4ade80';
   svg.innerHTML = `
-    <defs>
-      <linearGradient id="pcg-${shortId}" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stop-color="${lineClr}" stop-opacity="0.25"/>
-        <stop offset="100%" stop-color="${lineClr}" stop-opacity="0"/>
-      </linearGradient>
-    </defs>
-    <!-- Area fill -->
+    <defs><linearGradient id="pcg-${shortId}" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="${lineClr}" stop-opacity="0.25"/>
+      <stop offset="100%" stop-color="${lineClr}" stop-opacity="0"/>
+    </linearGradient></defs>
     <path d="${area}" fill="url(#pcg-${shortId})"/>
-    <!-- Index line -->
-    <path d="${line}" fill="none" stroke="${lineClr}" stroke-width="1.5"
-      stroke-linecap="round" stroke-linejoin="round"/>
-    <!-- Threshold line at 20% -->
-    <line x1="${padL}" y1="${thrY}" x2="${W-padR}" y2="${thrY}"
-      stroke="rgba(201,168,76,0.6)" stroke-width="1" stroke-dasharray="3 2"/>
-    <!-- Mean line -->
-    <line x1="${padL}" y1="${meanY}" x2="${W-padR}" y2="${meanY}"
-      stroke="${meanClr}" stroke-width="1" stroke-dasharray="4 2" opacity="0.8"/>
-    <!-- Current dot -->
-    <circle cx="${pts[pts.length-1][0]}" cy="${pts[pts.length-1][1]}"
-      r="2.5" fill="${lineClr}"/>
-    <!-- Threshold label -->
-    <text x="${W-padR-1}" y="${parseFloat(thrY)-2}"
-      font-size="7" fill="rgba(201,168,76,0.7)" text-anchor="end"
-      font-family="monospace">20%</text>`;
+    <path d="${line}" fill="none" stroke="${lineClr}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <line x1="${padL}" y1="${thrY}" x2="${W-padR}" y2="${thrY}" stroke="rgba(201,168,76,0.6)" stroke-width="1" stroke-dasharray="3 2"/>
+    <line x1="${padL}" y1="${meanY}" x2="${W-padR}" y2="${meanY}" stroke="${meanClr}" stroke-width="1" stroke-dasharray="4 2" opacity="0.8"/>
+    <circle cx="${pts[pts.length-1][0]}" cy="${pts[pts.length-1][1]}" r="2.5" fill="${lineClr}"/>
+    <text x="${W-padR-1}" y="${parseFloat(thrY)-2}" font-size="7" fill="rgba(201,168,76,0.7)" text-anchor="end" font-family="monospace">20%</text>`;
+  if(meanEl){
+    const dist = mean - thr;
+    const sign = dist >= 0 ? '+' : '';
+    meanEl.textContent = `avg ${mean.toFixed(2)}% (${sign}${dist.toFixed(2)}% vs threshold)`;
+    meanEl.style.color = meanClr;
+  }
+}
+
 
   if(meanEl){
     const dist = mean - thr;
@@ -2408,8 +2406,10 @@ async function loadPositions(){
     </div>`;
   }).join('');
 
-  // Load per-position charts after DOM is set
+  // Load per-position charts after DOM is set — skip if already drawn
   data.forEach(p => {
+    const svg = document.getElementById(`pchart-${p.short_id}`);
+    if(svg && svg.innerHTML.trim()) return; // already drawn
     const ts = p.created_at_ts || (p.created_at ? new Date(p.created_at.replace(' ','T')+'Z').getTime()/1000 : null);
     if(ts) loadPositionChart(p.short_id, ts, p.settlement_threshold||20);
   });

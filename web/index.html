@@ -117,8 +117,8 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
 .rate-big{display:flex;align-items:flex-end;gap:10px;margin-bottom:8px}
 .rate-num{font-family:var(--mono);font-size:32px;font-weight:700}
 .rate-itm-badge{padding:3px 8px;border-radius:4px;font-size:11px;font-family:var(--mono);font-weight:700}
-.itm-yes{background:rgba(255,61,90,.15);color:var(--red)}
-.itm-no{background:rgba(0,230,118,.15);color:var(--green)}
+.itm-yes{background:rgba(0,230,118,.15);color:var(--green)}
+.itm-no{background:rgba(255,61,90,.15);color:var(--red)}
 .rate-threshold{font-size:11px;color:var(--muted);margin-bottom:8px}
 .rate-bar-wrap{height:28px;background:var(--border);border-radius:4px;overflow:visible;
   position:relative;margin-bottom:4px}
@@ -383,7 +383,7 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
 .rate-history-wrap{padding:12px 18px;border-bottom:1px solid var(--border);flex-shrink:0}
 .rate-bars{display:flex;align-items:flex-end;gap:3px;height:60px;margin-bottom:4px}
 .rate-bar-item{flex:1;border-radius:2px 2px 0 0;transition:height .3s;cursor:default;min-height:2px}
-.rate-bar-item.itm{background:var(--red)}.rate-bar-item.ootm{background:var(--green)}
+.rate-bar-item.itm{background:var(--green)}.rate-bar-item.ootm{background:var(--red)}
 .rate-bar-item:hover{opacity:.8}
 .rate-threshold-marker{width:100%;height:1px;background:var(--red);opacity:.6;margin-bottom:2px;
   position:relative;margin-top:-2px}
@@ -1414,15 +1414,15 @@ async function loadPublishedRate(){
   const hv=document.getElementById('hdr-rate-val');
   if(hv)hv.textContent=`${pubRate.toFixed(1)}%`;
   const hi=document.getElementById('hdr-rate-itm');
-  if(hi){hi.textContent=itm?'🔴 IN MONEY (>20%)':'🟢 OUT OF MONEY (<20%)';
-    hi.style.color=itm?'var(--red)':'var(--green)';}
+  if(hi){hi.textContent=itm?'🟢 IN MONEY (>20%)':'🔴 OUT OF MONEY (<20%)';
+    hi.style.color=itm?'var(--green)':'var(--red)';}
 
   // Update original big-bar panels (trader t- and MM m-)
   ['t','m'].forEach(pfx=>{
     // Big number
     const rn=document.getElementById(`${pfx}-rate-num`);
     if(rn){rn.textContent=`${pubRate.toFixed(1)}%`;
-      rn.style.color=itm?'var(--red)':'var(--green)';}
+      rn.style.color=itm?'var(--green)':'var(--red)';}
 
     // Badge
     const rb=document.getElementById(`${pfx}-rate-badge`);
@@ -1432,7 +1432,7 @@ async function loadPublishedRate(){
     // Horizontal bar fill (the big moving bar)
     const barEl=document.getElementById(`${pfx}-rate-bar`);
     if(barEl){barEl.style.width=`${Math.min(pubRate,100)}%`;
-      barEl.style.background=itm?'var(--red)':'var(--accent)';}
+      barEl.style.background=itm?'var(--green)':'var(--red)';}
 
     // Running estimate text
     const re=document.getElementById(`${pfx}-running-est`);
@@ -1512,10 +1512,10 @@ function renderRateHistory(rowsId, data, runEst){
     const itm = b.rate > threshPct;
     const barH = Math.max(2, Math.round(b.rate / maxRate * chartH));
     const color = b.isEst
-      ? (itm ? 'rgba(255,61,90,.55)' : 'rgba(0,200,240,.55)')
-      : (itm ? 'var(--red)' : 'var(--green)');
-    const border = b.isEst ? `border:1px dashed ${itm?'var(--red)':'var(--accent)'}` : '';
-    const valColor = b.isEst ? (itm?'var(--red)':'var(--accent)') : (itm?'var(--red)':'var(--green)');
+      ? (itm ? 'rgba(0,230,118,.55)' : 'rgba(255,61,90,.55)')
+      : (itm ? 'var(--green)' : 'var(--red)');
+    const border = b.isEst ? `border:1px dashed ${itm?'var(--green)':'var(--accent)'}` : '';
+    const valColor = b.isEst ? (itm?'var(--green)':'var(--accent)') : (itm?'var(--green)':'var(--red)');
     // Small value label above bar
     const valLbl = `<div style="position:absolute;bottom:${barH+1}px;left:50%;transform:translateX(-50%);
       font-size:7px;font-family:'Space Mono',monospace;color:${valColor};

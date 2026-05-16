@@ -2253,23 +2253,12 @@ async function loadWallet(){
   const a=document.getElementById('t-avail');if(a)a.textContent=fmt(d.available);
 }
 
-async function loadPositionChart(shortId, createdAt, threshold){
-  if(!createdAt) return;
-
-  // Parse timestamp — handle "2026-05-14 09:55:23" and "2026-05-14T09:55:23" formats
-  const tsStr = createdAt.replace(' ', 'T');
-  const tsWithZ = tsStr.endsWith('Z') ? tsStr : tsStr + 'Z';
-  const sinceTs = new Date(tsWithZ).getTime() / 1000;
-  if(isNaN(sinceTs)) { 
-    const meanEl = document.getElementById(`pchart-mean-${shortId}`);
-    if(meanEl) meanEl.textContent = 'no data';
-    return; 
-  }
+async function loadPositionChart(shortId, sinceTs, threshold){
+  if(!sinceTs) return;
+  const meanEl = document.getElementById(`pchart-mean-${shortId}`);
 
   const data = await fetch(`${API}/api/ticks_since?since_ts=${sinceTs}&limit=360`)
     .then(r=>r.json()).catch(()=>null);
-
-  const meanEl = document.getElementById(`pchart-mean-${shortId}`);
 
   if(!data || !data.values || data.values.length < 2) {
     if(meanEl) meanEl.textContent = 'building history...';
@@ -2421,17 +2410,19 @@ async function loadPositions(){
 
   // Load per-position charts after DOM is set
   data.forEach(p => {
-    if(p.created_at) loadPositionChart(p.short_id, p.created_at, p.settlement_threshold||20);
+    const ts = p.created_at_ts || (p.created_at ? new Date(p.created_at.replace(' ','T')+'Z').getTime()/1000 : null);
+    if(ts) loadPositionChart(p.short_id, ts, p.settlement_threshold||20);
   });
-  // Retry any still loading after 3 seconds
+  // Retry any still loading after 4 seconds
   setTimeout(() => {
     data.forEach(p => {
       const meanEl = document.getElementById(`pchart-mean-${p.short_id}`);
       if(meanEl && (meanEl.textContent === 'loading...' || meanEl.textContent === 'building history...')) {
-        if(p.created_at) loadPositionChart(p.short_id, p.created_at, p.settlement_threshold||20);
+        const ts = p.created_at_ts || null;
+        if(ts) loadPositionChart(p.short_id, ts, p.settlement_threshold||20);
       }
     });
-  }, 3000);
+  }, 4000);
 }
 
 async function cancelPos(shortId){

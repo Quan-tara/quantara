@@ -132,11 +132,24 @@ def debug_series_paused():
 def api_ticks_since(since_ts: float = 0, limit: int = 360):
     """Return index tick values since a given unix timestamp — for per-position charts."""
     import time as _time
+    # If since_ts looks wrong (too small or in the future), use last 2 hours
+    now = _time.time()
+    if since_ts <= 0 or since_ts > now:
+        since_ts = now - 7200
+    # If since_ts is more than 7 days ago, cap it
+    since_ts = max(since_ts, now - 604800)
+
     session = SessionLocal()
     try:
         rows = session.query(IndexTick).filter(
             IndexTick.ts >= since_ts
         ).order_by(IndexTick.ts.asc()).limit(limit).all()
+        if not rows:
+            # Return last 30 ticks regardless as fallback
+            rows = session.query(IndexTick).order_by(
+                IndexTick.ts.desc()
+            ).limit(30).all()
+            rows = list(reversed(rows))
         if not rows:
             return {"values": [], "mean": None, "ts": []}
         values = [round(r.value, 2) for r in rows]
@@ -1053,6 +1066,7 @@ def api_positions(user_id_str: str):
                 "listed_price":    listed_ids.get(p.id),
                 "expires_at":      str(contracts_map[p.contract_id].expires_at) if p.contract_id in contracts_map and contracts_map[p.contract_id].expires_at else None,
                 "created_at":      str(contracts_map[p.contract_id].created_at) if p.contract_id in contracts_map and contracts_map[p.contract_id].created_at else None,
+                "created_at_ts":   contracts_map[p.contract_id].created_at.timestamp() if p.contract_id in contracts_map and contracts_map[p.contract_id].created_at else None,
                 "settlement_threshold": contracts_map[p.contract_id].settlement_threshold if p.contract_id in contracts_map else 20.0,
             }
             for p in positions

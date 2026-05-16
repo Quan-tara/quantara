@@ -714,8 +714,8 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
             <div id="t-rate-history-rows"></div>
             <div style="margin-top:6px;font-size:9px;color:var(--muted);font-family:var(--mono)">
               Red line = 20% threshold &nbsp;·&nbsp;
-              <span style="color:var(--red)">YES</span> = settled above threshold &nbsp;·&nbsp;
-              <span style="color:var(--green)">NO</span> = settled below
+              <span style="color:var(--green)">YES</span> = settled above threshold &nbsp;·&nbsp;
+              <span style="color:var(--red)">NO</span> = settled below
             </div>
           </div>
           <div class="sh"><span class="sh-title">Probability Distribution</span></div>
@@ -1542,8 +1542,8 @@ function renderRateHistory(rowsId, data, runEst){
 
   // Legend
   html += `<div style="display:flex;gap:12px;margin-top:6px;font-size:9px;font-family:var(--mono)">
-    <span><span style="color:var(--red)">■</span> IN MONEY (>20%)</span>
-    <span><span style="color:var(--green)">■</span> OUT OF MONEY</span>
+    <span><span style="color:var(--green)">■</span> IN MONEY (>20%)</span>
+    <span><span style="color:var(--red)">■</span> OUT OF MONEY</span>
     <span style="color:var(--muted)">dashed = today est.</span>
   </div>`;
 

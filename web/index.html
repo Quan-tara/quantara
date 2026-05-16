@@ -1234,7 +1234,7 @@ function settleChartLeave(svgId, lblId, lastMean, lastDist, clr){
   }
 }
 
-
+function drawIndexChart(id,rangeId,history){
   const c=document.getElementById(id);if(!c)return;
   _registerChart(id,history,'index',rangeId);_drawIndexChart(c,history,rangeId,-1);
 }

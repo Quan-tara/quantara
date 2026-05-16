@@ -2266,23 +2266,19 @@ function startPositionChartRefresh(shortId, sinceTs, threshold) {
 
 async function loadPositionChart(shortId, sinceTs, threshold){
   const meanEl = document.getElementById(`pchart-mean-${shortId}`);
-  console.log(`[chart] loading ${shortId}, sinceTs=${sinceTs}, minutesAgo=?`);
 
   let minutesAgo = 60;
   if(sinceTs && sinceTs > 0 && sinceTs < Date.now()/1000) {
     minutesAgo = Math.max(1, Math.round((Date.now()/1000 - sinceTs) / 60));
   }
   minutesAgo = Math.min(minutesAgo, 60);
-  console.log(`[chart] fetching minutes_ago=${minutesAgo}`);
 
   if(_posChartCache[shortId]) {
     drawPositionChart(shortId, _posChartCache[shortId].values, _posChartCache[shortId].mean, threshold);
   }
 
   const url = `${API}/api/ticks_since?minutes_ago=${minutesAgo}&limit=360`;
-  console.log(`[chart] url=${url}`);
-  const data = await fetch(url).then(r=>r.json()).catch(e=>{console.error('[chart] fetch error',e);return null;});
-  console.log(`[chart] response:`, data ? `${data.values?.length} values, mean=${data.mean}` : 'null', data?.debug || '');
+  const data = await fetch(url).then(r=>r.json()).catch(e=>{return null;});
 
   if(!data || !data.values || data.values.length < 2) {
     if(meanEl && !_posChartCache[shortId]) meanEl.textContent = 'building...';
@@ -2326,7 +2322,7 @@ function drawPositionChart(shortId, vals, mean, threshold){
   if(meanEl){
     const dist = mean - thr;
     const sign = dist >= 0 ? '+' : '';
-    meanEl.textContent = `avg ${mean.toFixed(2)}% (${sign}${dist.toFixed(2)}% vs threshold) · ${vals.length} ticks`;
+    meanEl.textContent = `avg ${mean.toFixed(2)}% (${sign}${dist.toFixed(2)}% vs threshold)`;
     meanEl.style.color = meanClr;
   }
 }

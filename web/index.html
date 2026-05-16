@@ -2311,15 +2311,6 @@ function drawPositionChart(shortId, vals, mean, threshold){
   }
 }
 
-
-  if(meanEl){
-    const dist = mean - thr;
-    const sign = dist >= 0 ? '+' : '';
-    meanEl.textContent = `avg ${mean.toFixed(2)}% (${sign}${dist.toFixed(2)}% vs threshold)`;
-    meanEl.style.color = meanClr;
-  }
-}
-
 function buildCountdown(p, runEst, threshold){
   if(!p.expires_at) return '';
   const now = Date.now();

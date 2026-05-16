@@ -1197,7 +1197,44 @@ function _drawVolChart(canvas,vh,rangeId,hoverIdx){
   if(rEl)rEl.textContent=`σ ${Math.min(...vh).toFixed(2)} – ${Math.max(...vh).toFixed(2)}`;
 }
 
-function drawIndexChart(id,rangeId,history){
+function settleChartHover(evt, rect, svgId, lblId, means, W, H, pad){
+  const bb = rect.getBoundingClientRect();
+  const mx = evt.clientX - bb.left;
+  const pct = Math.max(0, Math.min(1, (mx - pad) / (W - pad*2)));
+  const idx = Math.min(means.length-1, Math.round(pct * (means.length-1)));
+  const val = means[idx];
+  const thr = 20;
+  const x = (pad + (idx/(means.length-1))*(W-pad*2)).toFixed(1);
+  const y = (H - pad - (Math.min(val,100)/100)*(H-pad*2)).toFixed(1);
+
+  const hline = document.getElementById(svgId+'-hline');
+  const hdot  = document.getElementById(svgId+'-hdot');
+  if(hline){ hline.setAttribute('x1',x); hline.setAttribute('x2',x); hline.setAttribute('opacity','0.7'); }
+  if(hdot) { hdot.setAttribute('cx',x); hdot.setAttribute('cy',y); hdot.setAttribute('opacity','1'); }
+
+  const ticksAgo = means.length - 1 - idx;
+  const secsAgo  = ticksAgo * 10;
+  const timeStr  = secsAgo < 60 ? `${secsAgo}s ago` : `${Math.round(secsAgo/60)}m ago`;
+  const dist = val - thr;
+  const lbl = document.getElementById(lblId);
+  if(lbl){
+    lbl.textContent = `▸ ${val.toFixed(2)}% (${dist>=0?'+':''}${dist.toFixed(2)}% vs threshold) · ${timeStr}`;
+  }
+}
+
+function settleChartLeave(svgId, lblId, lastMean, lastDist, clr){
+  const hline = document.getElementById(svgId+'-hline');
+  const hdot  = document.getElementById(svgId+'-hdot');
+  if(hline) hline.setAttribute('opacity','0');
+  if(hdot)  hdot.setAttribute('opacity','0');
+  const lbl = document.getElementById(lblId);
+  if(lbl){
+    lbl.textContent = `${lastMean.toFixed(2)}% (${lastDist>=0?'+':''}${lastDist.toFixed(2)}% vs threshold)`;
+    lbl.style.color = clr;
+  }
+}
+
+
   const c=document.getElementById(id);if(!c)return;
   _registerChart(id,history,'index',rangeId);_drawIndexChart(c,history,rangeId,-1);
 }
@@ -1238,7 +1275,13 @@ function drawSettlementChart(svgId, lblId, history){
       stroke="rgba(201,168,76,0.6)" stroke-width="1" stroke-dasharray="4 3"/>
     <text x="${W-pad-2}" y="${parseFloat(thrY)-3}" font-size="8"
       fill="rgba(201,168,76,0.7)" text-anchor="end" font-family="monospace">20%</text>
-    <circle cx="${pts[pts.length-1][0]}" cy="${pts[pts.length-1][1]}" r="3" fill="${clr}"/>`;
+    <circle cx="${pts[pts.length-1][0]}" cy="${pts[pts.length-1][1]}" r="3" fill="${clr}"/>
+    <line id="${svgId}-hline" x1="0" y1="${pad}" x2="0" y2="${H-pad}"
+      stroke="${clr}" stroke-width="1" stroke-dasharray="2 2" opacity="0" pointer-events="none"/>
+    <circle id="${svgId}-hdot" cx="0" cy="0" r="3" fill="${clr}" opacity="0" pointer-events="none"/>
+    <rect x="${pad}" y="${pad}" width="${W-pad*2}" height="${H-pad*2}" fill="transparent"
+      onmousemove="settleChartHover(event,this,'${svgId}','${lblId}',${JSON.stringify(means)},${W},${H},${pad})"
+      onmouseleave="settleChartLeave('${svgId}','${lblId}',${lastMean.toFixed(2)},${(lastMean-thr).toFixed(2)},'${clr}')"/>`;
 
   const lbl = document.getElementById(lblId);
   if(lbl){
@@ -1744,9 +1787,15 @@ function factorSparkHover(evt, rect, svgId, values, min, range, W, H, pad){
   if(hline){ hline.setAttribute('x1',x); hline.setAttribute('x2',x); hline.setAttribute('opacity','0.7'); }
   if(hdot) { hdot.setAttribute('cx',x); hdot.setAttribute('cy',y); hdot.setAttribute('opacity','1'); }
 
-  // Update label
+  // Time label: each tick = 10 seconds, idx from right = how many ticks ago
+  const ticksAgo = values.length - 1 - idx;
+  const secsAgo  = ticksAgo * 10;
+  const timeStr  = secsAgo < 60
+    ? `${secsAgo}s ago`
+    : `${Math.round(secsAgo/60)}m ago`;
+
   const lblEl = document.getElementById(svgId+'-lbl');
-  if(lblEl) lblEl.textContent = `▸ ${val.toFixed(1)}`;
+  if(lblEl) lblEl.textContent = `▸ ${val.toFixed(1)} · ${timeStr}`;
 }
 
 function factorSparkLeave(svgId){
@@ -1754,6 +1803,12 @@ function factorSparkLeave(svgId){
   const hdot  = document.getElementById(svgId+'-hdot');
   if(hline) hline.setAttribute('opacity','0');
   if(hdot)  hdot.setAttribute('opacity','0');
+  // Restore min-max label
+  const lblEl = document.getElementById(svgId+'-lbl');
+  if(lblEl && _lastFactorHistory) {
+    // label will be restored on next render — just clear hover text
+    lblEl.textContent = '';
+  }
 }
 
 function renderFactors(elId,factors){

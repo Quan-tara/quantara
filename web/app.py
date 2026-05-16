@@ -134,7 +134,6 @@ def api_ticks_since(since_ts: float = 0, minutes_ago: float = 0, limit: int = 36
     import time as _time
     now = _time.time()
 
-    # If minutes_ago is provided, use that (more reliable than absolute timestamps)
     if minutes_ago > 0:
         since_ts = now - (minutes_ago * 60)
     elif since_ts <= 0 or since_ts > now:
@@ -142,12 +141,25 @@ def api_ticks_since(since_ts: float = 0, minutes_ago: float = 0, limit: int = 36
 
     session = SessionLocal()
     try:
+        # Check what's actually in the DB
+        total_ticks = session.query(IndexTick).count()
+        latest = session.query(IndexTick).order_by(IndexTick.ts.desc()).first()
+        latest_ts = latest.ts if latest else None
+
         rows = session.query(IndexTick).filter(
             IndexTick.ts >= since_ts
         ).order_by(IndexTick.ts.asc()).limit(limit).all()
 
         if not rows:
-            return {"values": [], "mean": None, "count": 0}
+            return {
+                "values": [], "mean": None, "count": 0,
+                "debug": {
+                    "since_ts": since_ts, "now": now,
+                    "total_ticks_in_db": total_ticks,
+                    "latest_tick_ts": latest_ts,
+                    "diff_seconds": (latest_ts - since_ts) if latest_ts else None
+                }
+            }
 
         values = [round(r.value, 2) for r in rows]
         mean   = round(sum(values) / len(values), 2)

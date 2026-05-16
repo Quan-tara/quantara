@@ -2282,7 +2282,7 @@ async function loadPositionChart(shortId, sinceTs, threshold){
   const url = `${API}/api/ticks_since?minutes_ago=${minutesAgo}&limit=360`;
   console.log(`[chart] url=${url}`);
   const data = await fetch(url).then(r=>r.json()).catch(e=>{console.error('[chart] fetch error',e);return null;});
-  console.log(`[chart] response:`, data ? `${data.values?.length} values, mean=${data.mean}` : 'null');
+  console.log(`[chart] response:`, data ? `${data.values?.length} values, mean=${data.mean}` : 'null', data?.debug || '');
 
   if(!data || !data.values || data.values.length < 2) {
     if(meanEl && !_posChartCache[shortId]) meanEl.textContent = 'building...';

@@ -2265,13 +2265,17 @@ function startPositionChartRefresh(shortId, sinceTs, threshold) {
 }
 
 async function loadPositionChart(shortId, sinceTs, threshold){
-  if(!sinceTs) return;
   const meanEl = document.getElementById(`pchart-mean-${shortId}`);
 
-  // Calculate minutes since position opened
-  const minutesAgo = Math.max(1, Math.round((Date.now()/1000 - sinceTs) / 60));
+  // Calculate minutes ago — if sinceTs is bad, use 60min
+  let minutesAgo = 60;
+  if(sinceTs && sinceTs > 0 && sinceTs < Date.now()/1000) {
+    minutesAgo = Math.max(1, Math.round((Date.now()/1000 - sinceTs) / 60));
+  }
+  // Cap at 60 minutes (contract max is 1h for short contracts)
+  minutesAgo = Math.min(minutesAgo, 60);
 
-  // Draw from cache immediately while fetching fresh data
+  // Draw from cache immediately
   if(_posChartCache[shortId]) {
     drawPositionChart(shortId, _posChartCache[shortId].values, _posChartCache[shortId].mean, threshold);
   }
@@ -2280,14 +2284,12 @@ async function loadPositionChart(shortId, sinceTs, threshold){
     .then(r=>r.json()).catch(()=>null);
 
   if(!data || !data.values || data.values.length < 2) {
-    if(meanEl && !_posChartCache[shortId]) meanEl.textContent = 'building history...';
+    if(meanEl && !_posChartCache[shortId]) meanEl.textContent = 'building...';
     return;
   }
 
-  // Update cache and redraw with fresh data
   _posChartCache[shortId] = {values: data.values, mean: data.mean, threshold};
   drawPositionChart(shortId, data.values, data.mean, threshold);
-  // Start independent refresh timer on first successful load
   if(!_posChartTimers[shortId]) {
     startPositionChartRefresh(shortId, sinceTs, threshold);
   }
@@ -2417,13 +2419,12 @@ async function loadPositions(){
   // Draw charts instantly from cache, refresh cache in background
   data.forEach(p => {
     const ts = p.created_at_ts || (p.created_at ? new Date(p.created_at.replace(' ','T')+'Z').getTime()/1000 : null);
-    if(!ts) return;
-    // Draw from cache immediately (no flicker)
+    // If no timestamp, default to 60 min ago (shows full available history)
+    const sinceTs = ts || (Date.now()/1000 - 3600);
     if(_posChartCache[p.short_id]) {
       drawPositionChart(p.short_id, _posChartCache[p.short_id].values, _posChartCache[p.short_id].mean, p.settlement_threshold||20);
     }
-    // Always refresh cache from API in background
-    loadPositionChart(p.short_id, ts, p.settlement_threshold||20);
+    loadPositionChart(p.short_id, sinceTs, p.settlement_threshold||20);
   });
 }
 

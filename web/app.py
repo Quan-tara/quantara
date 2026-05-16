@@ -128,6 +128,23 @@ def debug_series_paused():
 
 
 # ── Probability distribution for any time window ──
+@app.get("/api/ticks_since")
+def api_ticks_since(since_ts: float = 0, limit: int = 360):
+    """Return index tick values since a given unix timestamp — for per-position charts."""
+    import time as _time
+    session = SessionLocal()
+    try:
+        rows = session.query(IndexTick).filter(
+            IndexTick.ts >= since_ts
+        ).order_by(IndexTick.ts.asc()).limit(limit).all()
+        if not rows:
+            return {"values": [], "mean": None, "ts": []}
+        values = [round(r.value, 2) for r in rows]
+        mean   = round(sum(values) / len(values), 2)
+        return {"values": values, "mean": mean, "ts": [r.ts for r in rows]}
+    finally:
+        session.close()
+
 @app.get("/api/buckets")
 def api_buckets(hours: float = 1.0):
     """Return index distribution buckets for the requested window (hours).

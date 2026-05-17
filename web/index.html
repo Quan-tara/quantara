@@ -684,7 +684,7 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
               <span id="t-settle-rate-lbl" style="font-family:var(--mono);font-size:10px;color:var(--text)">—</span>
             </div>
             <svg id="t-settle-chart" viewBox="0 0 400 60" preserveAspectRatio="none"
-                 style="width:100%;height:60px;overflow:visible;display:block"></svg>
+                 style="width:400px;max-width:100%;height:60px;overflow:visible;display:block"></svg>
           </div>
         </div>
         <div class="col">
@@ -2419,10 +2419,10 @@ function drawPositionChart(shortId, vals, mean, threshold){
   const pts = vals.map((v,i) => [toX(i).toFixed(1), toY(v).toFixed(1)]);
   const line = pts.map((p,i)=>`${i===0?'M':'L'}${p[0]},${p[1]}`).join(' ');
   const area = line + ` L${pts[pts.length-1][0]},${H-padB} L${padL},${H-padB} Z`;
-  const lineClr = mean > thr ? '#f87171' : mean > thr*0.85 ? 'var(--amber)' : '#4ade80';
+  const lineClr = mean > thr ? '#4ade80' : mean > thr*0.85 ? 'var(--amber)' : '#f87171';
   const thrY  = toY(thr).toFixed(1);
   const meanY = toY(mean).toFixed(1);
-  const meanClr = mean > thr ? '#f87171' : mean > thr*0.85 ? 'var(--amber)' : '#4ade80';
+  const meanClr = mean > thr ? '#4ade80' : mean > thr*0.85 ? 'var(--amber)' : '#f87171';
   svg.innerHTML = `
     <defs><linearGradient id="pcg-${shortId}" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%" stop-color="${lineClr}" stop-opacity="0.25"/>

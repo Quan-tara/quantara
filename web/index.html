@@ -1831,12 +1831,15 @@ function renderFactors(elId,factors){
       <div style="display:flex;align-items:center;gap:8px">
         <div class="factor-anim">${svg}</div>
         <div style="flex:1;min-width:0">
-          <div style="display:flex;align-items:center;gap:4px;margin-bottom:4px">
-            <span class="factor-name" title="${f.desc}" style="flex:1">${f.name} <span style="font-family:var(--mono);font-size:9px;color:var(--muted);font-weight:400">${f.weight_pct}%</span></span>${spike}
-            <span class="factor-val" style="color:${clr}">${fmt1(f.value)}</span>
-            <span class="factor-status" style="color:${meta.clrStatus};font-size:10px;font-weight:700;letter-spacing:0.5px;width:70px;text-align:right">${meta.status}</span>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px">
+            <span class="factor-name" title="${f.desc}">${f.name}</span>${spike}
+            <span style="font-family:var(--mono);font-size:9px;color:var(--muted);flex-shrink:0;margin-left:6px">${f.weight_pct}% weight</span>
           </div>
-          <div class="factor-bar-wrap" style="width:100%"><div class="factor-bar" style="width:${w}%;background:${clr}"></div></div>
+          <div style="display:flex;align-items:center;gap:4px;margin-bottom:4px">
+            <div class="factor-bar-wrap" style="flex:1"><div class="factor-bar" style="width:${w}%;background:${clr}"></div></div>
+            <span class="factor-val" style="color:${clr}">${fmt1(f.value)}</span>
+            <span class="factor-status" style="color:${meta.clrStatus};font-size:10px;font-weight:700;letter-spacing:0.5px;width:60px;text-align:right">${meta.status}</span>
+          </div>
         </div>
       </div>
       <div class="factor-narrative ${meta.cls}" style="padding:4px 0 2px;margin-left:56px">${meta.narrative}</div>

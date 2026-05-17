@@ -1832,12 +1832,9 @@ function renderFactors(elId,factors){
         <div class="factor-anim">${svg}</div>
         <div style="flex:1;min-width:0">
           <div style="display:flex;align-items:center;gap:4px;margin-bottom:4px">
-            <span class="factor-name" title="${f.desc}" style="flex:1">${f.name}</span>${spike}
+            <span class="factor-name" title="${f.desc}" style="flex:1">${f.name} <span style="font-family:var(--mono);font-size:9px;color:var(--muted);font-weight:400">${f.weight_pct}%</span></span>${spike}
             <span class="factor-val" style="color:${clr}">${fmt1(f.value)}</span>
             <span class="factor-status" style="color:${meta.clrStatus};font-size:10px;font-weight:700;letter-spacing:0.5px;width:70px;text-align:right">${meta.status}</span>
-            <span title="Weight in index" style="font-family:var(--mono);font-size:9px;color:var(--muted);
-              background:rgba(255,255,255,0.06);border:1px solid var(--border);border-radius:3px;
-              padding:1px 5px;margin-left:4px;flex-shrink:0">${f.weight_pct}%</span>
           </div>
           <div class="factor-bar-wrap" style="width:100%"><div class="factor-bar" style="width:${w}%;background:${clr}"></div></div>
         </div>

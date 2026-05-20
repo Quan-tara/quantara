@@ -1139,22 +1139,33 @@ def api_register(req: RegisterRequest):
         ).fetchone()
         if existing:
             raise HTTPException(status_code=409, detail="Username already taken")
-        # Generate a new user_id (large random int, won't clash with Discord IDs)
+        # Generate a new user_id
         import random
         new_id = random.randint(10**9, 10**12)
-        # Create user, wallet
-        from engine.users import get_or_create_user as _goc
-        _goc(new_id)
+        # Create user row directly
         session.execute(
             __import__('sqlalchemy').text(
-                "UPDATE users SET username=:u, password_hash=:p WHERE id=:id"
-            ), {"u": username, "p": pw_hash, "id": new_id}
+                "INSERT INTO users (id, balance, locked_collateral, username, password_hash) "
+                "VALUES (:id, 100000, 0, :u, :p)"
+            ), {"id": new_id, "u": username, "p": pw_hash}
+        )
+        # Create wallet row directly
+        session.execute(
+            __import__('sqlalchemy').text(
+                "INSERT INTO wallets (user_id, cash_balance, locked_balance) "
+                "VALUES (:id, 100000, 0)"
+            ), {"id": new_id}
         )
         session.commit()
         return {
             "user_id": new_id, "name": username,
             "is_admin": False, "is_mm": False, "exists": True
         }
+    except HTTPException:
+        raise
+    except Exception as e:
+        session.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
     finally:
         session.close()
 

@@ -2440,7 +2440,7 @@ async function placeOrder(side){
   if(!selectedSeriesId){showRes('t-res','Select a contract series from the grid first',false);return;}
   if(!currentUser){showRes('t-res','Not logged in',false);return;}
   if(currentUser.isGuest){
-    showRes('t-res','💡 Guest session — log in with a Discord ID to place real orders and save your positions',false);
+    showRes('t-res','💡 Guest session — create an account or log in to place real orders and save your positions',false);
     return;
   }
   const s=seriesCache.find(x=>x.series_id===selectedSeriesId);
@@ -2455,7 +2455,7 @@ async function placeOrder(side){
                            side:side.toUpperCase(),price,quantity:qty})
     });
     const d=await res.json();
-    showRes('t-res',res.ok?`✅ ${side.toUpperCase()} order #${d.order_id} placed`:`❌ ${d.detail}`,res.ok);
+    showRes('t-res',res.ok?`✅ ${side.toUpperCase()} order #${d.order_id} placed`:`❌ ${d.detail||d.message||JSON.stringify(d)}`,res.ok);
     if(res.ok)await Promise.all([loadSeriesBook(selectedSeriesId),loadWallet(),loadPositions(),loadLedger()]);
   }catch(e){showRes('t-res',`❌ ${e.message}`,false);}
 }

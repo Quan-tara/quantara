@@ -2314,7 +2314,7 @@ async function doRegister(){
 }
 
 async function completeLogin(data){
-  currentUser = {id: data.user_id, name: data.name, isAdmin: data.is_admin, isMM: data.is_mm};
+  currentUser = {id: String(data.user_id), name: data.name, isAdmin: data.is_admin, isMM: data.is_mm};
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('app').style.display = 'block';
   document.getElementById('ub-name').textContent = data.name;
@@ -2398,7 +2398,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     if(res && res.ok){
       const info = await res.json();
       await completeLogin({
-        user_id: parseInt(savedId), name: savedName,
+        user_id: savedId, name: savedName,
         is_admin: info.is_admin, is_mm: info.is_mm
       });
       return;

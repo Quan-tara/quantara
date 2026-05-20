@@ -1206,6 +1206,42 @@ def api_user(user_id_str: str):
     finally:
         session.close()
 
+@app.get("/api/admin/users")
+def api_admin_users(admin_id: str):
+    uid = parse_user_id(admin_id)
+    if uid != ADMIN_ID:
+        raise HTTPException(status_code=403, detail="Admin only")
+    import sqlalchemy as _sa
+    session = SessionLocal()
+    try:
+        rows = session.execute(_sa.text(
+            """SELECT u.id, u.username,
+                      w.cash_balance, w.locked_balance,
+                      (SELECT COUNT(*) FROM trades t WHERE t.buyer_id=u.id OR t.seller_id=u.id) as trades,
+                      (SELECT COUNT(*) FROM positions p WHERE p.user_id=u.id) as positions
+               FROM users u
+               LEFT JOIN wallets w ON w.user_id = u.id
+               WHERE u.id != 0
+               ORDER BY w.cash_balance DESC NULLS LAST"""
+        )).fetchall()
+        result = []
+        for r in rows:
+            uid2, uname, cash, locked, trades, positions = r
+            result.append({
+                "user_id":   uid2,
+                "name":      uname or get_display_name(uid2),
+                "auth":      "username/password" if uname else "discord",
+                "balance":   round((cash or 0) + (locked or 0), 2),
+                "cash":      round(cash or 0, 2),
+                "locked":    round(locked or 0, 2),
+                "pnl":       round((cash or 0) + (locked or 0) - 100000, 2),
+                "trades":    trades or 0,
+                "positions": positions or 0,
+            })
+        return result
+    finally:
+        session.close()
+
 @app.get("/api/mm/stats")
 def api_mm_stats(admin_id: str):
     uid = parse_user_id(admin_id)

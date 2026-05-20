@@ -820,6 +820,7 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
     <div class="dash-tabs">
       <button class="dash-tab am" id="mt1" onclick="switchMMTab(1)">⚡ Operations</button>
       <button class="dash-tab" id="mt2" onclick="switchMMTab(2)">📊 Analysis</button>
+      <button class="dash-tab" id="mt3" onclick="switchMMTab(3)">👥 Users</button>
     </div>
 
     <!-- MM TAB 1 -->
@@ -1067,6 +1068,12 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
         </div>
       </div>
     </div><!-- /m-page2 -->
+
+    <div class="page" id="m-page3">
+      <div class="sh"><span class="sh-title">👥 Registered Users</span>
+        <span class="sh-sub">all accounts on the platform</span></div>
+      <div id="mm-user-list" style="overflow-y:auto;max-height:600px"></div>
+    </div><!-- /m-page3 -->
   </div><!-- /mm -->
 </div><!-- /app -->
 
@@ -1127,6 +1134,11 @@ function switchMMTab(n){
   mmTabN=n;
   document.getElementById('m-page1').className=`page ${n===1?'active':''}`;
   document.getElementById('m-page2').className=`page ${n===2?'active':''}`;
+  document.getElementById('m-page3').className=`page ${n===3?'active':''}`;
+  document.getElementById('mt1').className=`dash-tab ${n===1?'am':''}`;
+  document.getElementById('mt2').className=`dash-tab ${n===2?'am':''}`;
+  document.getElementById('mt3').className=`dash-tab ${n===3?'am':''}`;
+  if(n===3) loadMMUsers();
   document.getElementById('mt1').className=`dash-tab ${n===1?'am':''}`;
   document.getElementById('mt2').className=`dash-tab ${n===2?'am':''}`;
 }
@@ -3289,6 +3301,40 @@ async function refreshTrader(){
   if(selectedSeriesId){await loadSeriesBook(selectedSeriesId);await loadSeriesMarketplace(selectedSeriesId);}
   await loadRateHistory();
   await loadLedger();
+}
+
+async function loadMMUsers(){
+  if(!currentUser) return;
+  const el = document.getElementById('mm-user-list'); if(!el) return;
+  const data = await fetch(`${API}/api/admin/users?admin_id=${currentUser.id}`)
+    .then(r=>r.json()).catch(()=>[]);
+  if(!data.length){ el.innerHTML='<div class="empty" style="padding:16px">No users yet</div>'; return; }
+  el.innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 80px 90px 80px 60px 60px 70px;
+      gap:6px;padding:8px 16px;font-family:var(--mono);font-size:9px;
+      letter-spacing:1px;text-transform:uppercase;color:var(--muted);
+      border-bottom:1px solid var(--border)">
+      <span>Player</span><span>Auth</span><span>Balance</span>
+      <span>P&L</span><span>Trades</span><span>Pos</span><span>User ID</span>
+    </div>` +
+    data.map(u => {
+      const pnlClr = u.pnl >= 0 ? 'var(--green)' : 'var(--red)';
+      const pnlSign = u.pnl >= 0 ? '+' : '';
+      const authBadge = u.auth === 'username/password'
+        ? `<span style="color:var(--accent);font-size:9px">U/P</span>`
+        : `<span style="color:var(--muted);font-size:9px">DC</span>`;
+      return `<div style="display:grid;grid-template-columns:1fr 80px 90px 80px 60px 60px 70px;
+        gap:6px;padding:8px 16px;border-bottom:1px solid var(--border);
+        align-items:center;font-size:11px;">
+        <span style="font-weight:600">${u.name}</span>
+        ${authBadge}
+        <span style="font-family:var(--mono)">€${fmt(u.balance)}</span>
+        <span style="font-family:var(--mono);color:${pnlClr}">${pnlSign}€${fmt(Math.abs(u.pnl))}</span>
+        <span style="font-family:var(--mono);color:var(--muted)">${u.trades}</span>
+        <span style="font-family:var(--mono);color:var(--muted)">${u.positions}</span>
+        <span style="font-family:var(--mono);font-size:9px;color:var(--muted)">...${String(u.user_id).slice(-6)}</span>
+      </div>`;
+    }).join('');
 }
 
 async function refreshMM(){

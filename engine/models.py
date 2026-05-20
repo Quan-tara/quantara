@@ -9,6 +9,8 @@ class User(Base):
     id                = Column(BigInteger, primary_key=True)
     balance           = Column(Float, default=10000.0)
     locked_collateral = Column(Float, default=0.0)
+    username          = Column(String, nullable=True, unique=True)
+    password_hash     = Column(String, nullable=True)
 
 
 class ContractSeries(Base):

@@ -516,34 +516,66 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
 <div id="login-screen" style="min-height:calc(100vh - 54px);display:flex;align-items:center;justify-content:center;position:relative;z-index:1">
   <div class="login-box">
     <h2>QUANTARA</h2>
-    <p>Explore the platform instantly as a guest, or log in with your Discord ID for a persistent account.</p>
+    <p>Explore instantly as a guest, or log in to track your performance.</p>
+
+    <!-- Guest -->
     <button onclick="doGuestLogin()" style="width:100%;padding:13px;background:var(--accent);color:#000;border:none;
-      border-radius:6px;font-family:var(--mono);font-size:12px;letter-spacing:1px;cursor:pointer;margin-bottom:12px">
+      border-radius:6px;font-family:var(--mono);font-size:12px;letter-spacing:1px;cursor:pointer;margin-bottom:14px">
       ▶ EXPLORE AS GUEST
     </button>
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+
+    <!-- Divider -->
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
       <div style="flex:1;height:1px;background:var(--border)"></div>
       <span style="font-size:11px;color:var(--muted);font-family:var(--mono)">or</span>
       <div style="flex:1;height:1px;background:var(--border)"></div>
     </div>
-    <input type="text" id="login-input" placeholder="Discord User ID (for persistent account)" maxlength="25"
-           onkeydown="if(event.key==='Enter')doLogin()">
-    <button onclick="doLogin()" style="background:var(--s2);color:var(--text);border:1px solid var(--border)">
-      LOG IN WITH DISCORD ID
-    </button>
-    <div class="login-err" id="login-err"></div>
-    <div style="margin-top:20px;padding:14px 16px;background:rgba(0,0,0,0.2);border:1px solid var(--border);border-radius:6px;font-size:11px;color:var(--muted);line-height:1.8">
-      <div style="color:var(--accent);font-family:var(--mono);letter-spacing:1px;font-size:10px;margin-bottom:8px">HOW TO GET YOUR DISCORD USER ID — 2 MINUTES</div>
-      <div style="margin-bottom:6px"><span style="color:var(--text)">1. Create a free Discord account</span> at <a href="https://discord.com/register" target="_blank" style="color:var(--accent);text-decoration:none">discord.com/register</a> — no download needed, works in your browser.</div>
-      <div style="margin-bottom:6px"><span style="color:var(--text)">2. Enable Developer Mode</span> — click the gear icon (Settings) → scroll down the left menu to <em>Developer</em> (near the bottom, just above Log Out) → turn on <em>Developer Mode</em>.</div>
-      <div style="margin-bottom:6px"><span style="color:var(--text)">3. Copy your User ID</span> — click your avatar at the bottom left → <em>Copy User ID</em>. It's an 18-digit number.</div>
-      <div style="margin-bottom:10px"><span style="color:var(--text)">4. Paste it above</span> and press Enter.</div>
-      <div style="border-top:1px solid var(--border);padding-top:10px">
-        Also join our
-        <a href="https://discord.gg/tCjR59UA" target="_blank" style="color:var(--accent);text-decoration:none">Discord community</a>
-        to connect with other traders and get support.
+
+    <!-- Username/Password panel -->
+    <div id="panel-login" style="display:block">
+      <input type="text" id="pw-username" placeholder="Username" maxlength="32"
+             style="margin-bottom:8px" onkeydown="if(event.key==='Enter')doLoginPw()">
+      <input type="password" id="pw-password" placeholder="Password" maxlength="64"
+             style="margin-bottom:8px" onkeydown="if(event.key==='Enter')doLoginPw()">
+      <button onclick="doLoginPw()" style="background:var(--s2);color:var(--text);border:1px solid var(--border);margin-bottom:8px">
+        LOG IN
+      </button>
+      <div style="text-align:center;font-size:11px;color:var(--muted)">
+        No account? <span onclick="showRegister()" style="color:var(--accent);cursor:pointer;text-decoration:underline">Create one</span>
+        &nbsp;·&nbsp;
+        <span onclick="showDiscord()" style="color:var(--muted2);cursor:pointer;font-size:10px">Discord ID login</span>
       </div>
     </div>
+
+    <!-- Register panel -->
+    <div id="panel-register" style="display:none">
+      <input type="text" id="reg-username" placeholder="Choose a username" maxlength="32"
+             style="margin-bottom:8px" onkeydown="if(event.key==='Enter')doRegister()">
+      <input type="password" id="reg-password" placeholder="Password (min 6 characters)" maxlength="64"
+             style="margin-bottom:8px" onkeydown="if(event.key==='Enter')doRegister()">
+      <input type="password" id="reg-confirm" placeholder="Confirm password" maxlength="64"
+             style="margin-bottom:8px" onkeydown="if(event.key==='Enter')doRegister()">
+      <button onclick="doRegister()" style="background:var(--accent);color:#000;border:none;margin-bottom:8px">
+        CREATE ACCOUNT
+      </button>
+      <div style="text-align:center;font-size:11px;color:var(--muted)">
+        Already have an account? <span onclick="showLogin()" style="color:var(--accent);cursor:pointer;text-decoration:underline">Log in</span>
+      </div>
+    </div>
+
+    <!-- Discord panel (hidden by default) -->
+    <div id="panel-discord" style="display:none">
+      <input type="text" id="login-input" placeholder="Discord User ID" maxlength="25"
+             onkeydown="if(event.key==='Enter')doLogin()">
+      <button onclick="doLogin()" style="background:var(--s2);color:var(--text);border:1px solid var(--border);margin-bottom:8px">
+        LOG IN WITH DISCORD ID
+      </button>
+      <div style="text-align:center;font-size:11px;color:var(--muted)">
+        <span onclick="showLogin()" style="color:var(--accent);cursor:pointer;text-decoration:underline">← Back</span>
+      </div>
+    </div>
+
+    <div class="login-err" id="login-err"></div>
   </div>
 </div>
 
@@ -2218,6 +2250,78 @@ async function loadSeriesMarketplace(seriesId){
 // ============================================================
 // LOGIN
 // ============================================================
+function showLogin(){
+  document.getElementById('panel-login').style.display='block';
+  document.getElementById('panel-register').style.display='none';
+  document.getElementById('panel-discord').style.display='none';
+  document.getElementById('login-err').textContent='';
+}
+function showRegister(){
+  document.getElementById('panel-login').style.display='none';
+  document.getElementById('panel-register').style.display='block';
+  document.getElementById('panel-discord').style.display='none';
+  document.getElementById('login-err').textContent='';
+}
+function showDiscord(){
+  document.getElementById('panel-login').style.display='none';
+  document.getElementById('panel-register').style.display='none';
+  document.getElementById('panel-discord').style.display='block';
+  document.getElementById('login-err').textContent='';
+}
+
+async function doLoginPw(){
+  const username = document.getElementById('pw-username').value.trim();
+  const password = document.getElementById('pw-password').value;
+  const errEl = document.getElementById('login-err');
+  if(!username || !password){ errEl.textContent='Enter username and password'; return; }
+  const res = await fetch(`${API}/api/login_pw`, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({username, password})
+  }).catch(()=>null);
+  if(!res || !res.ok){
+    const msg = res ? (await res.json().catch(()=>({}))).detail : 'Connection error';
+    errEl.textContent = msg || 'Invalid username or password';
+    return;
+  }
+  const data = await res.json();
+  // Store in localStorage for persistence
+  localStorage.setItem('q_user_id', data.user_id);
+  localStorage.setItem('q_username', data.name);
+  await completeLogin(data);
+}
+
+async function doRegister(){
+  const username = document.getElementById('reg-username').value.trim();
+  const password = document.getElementById('reg-password').value;
+  const confirm  = document.getElementById('reg-confirm').value;
+  const errEl    = document.getElementById('login-err');
+  if(!username){ errEl.textContent='Choose a username'; return; }
+  if(password.length < 6){ errEl.textContent='Password must be at least 6 characters'; return; }
+  if(password !== confirm){ errEl.textContent='Passwords do not match'; return; }
+  const res = await fetch(`${API}/api/register`, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({username, password})
+  }).catch(()=>null);
+  if(!res || !res.ok){
+    const msg = res ? (await res.json().catch(()=>({}))).detail : 'Connection error';
+    errEl.textContent = msg || 'Registration failed';
+    return;
+  }
+  const data = await res.json();
+  localStorage.setItem('q_user_id', data.user_id);
+  localStorage.setItem('q_username', data.name);
+  await completeLogin(data);
+}
+
+async function completeLogin(data){
+  currentUser = {id: data.user_id, name: data.name, isAdmin: data.is_admin, isMM: data.is_mm};
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  document.getElementById('ub-name').textContent = data.name;
+  document.getElementById('ub-role').textContent = data.is_admin ? 'ADMIN' : data.is_mm ? 'MM' : 'TRADER';
+  startApp();
+}
+
 async function doGuestLogin(){
   // Generate a temporary guest ID (negative random number so it never clashes with real Discord IDs)
   const guestId = 'guest_' + Math.random().toString(36).slice(2, 10);
@@ -2266,10 +2370,35 @@ async function doLogin(){
 }
 function doLogout(){
   currentUser=null;selectedSeriesId=null;
-  document.getElementById('login-input').value='';
+  localStorage.removeItem('q_user_id');
+  localStorage.removeItem('q_username');
+  document.getElementById('login-input') && (document.getElementById('login-input').value='');
   document.getElementById('login-screen').style.display='flex';
   document.getElementById('app').style.display='none';
+  showLogin();
 }
+
+// Auto-login from localStorage on page load
+window.addEventListener('DOMContentLoaded', async () => {
+  const savedId   = localStorage.getItem('q_user_id');
+  const savedName = localStorage.getItem('q_username');
+  if(savedId && savedName){
+    // Verify still valid by hitting the user endpoint
+    const res = await fetch(`${API}/api/user/${savedId}`).catch(()=>null);
+    if(res && res.ok){
+      const info = await res.json();
+      await completeLogin({
+        user_id: parseInt(savedId), name: savedName,
+        is_admin: info.is_admin, is_mm: info.is_mm
+      });
+      return;
+    }
+    localStorage.removeItem('q_user_id');
+    localStorage.removeItem('q_username');
+  }
+  // Check for guest param
+  if(new URLSearchParams(window.location.search).get('guest')==='1') doGuestLogin();
+});
 
 // ============================================================
 // GUEST SESSION
@@ -3165,10 +3294,7 @@ setInterval(async()=>{
   else await refreshTrader();
 },3000);
 
-// Auto-login as guest when embedded with ?guest=1
-if(new URLSearchParams(window.location.search).get('guest')==='1'){
-  doGuestLogin();
-}
+
 </script>
 </body>
 </html>

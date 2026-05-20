@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException
+import hashlib, secrets
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
@@ -46,6 +47,9 @@ async def startup_event():
             "ALTER TABLE index_ticks ADD COLUMN IF NOT EXISTS f_driver FLOAT",
             "ALTER TABLE index_ticks ADD COLUMN IF NOT EXISTS f_route FLOAT",
             "ALTER TABLE index_ticks ADD COLUMN IF NOT EXISTS f_volume FLOAT",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS username VARCHAR(64)",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash VARCHAR(128)",
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username) WHERE username IS NOT NULL",
         ]
         for _sql in _migrations:
             try:
@@ -200,7 +204,21 @@ def parse_user_id(raw) -> int:
         raise HTTPException(status_code=400, detail=f"Invalid user ID: {raw!r}")
 
 def get_display_name(user_id: int) -> str:
-    return KNOWN_USERS.get(user_id, f"User ...{str(user_id)[-4:]}")
+    if user_id in KNOWN_USERS:
+        return KNOWN_USERS[user_id]
+    # Check if user has a username in DB
+    try:
+        _s = SessionLocal()
+        row = _s.execute(
+            __import__('sqlalchemy').text("SELECT username FROM users WHERE id=:id AND username IS NOT NULL"),
+            {"id": user_id}
+        ).fetchone()
+        _s.close()
+        if row and row[0]:
+            return row[0]
+    except Exception:
+        pass
+    return f"User ...{str(user_id)[-4:]}"
 
 async def post_to_discord(message: str):
     if not DISCORD_WEBHOOK_URL: return
@@ -1088,6 +1106,76 @@ def api_wallet(user_id_str: str):
             "cash_balance":   wallet.cash_balance,
             "locked_balance": wallet.locked_balance,
             "available":      wallet.cash_balance - wallet.locked_balance
+        }
+    finally:
+        session.close()
+
+# ── Password helpers ──
+def _hash_pw(password: str) -> str:
+    return hashlib.sha256(password.encode()).hexdigest()
+
+class RegisterRequest(BaseModel):
+    username: str
+    password: str
+
+class LoginPwRequest(BaseModel):
+    username: str
+    password: str
+
+@app.post("/api/register")
+def api_register(req: RegisterRequest):
+    if len(req.username.strip()) < 2:
+        raise HTTPException(status_code=400, detail="Username must be at least 2 characters")
+    if len(req.password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+    username = req.username.strip()
+    pw_hash  = _hash_pw(req.password)
+    session  = SessionLocal()
+    try:
+        # Check username taken
+        existing = session.execute(
+            __import__('sqlalchemy').text("SELECT id FROM users WHERE username = :u"),
+            {"u": username}
+        ).fetchone()
+        if existing:
+            raise HTTPException(status_code=409, detail="Username already taken")
+        # Generate a new user_id (large random int, won't clash with Discord IDs)
+        import random
+        new_id = random.randint(10**9, 10**12)
+        # Create user, wallet
+        from engine.users import get_or_create_user as _goc
+        _goc(new_id)
+        session.execute(
+            __import__('sqlalchemy').text(
+                "UPDATE users SET username=:u, password_hash=:p WHERE id=:id"
+            ), {"u": username, "p": pw_hash, "id": new_id}
+        )
+        session.commit()
+        return {
+            "user_id": new_id, "name": username,
+            "is_admin": False, "is_mm": False, "exists": True
+        }
+    finally:
+        session.close()
+
+@app.post("/api/login_pw")
+def api_login_pw(req: LoginPwRequest):
+    pw_hash = _hash_pw(req.password)
+    session = SessionLocal()
+    try:
+        row = session.execute(
+            __import__('sqlalchemy').text(
+                "SELECT id, username FROM users WHERE username=:u AND password_hash=:p"
+            ), {"u": req.username.strip(), "p": pw_hash}
+        ).fetchone()
+        if not row:
+            raise HTTPException(status_code=401, detail="Invalid username or password")
+        uid = row[0]
+        name = row[1]
+        return {
+            "user_id": uid, "name": name,
+            "is_admin": uid == ADMIN_ID, "is_mm": uid == MM_USER_ID,
+            "exists": True
         }
     finally:
         session.close()

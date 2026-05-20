@@ -2318,8 +2318,18 @@ async function completeLogin(data){
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('app').style.display = 'block';
   document.getElementById('ub-name').textContent = data.name;
-  document.getElementById('ub-role').textContent = data.is_admin ? 'ADMIN' : data.is_mm ? 'MM' : 'TRADER';
-  startApp();
+  const roleEl = document.getElementById('ub-role');
+  if(currentUser.isAdmin || currentUser.isMM){
+    roleEl.textContent='MARKET MAKER'; roleEl.className='ub-role ub-mm';
+    document.getElementById('layout-mm').style.display='block';
+    document.getElementById('layout-trader').style.display='none';
+    await refreshMM();
+  } else {
+    roleEl.textContent='TRADER'; roleEl.className='ub-role ub-trader';
+    document.getElementById('layout-trader').style.display='block';
+    document.getElementById('layout-mm').style.display='none';
+    await refreshTrader();
+  }
 }
 
 async function doGuestLogin(){

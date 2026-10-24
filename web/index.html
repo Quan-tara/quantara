@@ -1426,11 +1426,10 @@ async function loadIndex(){
 
   renderFactors('t-factors',snap.factors);
   renderFactors('m-factors',snap.factors);
-  // Only update bucket bars from snap if no series is selected (default 1h window)
-  // When a series is selected, loadBucketsForWindow handles the correct window
+  // Always fetch buckets from DB via API — ensures both panels show identical data
+  // When a series is selected, loadBucketsForWindow uses that series' window
   if(!selectedSeriesId){
-    renderBuckets('t-buckets', snap.buckets, 'last 1h');
-    renderBuckets('m-buckets', snap.buckets, 'last 1h');
+    loadBucketsForWindow(1, 'last 1h');
   }
   renderVolatility('t-vol',snap.volatility);
   renderVolatility('m-vol',snap.volatility);

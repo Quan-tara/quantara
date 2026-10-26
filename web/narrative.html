@@ -22,30 +22,7 @@
   --sans:    'DM Sans', sans-serif;
   color-scheme: dark;
 }
-@media (prefers-color-scheme: light) {
-  :root:not([data-theme="dark"]) {
-    --bg:    #f0f4fa;
-    --s1:    #ffffff;
-    --s2:    #e8eef8;
-    --s3:    #dde5f2;
-    --border:#c5d3e8;
-    --text:  #0d1526;
-    --muted: #4a6080;
-    --dim:   #8a9ab8;
-    color-scheme: light;
-  }
-}
-:root[data-theme="light"] {
-  --bg:    #f0f4fa;
-  --s1:    #ffffff;
-  --s2:    #e8eef8;
-  --s3:    #dde5f2;
-  --border:#c5d3e8;
-  --text:  #0d1526;
-  --muted: #4a6080;
-  --dim:   #8a9ab8;
-  color-scheme: light;
-}
+/* always dark — no light theme override */
 
 *,*::before,*::after { box-sizing: border-box; margin: 0; padding: 0 }
 html, body { height: 100% }

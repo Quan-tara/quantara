@@ -17,6 +17,17 @@ from engine.constants import MM_USER_ID
 Base.metadata.create_all(bind=engine)
 print("✅ Tables created")
 
+# ── Migrations — add new columns if they don't exist ──
+from sqlalchemy import text
+with engine.connect() as conn:
+    # headlines column on index_ticks (added 2026-10-26)
+    try:
+        conn.execute(text("ALTER TABLE index_ticks ADD COLUMN headlines TEXT"))
+        conn.commit()
+        print("✅ Migration: added index_ticks.headlines")
+    except Exception:
+        pass  # column already exists
+
 # ── Seed the 12 contract series ──
 SERIES = [
     # id, collateral, expiry_mins, threshold, label

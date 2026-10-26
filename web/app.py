@@ -1281,17 +1281,26 @@ def api_narrative_index():
         ).fetchone()
         if not row:
             return {"value": 10.0, "intensity_score": 0.0, "diffusion_score": 0.0,
-                    "ts": _time.time(), "regime": "CALM", "headlines": []}
+                    "ts": _time.time(), "regime": "CALM", "headlines": [],
+                    "components": None, "meta": None}
         v, i, d, ts = float(row[0]), float(row[1] or 0), float(row[2] or 0), float(row[3])
+        # headlines column: v2 = {"stories","components","meta"}; v1 = plain list of titles
+        headlines, components, meta = [], None, None
         try:
-            headlines = _json.loads(row[4]) if row[4] else []
+            payload = _json.loads(row[4]) if row[4] else []
+            if isinstance(payload, dict):
+                headlines  = payload.get("stories", [])
+                components = payload.get("components")
+                meta       = payload.get("meta")
+            elif isinstance(payload, list):
+                headlines = payload
         except Exception:
-            headlines = []
+            pass
         regime = ("CRITICAL" if v >= 50 else "ELEVATED" if v >= 30
                   else "WATCH" if v >= 15 else "CALM")
         return {"value": round(v, 2), "intensity_score": round(i, 2),
                 "diffusion_score": round(d, 2), "ts": ts, "regime": regime,
-                "headlines": headlines}
+                "headlines": headlines, "components": components, "meta": meta}
     finally:
         session.close()
 

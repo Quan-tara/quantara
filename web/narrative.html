@@ -614,16 +614,33 @@ const DEMO_HISTORY = [
   22.4, 31.7, 38.2, 44.1, 47.3
 ];
 
-// Components definition
+// Components definition — values come live from /api/narrative/index
+// Weights must match engine/narrative_index.py
 const COMPONENTS = [
-  { icon: "📰", name: "News volume",       axis: "intensity", weight: "×0.26", value: 58 },
-  { icon: "😠", name: "Sentiment negativity", axis: "intensity", weight: "×0.19", value: 44 },
-  { icon: "🏛️", name: "Regulatory alerts",  axis: "intensity", weight: "×0.35", value: 80 },
-  { icon: "📡", name: "Source diversity",   axis: "diffusion", weight: "×0.30", value: 38 },
-  { icon: "🌍", name: "Geographic spread",  axis: "diffusion", weight: "×0.25", value: 42 },
-  { icon: "🏷️", name: "Sector breadth",     axis: "diffusion", weight: "×0.25", value: 51 },
-  { icon: "⏳", name: "Persistence",        axis: "diffusion", weight: "×0.20", value: 35 },
+  { key: "volume",      icon: "📰", name: "News volume",          axis: "intensity", weight: "×0.25" },
+  { key: "severity",    icon: "🚨", name: "Severity",             axis: "intensity", weight: "×0.25" },
+  { key: "negativity",  icon: "😠", name: "Sentiment negativity", axis: "intensity", weight: "×0.15" },
+  { key: "regulatory",  icon: "🏛️", name: "Regulatory alerts",    axis: "intensity", weight: "×0.35" },
+  { key: "sources",     icon: "📡", name: "Source diversity",     axis: "diffusion", weight: "×0.30" },
+  { key: "geography",   icon: "🌍", name: "Geographic spread",    axis: "diffusion", weight: "×0.25" },
+  { key: "breadth",     icon: "🏷️", name: "Sector breadth",       axis: "diffusion", weight: "×0.25" },
+  { key: "persistence", icon: "⏳", name: "Persistence",          axis: "diffusion", weight: "×0.20" },
 ];
+
+function esc(s) {
+  return String(s ?? "").replace(/[&<>"']/g, c =>
+    ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+
+function ago(tsSec) {
+  const m = Math.max(0, Math.round((Date.now() / 1000 - tsSec) / 60));
+  if (m < 1)   return "just now";
+  if (m < 60)  return m + " min ago";
+  const h = Math.floor(m / 60);
+  if (h < 24)  return h + "h " + (m % 60 ? (m % 60) + "min " : "") + "ago";
+  const d = Math.floor(h / 24);
+  return d + (d === 1 ? " day ago" : " days ago");
+}
 
 // ── HELPERS ──
 
@@ -714,17 +731,21 @@ function renderChart(history) {
 
 // ── RENDER COMPONENTS ──
 
-function renderComponents() {
+function renderComponents(live) {
   const wrap = document.getElementById("components-wrap");
   wrap.innerHTML = COMPONENTS.map(c => {
     const color = componentColor(c.axis);
-    return `<div class="comp-row">
+    const comp  = live && live[c.key];
+    const has   = comp && typeof comp.value === "number";
+    const val   = has ? Math.round(comp.value) : null;
+    const tip   = has ? esc(comp.detail || "") : "Waiting for first collector run";
+    return `<div class="comp-row" title="${tip}">
       <span class="comp-icon">${c.icon}</span>
       <span class="comp-name">${c.name}</span>
       <div class="comp-bar-wrap">
-        <div class="comp-bar" style="width:${c.value}%;background:${color}"></div>
+        <div class="comp-bar" style="width:${has ? val : 0}%;background:${color}"></div>
       </div>
-      <span class="comp-val" style="color:${c.value > 50 ? (c.axis==='intensity'?'var(--amber)':'var(--accent)') : 'var(--muted)'}">${c.value}</span>
+      <span class="comp-val" style="color:${has && val > 50 ? (c.axis==='intensity'?'var(--amber)':'var(--accent)') : 'var(--muted)'}">${has ? val : "—"}</span>
       <span class="comp-wt">${c.weight}</span>
     </div>`;
   }).join("");
@@ -732,43 +753,58 @@ function renderComponents() {
 
 // ── RENDER HEADLINES ──
 
-function renderHeadlines(headlines) {
+function renderHeadlines(headlines, meta, emptyMsg) {
   const wrap = document.getElementById("feed-wrap");
-  document.getElementById("feed-count").textContent = headlines.length + " stories";
+  let count = headlines.length + " stories";
+  if (meta && meta.stories_total) {
+    count = `${headlines.length} of ${meta.stories_total} stories · ${meta.articles_relevant} articles`;
+  }
+  document.getElementById("feed-count").textContent = count;
 
   if (!headlines.length) {
-    wrap.innerHTML = '<div class="feed-empty">No significant food sector stories in current window.</div>';
+    wrap.innerHTML = `<div class="feed-empty">${esc(emptyMsg || "No significant food sector stories in current window.")}</div>`;
     return;
   }
 
   wrap.innerHTML = headlines.map(h => {
-    // h is either a rich demo object or a plain string from the live API
-    const isRich = typeof h === "object";
-    const title  = isRich ? h.title   : h;
-    const source = isRich ? h.source  : "LIVE FEED";
-    const tier   = isRich ? h.tier    : "t2";
-    const tierLbl= isRich ? h.tier_label : "LIVE";
-    const age    = isRich ? h.age     : "just now";
-    const impact = isRich ? h.impact  : 3;
-    const countries = isRich ? h.countries : [];
+    // v2 story object from the collector, or a plain title string (older ticks)
+    const isObj  = typeof h === "object" && h !== null;
+    const title  = isObj ? h.title : h;
+    const source = isObj ? (h.source || "LIVE FEED") : "LIVE FEED";
+    const tier   = isObj && h.tier ? h.tier : "t3";
+    const tierLbl= isObj && h.tier_label ? h.tier_label : "LIVE";
+    const age    = isObj && h.ts ? ago(h.ts) : "";
+    const impact = isObj && h.impact ? h.impact : 2;
+    const regions= isObj && h.regions ? h.regions : [];
+    const outlets= isObj && h.outlets ? h.outlets : 1;
+    const others = isObj && h.outlet_names ? h.outlet_names.filter(n => n !== source) : [];
+    const url    = isObj && /^https?:\/\//.test(h.url || "") ? h.url : null;
 
     const impactDots = Array.from({length: 5}, (_, i) =>
       `<div class="hl-impact-dot" style="background:${i < impact ? 'var(--red)' : 'var(--s3)'}"></div>`
     ).join("");
 
-    const geos = countries.map(c =>
-      `<span style="font-family:var(--mono);font-size:9px;padding:1px 4px;background:var(--s3);border-radius:2px;color:var(--muted)">${c}</span>`
+    const geos = regions.map(c =>
+      `<span style="font-family:var(--mono);font-size:9px;padding:1px 4px;background:var(--s3);border-radius:2px;color:var(--muted)">${esc(c)}</span>`
     ).join(" ");
+
+    const spread = outlets > 1
+      ? `<span title="${esc(others.join(', '))}${outlets - 1 > others.length ? ' …' : ''}" style="color:var(--accent)">+${outlets - 1} outlet${outlets > 2 ? 's' : ''}</span>`
+      : "";
+
+    const titleHtml = url
+      ? `<a href="${esc(url)}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">${esc(title)}</a>`
+      : esc(title);
 
     return `<div class="headline-item">
       <div class="hl-source">
-        ${source}
-        <span class="hl-tier ${tier}">${tierLbl}</span>
+        ${esc(source)}
+        <span class="hl-tier ${esc(tier)}">${esc(tierLbl)}</span>
         ${geos}
       </div>
-      <div class="hl-title">${title}</div>
+      <div class="hl-title">${titleHtml}</div>
       <div class="hl-meta">
-        <span>${age}</span>
+        <span>${age}${age && spread ? " · " : ""}${spread}</span>
         <div class="hl-impact" title="Impact score ${impact}/5">
           ${impactDots}
         </div>
@@ -839,11 +875,20 @@ async function fetchLiveIndex() {
       diffusion_score: data.diffusion_score ?? 0,
       ts:              (data.ts || Date.now() / 1000) * 1000,
       headlines:       data.headlines       || [],
+      components:      data.components      || null,
+      meta:            data.meta            || null,
       live:            true
     };
   } catch(e) {
-    return { ...DEMO_INDEX, ts: Date.now(), headlines: [], live: false };
+    return { ...DEMO_INDEX, ts: Date.now(), headlines: [], components: null, meta: null, live: false };
   }
+}
+
+function renderLive(d) {
+  renderIndex(d);
+  renderComponents(d.components);
+  renderHeadlines(d.headlines || [], d.meta,
+    d.live ? null : "Live feed unavailable — retrying every 60 seconds.");
 }
 
 async function fetchHistory() {
@@ -867,26 +912,17 @@ async function init() {
     fetchHistory()
   ]);
 
-  renderIndex(indexData);
+  renderLive(indexData);
   renderChart(history);
-  renderComponents();
-
-  // Use real headlines from API if available, otherwise show demo data
-  const headlines = (indexData.headlines && indexData.headlines.length > 0)
-    ? indexData.headlines
-    : DEMO_HEADLINES;
-  renderHeadlines(headlines);
   renderContracts();
 }
 
 init();
 
-// Refresh index + headlines every 60s
+// Refresh index, components, headlines and chart every 60s
 setInterval(async () => {
-  const data = await fetchLiveIndex();
-  renderIndex(data);
-  if (data.headlines && data.headlines.length > 0) {
-    renderHeadlines(data.headlines);
-  }
+  const [data, history] = await Promise.all([fetchLiveIndex(), fetchHistory()]);
+  renderLive(data);
+  renderChart(history);
 }, 60000);
 </script>

@@ -1,0 +1,897 @@
+<title>FSNI — Quantara</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+<style>
+/* ── TOKENS ── dark-first, finance terminal aesthetic */
+:root {
+  --bg:      #0f1320;
+  --s1:      #151d2e;
+  --s2:      #1c2538;
+  --s3:      #232f47;
+  --border:  #2a3a55;
+  --accent:  #00c8f0;
+  --green:   #00e676;
+  --red:     #ff3d5a;
+  --amber:   #ffb300;
+  --purple:  #b388ff;
+  --text:    #f8faff;
+  --muted:   #7a95b8;
+  --dim:     #4a6080;
+  --mono:    'Space Mono', monospace;
+  --sans:    'DM Sans', sans-serif;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg:    #f0f4fa;
+    --s1:    #ffffff;
+    --s2:    #e8eef8;
+    --s3:    #dde5f2;
+    --border:#c5d3e8;
+    --text:  #0d1526;
+    --muted: #4a6080;
+    --dim:   #8a9ab8;
+    color-scheme: light;
+  }
+}
+:root[data-theme="light"] {
+  --bg:    #f0f4fa;
+  --s1:    #ffffff;
+  --s2:    #e8eef8;
+  --s3:    #dde5f2;
+  --border:#c5d3e8;
+  --text:  #0d1526;
+  --muted: #4a6080;
+  --dim:   #8a9ab8;
+  color-scheme: light;
+}
+
+*,*::before,*::after { box-sizing: border-box; margin: 0; padding: 0 }
+html, body { height: 100% }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 14px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 0;
+  overflow-x: hidden;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(0,200,240,.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,200,240,.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ── HEADER ── */
+header {
+  position: sticky;
+  top: env(safe-area-inset-top, 0px);
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0;
+  background: rgba(15,19,32,.97);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+}
+.logo { font-family: var(--mono); font-size: 13px; color: var(--accent); letter-spacing: 3px }
+.logo em { color: var(--muted); font-style: normal }
+.logo a { color: inherit; text-decoration: none; opacity: .6; font-size: 11px; margin-left: 8px }
+.logo a:hover { opacity: 1 }
+
+.hdr-center { display: flex; align-items: center; gap: 12px }
+
+.fsni-pill {
+  display: flex; align-items: center; gap: 10px;
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--s1);
+}
+.fp-label { font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: 1.5px }
+.fp-value {
+  font-family: var(--mono); font-size: 22px; font-weight: 700;
+  transition: color .5s;
+  font-variant-numeric: tabular-nums;
+}
+.fp-value.calm    { color: var(--green) }
+.fp-value.watch   { color: var(--amber) }
+.fp-value.elevated{ color: #fb923c }
+.fp-value.critical{ color: var(--red) }
+
+.status-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 6px var(--green);
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+@keyframes pulse-dot {
+  0%,100% { opacity: 1 } 50% { opacity: .4 }
+}
+
+.hdr-right { display: flex; align-items: center; gap: 10px }
+.nav-back {
+  font-size: 11px; color: var(--muted); text-decoration: none;
+  padding: 5px 10px; border: 1px solid var(--border); border-radius: 4px;
+}
+.nav-back:hover { color: var(--accent); border-color: var(--accent) }
+
+/* ── LAYOUT ── */
+.page-wrap {
+  position: relative; z-index: 1;
+  display: grid;
+  grid-template-columns: 320px 1fr 300px;
+  gap: 0;
+  height: calc(100vh - 53px);
+  overflow: hidden;
+}
+
+.col { overflow-y: auto; border-right: 1px solid var(--border) }
+.col:last-child { border-right: none }
+
+/* ── SECTION HEADERS ── */
+.sh {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 14px 8px;
+  border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; z-index: 10;
+  background: var(--s1);
+}
+.sh-title {
+  font-family: var(--mono); font-size: 9px; color: var(--muted);
+  text-transform: uppercase; letter-spacing: 2px;
+}
+.sh-badge {
+  font-family: var(--mono); font-size: 9px;
+  padding: 2px 6px; border-radius: 3px;
+  background: var(--s3); color: var(--accent);
+}
+
+/* ── INDEX DISPLAY ── */
+.index-hero {
+  padding: 20px 14px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.ih-name {
+  font-family: var(--mono); font-size: 9px; color: var(--accent);
+  letter-spacing: 2px; text-transform: uppercase; margin-bottom: 8px;
+}
+.ih-number {
+  font-family: var(--mono); font-size: 52px; font-weight: 700; line-height: 1;
+  font-variant-numeric: tabular-nums;
+  transition: color .5s;
+}
+.ih-number.calm     { color: var(--green) }
+.ih-number.watch    { color: var(--amber) }
+.ih-number.elevated { color: #fb923c }
+.ih-number.critical { color: var(--red) }
+
+.ih-label {
+  font-size: 11px; color: var(--muted); margin-top: 4px;
+  font-style: italic;
+}
+.ih-updated {
+  font-family: var(--mono); font-size: 9px; color: var(--dim);
+  margin-top: 8px; letter-spacing: 1px;
+}
+
+/* ── TWO-AXIS GAUGES ── */
+.axes-wrap { padding: 14px; border-bottom: 1px solid var(--border) }
+.axis-row { margin-bottom: 14px }
+.axis-row:last-child { margin-bottom: 0 }
+.axis-head {
+  display: flex; justify-content: space-between; align-items: baseline;
+  margin-bottom: 5px;
+}
+.axis-name {
+  font-family: var(--mono); font-size: 9px; text-transform: uppercase;
+  letter-spacing: 1.5px; color: var(--muted);
+}
+.axis-val {
+  font-family: var(--mono); font-size: 13px; font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.axis-track {
+  height: 6px; background: var(--s3); border-radius: 3px; overflow: hidden;
+}
+.axis-fill {
+  height: 100%; border-radius: 3px;
+  transition: width 1s ease, background .5s;
+}
+.axis-fill.intensity { background: linear-gradient(90deg, var(--amber), var(--red)) }
+.axis-fill.diffusion { background: linear-gradient(90deg, var(--accent), var(--purple)) }
+.axis-desc {
+  font-size: 10px; color: var(--dim); margin-top: 4px; font-style: italic;
+}
+
+/* ── MINI CHART ── */
+.chart-wrap { padding: 10px 14px; border-bottom: 1px solid var(--border) }
+.chart-title {
+  font-family: var(--mono); font-size: 9px; color: var(--muted);
+  text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 8px;
+}
+#fsni-chart { width: 100%; height: 80px; display: block }
+
+/* ── COMPONENT BREAKDOWN ── */
+.components-wrap { padding: 10px 14px }
+.comp-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+}
+.comp-row:last-child { border-bottom: none }
+.comp-icon { font-size: 14px; width: 20px; text-align: center; flex-shrink: 0 }
+.comp-name { flex: 1; font-size: 11px; color: var(--text) }
+.comp-bar-wrap { width: 56px; height: 4px; background: var(--s3); border-radius: 2px; overflow: hidden }
+.comp-bar { height: 100%; border-radius: 2px; transition: width .8s }
+.comp-val {
+  font-family: var(--mono); font-size: 11px; font-weight: 700;
+  width: 28px; text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.comp-wt { font-size: 9px; color: var(--dim); width: 22px; text-align: right }
+
+/* ── HEADLINES FEED ── */
+.feed-wrap { padding: 0 }
+.headline-item {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  cursor: default;
+  transition: background .15s;
+}
+.headline-item:hover { background: var(--s2) }
+.hl-source {
+  font-family: var(--mono); font-size: 9px; color: var(--accent);
+  letter-spacing: 1px; margin-bottom: 4px;
+  display: flex; align-items: center; gap: 6px;
+}
+.hl-tier {
+  padding: 1px 5px; border-radius: 2px;
+  font-size: 8px; letter-spacing: 0.5px;
+}
+.hl-tier.t1 { background: rgba(255,61,90,.15); color: var(--red) }
+.hl-tier.t2 { background: rgba(255,179,0,.12); color: var(--amber) }
+.hl-tier.t3 { background: rgba(0,200,240,.1); color: var(--accent) }
+.hl-title { font-size: 12px; line-height: 1.45; color: var(--text); margin-bottom: 5px }
+.hl-meta {
+  font-size: 10px; color: var(--dim);
+  display: flex; align-items: center; gap: 8px;
+}
+.hl-impact {
+  display: flex; align-items: center; gap: 3px;
+  font-family: var(--mono); font-size: 9px;
+}
+.hl-impact-dot { width: 5px; height: 5px; border-radius: 50% }
+
+.feed-empty {
+  padding: 40px 14px; text-align: center;
+  color: var(--dim); font-size: 12px; font-style: italic;
+}
+
+/* ── RIGHT PANEL: TRADE ── */
+.contract-block {
+  padding: 14px;
+  border-bottom: 1px solid var(--border);
+}
+.cb-series {
+  font-family: var(--mono); font-size: 9px; color: var(--muted);
+  letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 8px;
+}
+.cb-question {
+  font-size: 13px; font-weight: 600; line-height: 1.4;
+  color: var(--text); margin-bottom: 10px;
+}
+.cb-threshold {
+  font-family: var(--mono); font-size: 11px; color: var(--amber);
+  margin-bottom: 12px;
+}
+.cb-row {
+  display: flex; gap: 8px; margin-bottom: 8px;
+}
+.cb-stat {
+  flex: 1; background: var(--s2); border-radius: 5px; padding: 8px 10px;
+}
+.cb-stat-label { font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px }
+.cb-stat-value {
+  font-family: var(--mono); font-size: 16px; font-weight: 700;
+  font-variant-numeric: tabular-nums; margin-top: 2px;
+}
+.cb-expiry {
+  font-family: var(--mono); font-size: 10px; color: var(--dim);
+  margin-bottom: 12px;
+}
+
+.btn-row { display: flex; gap: 8px }
+.btn-cover {
+  flex: 1; padding: 10px; border-radius: 5px; border: none;
+  font-family: var(--mono); font-size: 11px; font-weight: 700;
+  letter-spacing: 1px; cursor: pointer; transition: opacity .15s;
+}
+.btn-cover:hover { opacity: .85 }
+.btn-yes { background: var(--red); color: #fff }
+.btn-no  { background: var(--s3); color: var(--green); border: 1px solid var(--green) }
+
+.no-contracts {
+  padding: 30px 14px; text-align: center;
+  color: var(--dim); font-size: 12px; font-style: italic;
+}
+
+/* ── MARKET SIGNAL ── */
+.signal-block {
+  padding: 14px;
+  border-bottom: 1px solid var(--border);
+}
+.signal-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 5px 0; border-bottom: 1px solid var(--border);
+}
+.signal-row:last-child { border-bottom: none }
+.signal-label { font-size: 11px; color: var(--muted) }
+.signal-val {
+  font-family: var(--mono); font-size: 12px; font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── NARRATIVE CONTEXT ── */
+.context-block { padding: 14px }
+.context-text {
+  font-size: 11px; color: var(--muted); line-height: 1.6;
+  font-style: italic;
+}
+.context-text.elevated { color: var(--amber) }
+.context-text.critical { color: var(--red) }
+
+/* ── LOADING STATE ── */
+.loading-shimmer {
+  background: linear-gradient(90deg, var(--s2) 25%, var(--s3) 50%, var(--s2) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 3px;
+  height: 14px;
+}
+@keyframes shimmer { 0% { background-position: 200% 0 } 100% { background-position: -200% 0 } }
+
+/* ── SCROLLBARS ── */
+::-webkit-scrollbar { width: 4px }
+::-webkit-scrollbar-track { background: transparent }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px }
+
+/* ── RESPONSIVE ── */
+@media (max-width: 900px) {
+  .page-wrap {
+    grid-template-columns: 1fr;
+    height: auto;
+    overflow: visible;
+  }
+  .col { overflow-y: visible; border-right: none; border-bottom: 1px solid var(--border) }
+}
+</style>
+
+<!-- HEADER -->
+<header>
+  <div class="logo">
+    QUANTARA<em>/</em>FSNI
+    <a href="/">← Exchange</a>
+  </div>
+  <div class="hdr-center">
+    <div class="fsni-pill">
+      <div>
+        <div class="fp-label">FSNI Live</div>
+        <div class="fp-value calm" id="hdr-fsni">—</div>
+      </div>
+    </div>
+    <div class="status-dot" id="status-dot" title="Live index feed"></div>
+  </div>
+  <div class="hdr-right">
+    <span style="font-family:var(--mono);font-size:9px;color:var(--dim);letter-spacing:1px">FOOD SECTOR NARRATIVE INDEX</span>
+  </div>
+</header>
+
+<!-- THREE-COLUMN LAYOUT -->
+<div class="page-wrap">
+
+  <!-- COL 1: INDEX + COMPONENTS -->
+  <div class="col">
+
+    <div class="sh">
+      <span class="sh-title">Index</span>
+      <span class="sh-badge" id="index-regime">CALM</span>
+    </div>
+
+    <div class="index-hero">
+      <div class="ih-name">FSNI · Food Sector Narrative Index</div>
+      <div class="ih-number calm" id="main-index">—</div>
+      <div class="ih-label" id="index-narrative">Loading current narrative conditions…</div>
+      <div class="ih-updated" id="index-updated">—</div>
+    </div>
+
+    <div class="axes-wrap">
+      <div class="axis-row">
+        <div class="axis-head">
+          <span class="axis-name">⚡ Intensity</span>
+          <span class="axis-val" id="intensity-val" style="color:var(--amber)">—</span>
+        </div>
+        <div class="axis-track">
+          <div class="axis-fill intensity" id="intensity-bar" style="width:0%"></div>
+        </div>
+        <div class="axis-desc">Severity of coverage · regulatory response · sentiment negativity</div>
+      </div>
+      <div class="axis-row">
+        <div class="axis-head">
+          <span class="axis-name">🌊 Diffusion</span>
+          <span class="axis-val" id="diffusion-val" style="color:var(--accent)">—</span>
+        </div>
+        <div class="axis-track">
+          <div class="axis-fill diffusion" id="diffusion-bar" style="width:0%"></div>
+        </div>
+        <div class="axis-desc">Geographic spread · source diversity · sector breadth · persistence</div>
+      </div>
+    </div>
+
+    <div class="chart-wrap">
+      <div class="chart-title">7-Day FSNI History</div>
+      <svg id="fsni-chart" viewBox="0 0 292 80" preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#00c8f0" stop-opacity=".35"/>
+            <stop offset="100%" stop-color="#00c8f0" stop-opacity="0"/>
+          </linearGradient>
+        </defs>
+        <line x1="0" y1="60" x2="292" y2="60" stroke="#2a3a55" stroke-width="0.5" stroke-dasharray="3,3"/>
+        <line x1="0" y1="40" x2="292" y2="40" stroke="#2a3a55" stroke-width="0.5" stroke-dasharray="3,3"/>
+        <line x1="0" y1="20" x2="292" y2="20" stroke="#2a3a55" stroke-width="0.5" stroke-dasharray="3,3"/>
+        <text x="294" y="63" font-size="6" fill="#4a6080" font-family="monospace">20</text>
+        <text x="294" y="43" font-size="6" fill="#4a6080" font-family="monospace">40</text>
+        <text x="294" y="23" font-size="6" fill="#4a6080" font-family="monospace">60</text>
+        <path id="chart-area" fill="url(#chartGrad)" d=""/>
+        <path id="chart-line" fill="none" stroke="#00c8f0" stroke-width="1.5" d=""/>
+        <circle id="chart-dot" r="3" fill="#00c8f0" cx="0" cy="0"/>
+      </svg>
+    </div>
+
+    <div class="sh" style="position:relative;z-index:1">
+      <span class="sh-title">Components</span>
+    </div>
+
+    <div class="components-wrap" id="components-wrap">
+      <!-- populated by JS -->
+    </div>
+
+  </div>
+
+  <!-- COL 2: LIVE HEADLINES FEED -->
+  <div class="col">
+
+    <div class="sh">
+      <span class="sh-title">Live Headlines</span>
+      <span class="sh-badge" id="feed-count">0 stories</span>
+    </div>
+
+    <div class="feed-wrap" id="feed-wrap">
+      <div class="feed-empty">Fetching live narrative signals…</div>
+    </div>
+
+  </div>
+
+  <!-- COL 3: TRADE -->
+  <div class="col">
+
+    <div class="sh">
+      <span class="sh-title">FSNI Contracts</span>
+    </div>
+
+    <div id="contracts-wrap">
+      <div class="no-contracts">Loading contracts…</div>
+    </div>
+
+    <div class="sh" style="position:relative;z-index:1">
+      <span class="sh-title">Market Signal</span>
+    </div>
+
+    <div class="signal-block">
+      <div class="signal-row">
+        <span class="signal-label">Current Index</span>
+        <span class="signal-val" id="sig-index">—</span>
+      </div>
+      <div class="signal-row">
+        <span class="signal-label">Implied YES prob.</span>
+        <span class="signal-val" id="sig-prob">—</span>
+      </div>
+      <div class="signal-row">
+        <span class="signal-label">Intensity axis</span>
+        <span class="signal-val" id="sig-intensity">—</span>
+      </div>
+      <div class="signal-row">
+        <span class="signal-label">Diffusion axis</span>
+        <span class="signal-val" id="sig-diffusion">—</span>
+      </div>
+      <div class="signal-row">
+        <span class="signal-label">Regime</span>
+        <span class="signal-val" id="sig-regime">—</span>
+      </div>
+      <div class="signal-row">
+        <span class="signal-label">Last update</span>
+        <span class="signal-val" id="sig-updated">—</span>
+      </div>
+    </div>
+
+    <div class="sh" style="position:relative;z-index:1">
+      <span class="sh-title">What is FSNI?</span>
+    </div>
+
+    <div class="context-block">
+      <p class="context-text" id="context-text">
+        FSNI measures the intensity and spread of negative narrative events affecting the food sector. It combines two axes — <strong>Intensity</strong> (how severe the coverage is) and <strong>Diffusion</strong> (how widely it is spreading). When elevated, it signals sector-level contagion risk — not a single company crisis, but a narrative wave capable of affecting the whole industry's revenue.
+      </p>
+      <p class="context-text" style="margin-top:10px;color:var(--dim)">
+        Contracts settle against this index. A YES contract pays out if the index mean exceeds the threshold during the contract window. You are not predicting whether a food safety event happens — you are taking a position on whether the narrative around it spreads.
+      </p>
+    </div>
+
+  </div>
+
+</div>
+
+<script>
+// ── DEMO DATA — replace with real API calls once backend is live ──
+// These simulate what the narrative_index.py collector will produce.
+
+const DEMO_HEADLINES = [
+  {
+    source: "FOOD SAFETY NEWS",
+    tier: "t1",
+    tier_label: "CRISIS",
+    title: "FDA issues Class I recall on bagged spinach citing E. coli O157:H7 contamination across 14 states",
+    age: "8 min ago",
+    impact: 4,
+    countries: ["US"]
+  },
+  {
+    source: "REUTERS",
+    tier: "t1",
+    tier_label: "CRISIS",
+    title: "McDonald's linked E. coli outbreak spreads to Canada — three major fast food chains issue precautionary supply audits",
+    age: "23 min ago",
+    impact: 5,
+    countries: ["US", "CA", "UK"]
+  },
+  {
+    source: "THE GUARDIAN",
+    tier: "t2",
+    tier_label: "STRESS",
+    title: "Consumer confidence in fresh produce falls to lowest point since 2018 romaine lettuce recalls, survey finds",
+    age: "41 min ago",
+    impact: 3,
+    countries: ["UK", "US"]
+  },
+  {
+    source: "FOOD NAVIGATOR",
+    tier: "t2",
+    tier_label: "STRESS",
+    title: "Supermarket chains pulling romaine lettuce nationwide as FDA widens investigation scope beyond initial supplier",
+    age: "1h ago",
+    impact: 4,
+    countries: ["US"]
+  },
+  {
+    source: "BBC NEWS",
+    tier: "t2",
+    tier_label: "STRESS",
+    title: "EFSA opens emergency review of imported US leafy greens following CDC outbreak advisory",
+    age: "1h 18min ago",
+    impact: 3,
+    countries: ["EU", "UK"]
+  },
+  {
+    source: "AP",
+    tier: "t3",
+    tier_label: "WATCH",
+    title: "Shares in major US food processing companies down 2-4% amid ongoing FDA investigation",
+    age: "2h ago",
+    impact: 2,
+    countries: ["US"]
+  },
+  {
+    source: "FOOD NAVIGATOR USA",
+    tier: "t3",
+    tier_label: "WATCH",
+    title: "Industry body calls emergency meeting on supply chain traceability following week's recall cascade",
+    age: "3h ago",
+    impact: 2,
+    countries: ["US"]
+  },
+  {
+    source: "REUTERS",
+    tier: "t3",
+    tier_label: "WATCH",
+    title: "Chipotle, Sweetgreen issue voluntary supply chain pauses as precautionary measure — shares volatile",
+    age: "4h ago",
+    impact: 2,
+    countries: ["US"]
+  }
+];
+
+const DEMO_INDEX = {
+  value: 47.3,
+  intensity_score: 51.2,
+  diffusion_score: 44.1,
+  ts: Date.now()
+};
+
+// 7-day sparkline data (synthetic demo)
+const DEMO_HISTORY = [
+  8.2, 9.1, 7.8, 11.3, 9.4, 10.2, 8.7,
+  9.3, 12.1, 14.5, 11.2, 9.8, 8.4, 10.1,
+  22.4, 31.7, 38.2, 44.1, 47.3
+];
+
+// Components definition
+const COMPONENTS = [
+  { icon: "📰", name: "News volume",       axis: "intensity", weight: "×0.26", value: 58 },
+  { icon: "😠", name: "Sentiment negativity", axis: "intensity", weight: "×0.19", value: 44 },
+  { icon: "🏛️", name: "Regulatory alerts",  axis: "intensity", weight: "×0.35", value: 80 },
+  { icon: "📡", name: "Source diversity",   axis: "diffusion", weight: "×0.30", value: 38 },
+  { icon: "🌍", name: "Geographic spread",  axis: "diffusion", weight: "×0.25", value: 42 },
+  { icon: "🏷️", name: "Sector breadth",     axis: "diffusion", weight: "×0.25", value: 51 },
+  { icon: "⏳", name: "Persistence",        axis: "diffusion", weight: "×0.20", value: 35 },
+];
+
+// ── HELPERS ──
+
+function regime(v) {
+  if (v < 15) return { label: "CALM",     cls: "calm",     text: "Narrative conditions quiet — no significant food sector stress signals detected." }
+  if (v < 30) return { label: "WATCH",    cls: "watch",    text: "Emerging narrative activity — monitor for escalation. Multiple stories tracking." }
+  if (v < 50) return { label: "ELEVATED", cls: "elevated", text: "Elevated sector narrative — contagion risk building. Stories spreading across regions." }
+  return              { label: "CRITICAL", cls: "critical", text: "Critical narrative contagion — sector-wide coverage, multiple countries, high severity." }
+}
+
+function fmt1(v) { return v === null || v === undefined ? "—" : v.toFixed(1) }
+function fmtPct(v) { return v === null || v === undefined ? "—" : v.toFixed(1) + "%" }
+
+function componentColor(axis) {
+  return axis === "intensity"
+    ? "linear-gradient(90deg,#ffb300,#ff3d5a)"
+    : "linear-gradient(90deg,#00c8f0,#b388ff)";
+}
+
+// ── RENDER INDEX ──
+
+function renderIndex(data) {
+  const v = data.value;
+  const r = regime(v);
+
+  // Header pill
+  const hdr = document.getElementById("hdr-fsni");
+  hdr.textContent = fmt1(v);
+  hdr.className = "fp-value " + r.cls;
+
+  // Main number
+  const main = document.getElementById("main-index");
+  main.textContent = fmt1(v);
+  main.className = "ih-number " + r.cls;
+
+  document.getElementById("index-narrative").textContent = r.text;
+  document.getElementById("index-narrative").className = "ih-label";
+
+  document.getElementById("index-regime").textContent = r.label;
+  document.getElementById("index-updated").textContent =
+    "Updated " + new Date(data.ts).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+
+  // Axes
+  const iVal = data.intensity_score;
+  const dVal = data.diffusion_score;
+
+  document.getElementById("intensity-val").textContent = fmt1(iVal);
+  document.getElementById("intensity-bar").style.width = Math.min(100, iVal) + "%";
+
+  document.getElementById("diffusion-val").textContent = fmt1(dVal);
+  document.getElementById("diffusion-bar").style.width = Math.min(100, dVal) + "%";
+
+  // Signal panel
+  document.getElementById("sig-index").textContent = fmt1(v);
+  document.getElementById("sig-index").style.color = r.cls === "calm" ? "var(--green)"
+    : r.cls === "watch" ? "var(--amber)"
+    : r.cls === "elevated" ? "#fb923c" : "var(--red)";
+  document.getElementById("sig-prob").textContent = fmtPct(v);
+  document.getElementById("sig-intensity").textContent = fmt1(iVal);
+  document.getElementById("sig-diffusion").textContent = fmt1(dVal);
+  document.getElementById("sig-regime").textContent = r.label;
+  document.getElementById("sig-updated").textContent =
+    new Date(data.ts).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+}
+
+// ── RENDER CHART ──
+
+function renderChart(history) {
+  const w = 292, h = 80, pad = 4;
+  const max = 100, min = 0;
+  const pts = history.map((v, i) => {
+    const x = pad + (i / (history.length - 1)) * (w - pad * 2);
+    const y = h - pad - ((v - min) / (max - min)) * (h - pad * 2);
+    return [x, y];
+  });
+
+  const line = pts.map((p, i) => (i === 0 ? `M${p[0]},${p[1]}` : `L${p[0]},${p[1]}`)).join(" ");
+  const area = line + ` L${pts[pts.length-1][0]},${h} L${pts[0][0]},${h} Z`;
+
+  document.getElementById("chart-line").setAttribute("d", line);
+  document.getElementById("chart-area").setAttribute("d", area);
+
+  const last = pts[pts.length - 1];
+  const dot = document.getElementById("chart-dot");
+  dot.setAttribute("cx", last[0]);
+  dot.setAttribute("cy", last[1]);
+}
+
+// ── RENDER COMPONENTS ──
+
+function renderComponents() {
+  const wrap = document.getElementById("components-wrap");
+  wrap.innerHTML = COMPONENTS.map(c => {
+    const color = componentColor(c.axis);
+    return `<div class="comp-row">
+      <span class="comp-icon">${c.icon}</span>
+      <span class="comp-name">${c.name}</span>
+      <div class="comp-bar-wrap">
+        <div class="comp-bar" style="width:${c.value}%;background:${color}"></div>
+      </div>
+      <span class="comp-val" style="color:${c.value > 50 ? (c.axis==='intensity'?'var(--amber)':'var(--accent)') : 'var(--muted)'}">${c.value}</span>
+      <span class="comp-wt">${c.weight}</span>
+    </div>`;
+  }).join("");
+}
+
+// ── RENDER HEADLINES ──
+
+function renderHeadlines(headlines) {
+  const wrap = document.getElementById("feed-wrap");
+  document.getElementById("feed-count").textContent = headlines.length + " stories";
+
+  if (!headlines.length) {
+    wrap.innerHTML = '<div class="feed-empty">No significant food sector stories in current window.</div>';
+    return;
+  }
+
+  wrap.innerHTML = headlines.map(h => {
+    const impactDots = Array.from({length: 5}, (_, i) =>
+      `<div class="hl-impact-dot" style="background:${i < h.impact ? 'var(--red)' : 'var(--s3)'}"></div>`
+    ).join("");
+
+    const geos = h.countries.map(c =>
+      `<span style="font-family:var(--mono);font-size:9px;padding:1px 4px;background:var(--s3);border-radius:2px;color:var(--muted)">${c}</span>`
+    ).join(" ");
+
+    return `<div class="headline-item">
+      <div class="hl-source">
+        ${h.source}
+        <span class="hl-tier ${h.tier}">${h.tier_label}</span>
+        ${geos}
+      </div>
+      <div class="hl-title">${h.title}</div>
+      <div class="hl-meta">
+        <span>${h.age}</span>
+        <div class="hl-impact" title="Impact score ${h.impact}/5">
+          ${impactDots}
+        </div>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+// ── RENDER CONTRACTS ──
+
+async function renderContracts() {
+  const wrap = document.getElementById("contracts-wrap");
+  try {
+    const r = await fetch("/api/contracts");
+    if (!r.ok) throw new Error("no contracts");
+    const data = await r.json();
+    const fsni = (data.contracts || []).filter(c =>
+      c.name && c.name.toLowerCase().includes("fsni")
+    );
+
+    if (!fsni.length) {
+      wrap.innerHTML = `<div class="no-contracts">No FSNI contracts active.<br><span style="font-size:10px;margin-top:4px;display:block">Delivery Pulse contracts available on the main exchange.</span></div>`;
+      return;
+    }
+
+    wrap.innerHTML = fsni.map(c => {
+      const expires = c.expires_at ? new Date(c.expires_at) : null;
+      const expiryStr = expires
+        ? "Expires " + expires.toLocaleString([], {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})
+        : "No expiry set";
+
+      return `<div class="contract-block">
+        <div class="cb-series">${c.name}</div>
+        <div class="cb-question">Will the FSNI exceed the threshold during this contract window?</div>
+        <div class="cb-threshold">⚡ Threshold: ${c.settlement_threshold || 20}%</div>
+        <div class="cb-row">
+          <div class="cb-stat">
+            <div class="cb-stat-label">Premium</div>
+            <div class="cb-stat-value" style="color:var(--accent)">€${c.premium || "—"}</div>
+          </div>
+          <div class="cb-stat">
+            <div class="cb-stat-label">Collateral</div>
+            <div class="cb-stat-value">€${c.collateral || "—"}</div>
+          </div>
+        </div>
+        <div class="cb-expiry">⏱ ${expiryStr}</div>
+        <div class="btn-row">
+          <button class="btn-cover btn-yes" onclick="window.location='/?contract=${c.id}'">BUY COVER (YES)</button>
+          <button class="btn-cover btn-no"  onclick="window.location='/?contract=${c.id}'">WRITE (NO)</button>
+        </div>
+      </div>`;
+    }).join("");
+  } catch(e) {
+    wrap.innerHTML = `<div class="no-contracts">Connect to Quantara exchange to trade FSNI contracts.</div>`;
+  }
+}
+
+// ── FETCH REAL INDEX FROM API ──
+
+async function fetchLiveIndex() {
+  try {
+    // Try to get the latest tick with intensity/diffusion scores
+    const r = await fetch("/api/narrative/index");
+    if (!r.ok) throw new Error("no data");
+    const data = await r.json();
+    return {
+      value: data.value || DEMO_INDEX.value,
+      intensity_score: data.intensity_score || DEMO_INDEX.intensity_score,
+      diffusion_score: data.diffusion_score || DEMO_INDEX.diffusion_score,
+      ts: (data.ts || Date.now() / 1000) * 1000
+    };
+  } catch(e) {
+    // Fall back to demo data until real collector is running
+    return { ...DEMO_INDEX, ts: Date.now() };
+  }
+}
+
+async function fetchHistory() {
+  try {
+    const r = await fetch("/api/narrative/history?hours=168&limit=200");
+    if (!r.ok) throw new Error();
+    const data = await r.json();
+    const ticks = data.ticks || [];
+    if (ticks.length < 3) throw new Error();
+    return ticks.map(t => t.value);
+  } catch(e) {
+    return DEMO_HISTORY;
+  }
+}
+
+// ── INIT ──
+
+async function init() {
+  const [indexData, history] = await Promise.all([
+    fetchLiveIndex(),
+    fetchHistory()
+  ]);
+
+  renderIndex(indexData);
+  renderChart(history);
+  renderComponents();
+  renderHeadlines(DEMO_HEADLINES);
+  renderContracts();
+}
+
+init();
+
+// Refresh index every 60s
+setInterval(async () => {
+  const data = await fetchLiveIndex();
+  renderIndex(data);
+}, 60000);
+</script>

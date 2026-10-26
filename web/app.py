@@ -1306,20 +1306,24 @@ def api_narrative_index():
 
 @app.get("/api/narrative/history")
 def api_narrative_history(hours: float = 168.0, limit: int = 500):
-    """FSNI tick history for sparkline / chart. Default: 7 days."""
+    """FSNI tick history for the chart. Default: 7 days, newest `limit` readings.
+    Only readings made with the baseline-relative scoring (payload has "raw")
+    are returned, so earlier test calibrations don't distort the chart."""
     import time as _time
     import sqlalchemy as _sa
     cutoff = _time.time() - hours * 3600
+    limit = max(1, min(int(limit), 2000))
     session = SessionLocal()
     try:
         rows = session.execute(
             _sa.text(
                 "SELECT value, intensity_score, diffusion_score, ts "
-                "FROM index_ticks WHERE ts >= :cutoff AND headlines IS NOT NULL "
-                "ORDER BY ts ASC LIMIT :lim"
+                "FROM index_ticks WHERE ts >= :cutoff AND headlines LIKE :pat "
+                "ORDER BY ts DESC LIMIT :lim"
             ),
-            {"cutoff": cutoff, "lim": limit}
+            {"cutoff": cutoff, "lim": limit, "pat": '%"raw":%'}
         ).fetchall()
+        rows = list(reversed(rows))
         ticks = [
             {"value": round(float(r[0]), 2),
              "intensity_score": round(float(r[1] or 0), 2),

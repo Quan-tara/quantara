@@ -11,7 +11,10 @@ Pipeline:
   1. Pull articles (last 72h only), keep the food-safety relevant ones.
   2. Group copies of the same story (syndicated across outlets) into one
      "story", so one recall covered by 30 TV stations counts once.
-  3. Compute seven components (0-100), combine into two axes, then the index.
+  3. Compute eight components (0-100), each scored against its own rolling
+     7-day median (normal ≈ 20, 2× normal ≈ 60, 4× normal = 100), combine
+     into two axes, then the index. Raw counts are stored in meta.raw so
+     future runs can build the baseline.
   4. Store one tick in index_ticks. The `headlines` column holds a JSON
      payload: {"v": 2, "stories": [...], "components": {...}, "meta": {...}}.
      Delivery Pulse ticks share the table and leave `headlines` NULL.
@@ -382,9 +385,10 @@ def group_stories(articles):
         n_out = len(outlets)
         score = severity * 0.5 + negativity * 0.2 + min(1.0, math.log2(1 + n_out) / 4) * 0.6
         impact = max(1, min(5, round(1 + severity * 2 + math.log2(1 + n_out))))
-        if n_out >= 8 or (severity >= 0.5 and n_out >= 2):
+        # CRISIS needs real harm (deaths, hospitalisations, Class I) AND pickup
+        if severity >= 0.5 and n_out >= 3:
             tier, tier_label = "t1", "CRISIS"
-        elif n_out >= 3 or severity >= 0.5:
+        elif n_out >= 5 or severity >= 0.5:
             tier, tier_label = "t2", "STRESS"
         else:
             tier, tier_label = "t3", "WATCH"
@@ -472,24 +476,78 @@ def fetch_gdelt_signal():
 
 
 # ─────────────────────────────────────────────
-# PERSISTENCE — share of last-7-day FSNI ticks that were elevated
+# BASELINE — rolling 7-day median of each raw metric
 # ─────────────────────────────────────────────
+# Every component is scored against what is NORMAL for that metric,
+# not against a fixed limit. A typical day scores ~20; double the usual
+# level ~60; four times the usual level 100.
 
-def get_persistence_score(session) -> float:
+BASELINE_DAYS        = 7
+BASELINE_MIN_SAMPLES = 4      # fewer than this → today's level is "normal"
+BASELINE_MAX_ROWS    = 400    # ~4 days at 15-min ticks; enough for a stable median
+
+# Floors stop tiny baselines (e.g. 0 Class I recalls) from exploding the ratio
+RAW_FLOORS = {
+    "stories": 5, "articles": 10, "severity": 0.1, "negativity": 0.1,
+    "fda_class1": 2, "fda_events": 5, "outlets": 5, "top_story_outlets": 3,
+    "gdelt_sources": 10, "gdelt_countries": 3, "regions": 2,
+    "categories": 3, "spread_share": 0.05, "story_span_h": 6,
+}
+
+
+def get_baselines(session) -> dict:
+    """Median of each raw metric over previous FSNI ticks (last 7 days)."""
     import sqlalchemy as sa
-    cutoff_ts = time.time() - (7 * 24 * 3600)
+    cutoff_ts = time.time() - BASELINE_DAYS * 24 * 3600
+    samples = {k: [] for k in RAW_FLOORS}
     try:
         rows = session.execute(
-            sa.text("SELECT value FROM index_ticks "
-                    "WHERE ts >= :cutoff AND headlines IS NOT NULL"),
-            {"cutoff": cutoff_ts}
+            sa.text("SELECT headlines FROM index_ticks "
+                    "WHERE ts >= :cutoff AND headlines IS NOT NULL "
+                    "ORDER BY ts DESC LIMIT :lim"),
+            {"cutoff": cutoff_ts, "lim": BASELINE_MAX_ROWS}
         ).fetchall()
-        if not rows:
-            return 0.0
-        return sum(1 for r in rows if r[0] >= 30) / len(rows)
+        for (h,) in rows:
+            try:
+                raw = (json.loads(h) or {}).get("meta", {}).get("raw")
+            except Exception:
+                continue
+            if not isinstance(raw, dict):
+                continue
+            for k in samples:
+                v = raw.get(k)
+                if isinstance(v, (int, float)):
+                    samples[k].append(float(v))
     except Exception as e:
-        print(f"⚠️ Persistence check error: {e}")
-        return 0.0
+        print(f"⚠️ Baseline query error: {e}")
+
+    out = {}
+    for k, vals in samples.items():
+        if len(vals) >= BASELINE_MIN_SAMPLES:
+            vals.sort()
+            n = len(vals)
+            out[k] = vals[n // 2] if n % 2 else (vals[n // 2 - 1] + vals[n // 2]) / 2
+    out["_samples"] = max((len(v) for v in samples.values()), default=0)
+    return out
+
+
+def _rel(raw, base, key):
+    """Score 0-1 for a raw metric relative to its baseline.
+    ratio 1 (normal) → 0.20, 1.5 → 0.43, 2 → 0.60, 3 → 0.83, 4+ → 1.0"""
+    cur = raw.get(key)
+    if cur is None:
+        return None
+    b = base.get(key, cur)                       # no history yet → today is normal
+    b = max(b, RAW_FLOORS[key])
+    r = max(0.0, cur) / b
+    if r <= 1:
+        return 0.2 * r
+    return min(1.0, 0.2 + 0.4 * math.log2(r))
+
+
+def _mean(*xs):
+    xs = [x for x in xs if x is not None]
+    return sum(xs) / len(xs) if xs else 0.0
 
 
 # ─────────────────────────────────────────────
@@ -510,28 +568,46 @@ def calculate_narrative_index() -> dict:
         fda = fetch_fda_signal()
         print(f"🏛️ FDA last 30d: {fda['events']} recall events, {fda['class1_events']} Class I")
         gdelt = fetch_gdelt_signal()
-        persistence = get_persistence_score(session)
 
-        # ── Components (0-1) ──
+        # ── Raw metrics for this run (stored, and used for future baselines) ──
         n_st = len(stories)
-        # Volume: distinct stories, plus how much they're being covered
-        volume = 0.6 * min(1.0, n_st / 40) + 0.4 * min(1.0, len(articles) / 150)
-        # Severity: average of the 5 most severe stories
         top_sev = sorted((s["severity"] for s in stories), reverse=True)[:5]
-        severity = sum(top_sev) / 5 if top_sev else 0.0
-        # Negativity: coverage-weighted tone
-        negativity = (min(1.0, 2 * sum(a["negativity"] for a in articles) / len(articles))
-                      if articles else 0.0)
-        # Regulatory: Class I recall events weigh most
-        regulatory = 0.7 * min(1.0, fda["class1_events"] / 15) + 0.3 * min(1.0, fda["events"] / 50)
-
-        rss_outlets = len({a["source"] for a in articles})
-        sources = max(min(1.0, rss_outlets / 30), min(1.0, gdelt["source_count"] / 80))
-        rss_regions = len({a["region"] for a in articles})
-        geography = max(min(1.0, gdelt["country_count"] / 15), min(1.0, rss_regions / 4))
+        by_reach = sorted(stories, key=lambda s: s["outlets"], reverse=True)[:5]
         cats = set().union(*(s["categories"] for s in stories)) if stories else set()
-        spread_share = (sum(1 for s in stories if s["spread"]) / n_st) if n_st else 0.0
-        breadth = min(1.0, len(cats) / 10 + 0.3 * spread_share)
+        raw = {
+            "stories":           n_st,
+            "articles":          len(articles),
+            "severity":          round(sum(top_sev) / 5, 4) if top_sev else 0.0,
+            "negativity":        round(sum(a["negativity"] for a in articles) / len(articles), 4) if articles else 0.0,
+            "fda_class1":        fda["class1_events"],
+            "fda_events":        fda["events"],
+            "outlets":           len({a["source"] for a in articles}),
+            "top_story_outlets": by_reach[0]["outlets"] if by_reach else 0,
+            "regions":           len({a["region"] for a in articles}),
+            "categories":        len(cats),
+            "spread_share":      round(sum(1 for s in stories if s["spread"]) / n_st, 4) if n_st else 0.0,
+            # how long the most-covered stories have been running (hours)
+            "story_span_h":      round(_mean(*[(s["ts"] - s["first_ts"]) / 3600 for s in by_reach]), 2),
+        }
+        if gdelt["ok"]:
+            raw["gdelt_sources"]   = gdelt["source_count"]
+            raw["gdelt_countries"] = gdelt["country_count"]
+
+        base = get_baselines(session)
+        n_base = base.get("_samples", 0)
+        warm = n_base >= BASELINE_MIN_SAMPLES
+        print(f"📐 Baseline: {n_base} previous runs" + ("" if warm else " (warming up — today = normal)"))
+
+        # ── Components (0-1), each relative to its own normal ──
+        R = lambda k: _rel(raw, base, k)
+        volume      = _mean(R("stories"), R("articles"))
+        severity    = R("severity")
+        negativity  = R("negativity")
+        regulatory  = 0.7 * R("fda_class1") + 0.3 * R("fda_events")
+        sources     = _mean(R("outlets"), R("gdelt_sources"), R("top_story_outlets"))
+        geography   = R("gdelt_countries") if gdelt["ok"] else R("regions")
+        breadth     = _mean(R("categories"), R("spread_share"))
+        persistence = R("story_span_h")
 
         intensity_axis = (0.25 * volume + 0.25 * severity + 0.15 * negativity
                           + 0.35 * regulatory) * 100
@@ -540,16 +616,23 @@ def calculate_narrative_index() -> dict:
         final_index = round(min(100.0, max(0.0,
                             intensity_axis * 0.45 + diffusion_axis * 0.55)), 2)
 
+        def vs(k, fmt="{:.0f}"):
+            if k not in raw:
+                return "n/a"
+            b = base.get(k)
+            return fmt.format(raw[k]) + (f" vs normal {fmt.format(b)}" if b is not None else " (baseline building)")
+
         components = {
-            "volume":      {"value": _pct(volume),      "detail": f"{n_st} stories · {len(articles)} articles"},
-            "severity":    {"value": _pct(severity),    "detail": "deaths, hospitalisations, Class I, children"},
-            "negativity":  {"value": _pct(negativity),  "detail": "tone of coverage"},
-            "regulatory":  {"value": _pct(regulatory),  "detail": f"FDA 30d: {fda['class1_events']} Class I / {fda['events']} recalls"},
-            "sources":     {"value": _pct(sources),     "detail": f"{rss_outlets} outlets · GDELT {gdelt['source_count']} domains"},
-            "geography":   {"value": _pct(geography),   "detail": f"GDELT {gdelt['country_count']} countries · feeds {rss_regions} regions"},
-            "breadth":     {"value": _pct(breadth),     "detail": ", ".join(sorted(cats)) or "none"},
-            "persistence": {"value": _pct(persistence), "detail": "share of last 7 days elevated"},
+            "volume":      {"value": _pct(volume),      "detail": f"stories {vs('stories')} · articles {vs('articles')}"},
+            "severity":    {"value": _pct(severity),    "detail": f"top-5 severity {vs('severity', '{:.2f}')}"},
+            "negativity":  {"value": _pct(negativity),  "detail": f"tone {vs('negativity', '{:.2f}')}"},
+            "regulatory":  {"value": _pct(regulatory),  "detail": f"FDA 30d Class I {vs('fda_class1')} · all {vs('fda_events')}"},
+            "sources":     {"value": _pct(sources),     "detail": f"outlets {vs('outlets')} · top story {vs('top_story_outlets')} · GDELT {vs('gdelt_sources')}"},
+            "geography":   {"value": _pct(geography),   "detail": f"countries {vs('gdelt_countries')}" if gdelt["ok"] else f"feed regions {vs('regions')}"},
+            "breadth":     {"value": _pct(breadth),     "detail": f"categories {vs('categories')}: " + (", ".join(sorted(cats)) or "none")},
+            "persistence": {"value": _pct(persistence), "detail": f"top stories running {vs('story_span_h', '{:.1f}')} h"},
         }
+        rss_outlets = raw["outlets"]
 
         top = [{k: v for k, v in s.items() if k != "all_outlets"} | {"outlet_names": s["all_outlets"][:6]}
                for s in stories[:MAX_STORIES]]
@@ -567,7 +650,7 @@ def calculate_narrative_index() -> dict:
                 "stories": top,
                 "components": components,
                 "meta": {**stats, "stories_total": n_st, "outlets": rss_outlets,
-                         "gdelt_ok": gdelt["ok"]},
+                         "gdelt_ok": gdelt["ok"], "baseline_runs": n_base, "raw": raw},
             },
         }
     finally:

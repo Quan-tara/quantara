@@ -13,9 +13,10 @@ from db.models import (Contract, ContractSeries, PublishedRate,
 from engine.orderbook import (place_order, place_secondary_order,
                                get_order_book, get_market_snapshot, get_all_orders)
 from engine.execution import get_trades, cancel_order
-from engine.index_provider import (get_risk_index, get_index_snapshot,
+from engine.index_provider import (get_index_snapshot,
                                     get_current_published_rate, publish_daily_rate,
                                     get_running_estimate)
+from engine.narrative_index import get_risk_index, run_collector_loop
 from engine.settlement import settle_contract, _auto_launch_series
 from engine.wallet import get_wallet
 from engine.users import get_or_create_user, cancel_position
@@ -37,6 +38,9 @@ async def startup_event():
 
         # Create all tables (safe to run multiple times — no-op if already exist)
         Base.metadata.create_all(bind=engine)
+
+        # Start narrative index collector (runs every 15 min in background)
+        run_collector_loop()
 
         # Add new columns to existing tables — each runs independently
         _migrations = [
@@ -1252,3 +1256,60 @@ def api_mm_stats(admin_id: str):
 @app.get("/")
 def serve_index():
     return FileResponse(os.path.join(os.path.dirname(__file__), "index.html"))
+
+@app.get("/narrative")
+def serve_narrative():
+    return FileResponse(os.path.join(os.path.dirname(__file__), "narrative.html"))
+
+# =========================================================
+# FSNI — Narrative Index API
+# =========================================================
+@app.get("/api/narrative/index")
+def api_narrative_index():
+    """Latest FSNI tick with intensity and diffusion scores."""
+    import time as _time
+    import sqlalchemy as _sa
+    session = SessionLocal()
+    try:
+        row = session.execute(
+            _sa.text(
+                "SELECT value, intensity_score, diffusion_score, ts "
+                "FROM index_ticks ORDER BY ts DESC LIMIT 1"
+            )
+        ).fetchone()
+        if not row:
+            return {"value": 10.0, "intensity_score": 0.0, "diffusion_score": 0.0,
+                    "ts": _time.time(), "regime": "CALM"}
+        v, i, d, ts = float(row[0]), float(row[1] or 0), float(row[2] or 0), float(row[3])
+        regime = ("CRITICAL" if v >= 50 else "ELEVATED" if v >= 30
+                  else "WATCH" if v >= 15 else "CALM")
+        return {"value": round(v, 2), "intensity_score": round(i, 2),
+                "diffusion_score": round(d, 2), "ts": ts, "regime": regime}
+    finally:
+        session.close()
+
+@app.get("/api/narrative/history")
+def api_narrative_history(hours: float = 168.0, limit: int = 500):
+    """FSNI tick history for sparkline / chart. Default: 7 days."""
+    import time as _time
+    import sqlalchemy as _sa
+    cutoff = _time.time() - hours * 3600
+    session = SessionLocal()
+    try:
+        rows = session.execute(
+            _sa.text(
+                "SELECT value, intensity_score, diffusion_score, ts "
+                "FROM index_ticks WHERE ts >= :cutoff ORDER BY ts ASC LIMIT :lim"
+            ),
+            {"cutoff": cutoff, "lim": limit}
+        ).fetchall()
+        ticks = [
+            {"value": round(float(r[0]), 2),
+             "intensity_score": round(float(r[1] or 0), 2),
+             "diffusion_score": round(float(r[2] or 0), 2),
+             "ts": float(r[3])}
+            for r in rows
+        ]
+        return {"ticks": ticks, "count": len(ticks)}
+    finally:
+        session.close()

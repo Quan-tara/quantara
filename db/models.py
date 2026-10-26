@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, Float, String, BigInteger, DateTime, ForeignKey, Boolean
+from sqlalchemy import Column, Integer, Float, String, BigInteger, DateTime, ForeignKey, Boolean, Text
 from db.database import Base
 from datetime import datetime
 import uuid
@@ -104,8 +104,11 @@ class Wallet(Base):
 class IndexTick(Base):
     __tablename__ = "index_ticks"
 
-    id         = Column(Integer, primary_key=True, autoincrement=True)
-    value      = Column(Float, nullable=False)
-    volatility = Column(Float, nullable=False, default=0.0)
-    ts         = Column(Float, nullable=False)  # unix timestamp
-    created_at = Column(DateTime, default=datetime.utcnow)
+    id              = Column(Integer, primary_key=True, autoincrement=True)
+    value           = Column(Float, nullable=False)
+    volatility      = Column(Float, nullable=False, default=0.0)
+    ts              = Column(Float, nullable=False)  # unix timestamp
+    intensity_score = Column(Float, nullable=True, default=0.0)
+    diffusion_score = Column(Float, nullable=True, default=0.0)
+    headlines       = Column(Text, nullable=True)   # JSON list of top article titles
+    created_at      = Column(DateTime, default=datetime.utcnow)

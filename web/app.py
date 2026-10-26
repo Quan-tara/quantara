@@ -1275,7 +1275,8 @@ def api_narrative_index():
         row = session.execute(
             _sa.text(
                 "SELECT value, intensity_score, diffusion_score, ts, headlines "
-                "FROM index_ticks ORDER BY ts DESC LIMIT 1"
+                "FROM index_ticks WHERE headlines IS NOT NULL "
+                "ORDER BY ts DESC LIMIT 1"
             )
         ).fetchone()
         if not row:
@@ -1305,7 +1306,8 @@ def api_narrative_history(hours: float = 168.0, limit: int = 500):
         rows = session.execute(
             _sa.text(
                 "SELECT value, intensity_score, diffusion_score, ts "
-                "FROM index_ticks WHERE ts >= :cutoff ORDER BY ts ASC LIMIT :lim"
+                "FROM index_ticks WHERE ts >= :cutoff AND headlines IS NOT NULL "
+                "ORDER BY ts ASC LIMIT :lim"
             ),
             {"cutoff": cutoff, "lim": limit}
         ).fetchall()

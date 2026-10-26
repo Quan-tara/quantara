@@ -17,9 +17,24 @@ import json
 import time
 import requests
 import feedparser
-from textblob import TextBlob
 from db.database import SessionLocal
 from db.models import IndexTick
+
+# Simple negative word list — no NLTK/corpus needed
+_NEG_WORDS = {
+    "death", "deaths", "fatal", "fatality", "fatalities", "killed", "kill",
+    "serious", "severe", "dangerous", "emergency", "crisis", "outbreak",
+    "contaminated", "contamination", "poisoning", "sickened", "hospitalized",
+    "hospitalization", "ill", "illness", "harm", "harmful", "recall",
+    "warning", "alert", "ban", "banned", "unsafe", "risk", "threat",
+    "toxic", "deadly", "widespread", "massive", "critical", "urgent"
+}
+
+def _negativity_score(text: str) -> float:
+    """Simple negativity score 0-1 based on negative word count."""
+    words = text.lower().split()
+    hits = sum(1 for w in words if w.strip(".,;:!?\"'") in _NEG_WORDS)
+    return min(1.0, hits * 0.1)
 
 
 # ─────────────────────────────────────────────
@@ -159,12 +174,8 @@ def score_article(title: str, summary: str) -> dict:
     tier1_hits     = sum(1 for kw in INTENSITY_TIER1 if kw in text)
     amplifier_hits = sum(1 for kw in INTENSITY_TIER2_AMPLIFIERS if kw in text)
 
-    # Sentiment via TextBlob (-1 to +1, we want negative)
-    try:
-        blob = TextBlob(title + " " + summary)
-        negativity = max(0, -blob.sentiment.polarity)
-    except Exception:
-        negativity = 0.0
+    # Negativity score via simple word list (no external corpus needed)
+    negativity = _negativity_score(title + " " + summary)
 
     intensity_raw = min(1.0, (
         (tier1_hits    * 0.15) +

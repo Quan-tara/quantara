@@ -742,24 +742,34 @@ function renderHeadlines(headlines) {
   }
 
   wrap.innerHTML = headlines.map(h => {
+    // h is either a rich demo object or a plain string from the live API
+    const isRich = typeof h === "object";
+    const title  = isRich ? h.title   : h;
+    const source = isRich ? h.source  : "LIVE FEED";
+    const tier   = isRich ? h.tier    : "t2";
+    const tierLbl= isRich ? h.tier_label : "LIVE";
+    const age    = isRich ? h.age     : "just now";
+    const impact = isRich ? h.impact  : 3;
+    const countries = isRich ? h.countries : [];
+
     const impactDots = Array.from({length: 5}, (_, i) =>
-      `<div class="hl-impact-dot" style="background:${i < h.impact ? 'var(--red)' : 'var(--s3)'}"></div>`
+      `<div class="hl-impact-dot" style="background:${i < impact ? 'var(--red)' : 'var(--s3)'}"></div>`
     ).join("");
 
-    const geos = h.countries.map(c =>
+    const geos = countries.map(c =>
       `<span style="font-family:var(--mono);font-size:9px;padding:1px 4px;background:var(--s3);border-radius:2px;color:var(--muted)">${c}</span>`
     ).join(" ");
 
     return `<div class="headline-item">
       <div class="hl-source">
-        ${h.source}
-        <span class="hl-tier ${h.tier}">${h.tier_label}</span>
+        ${source}
+        <span class="hl-tier ${tier}">${tierLbl}</span>
         ${geos}
       </div>
-      <div class="hl-title">${h.title}</div>
+      <div class="hl-title">${title}</div>
       <div class="hl-meta">
-        <span>${h.age}</span>
-        <div class="hl-impact" title="Impact score ${h.impact}/5">
+        <span>${age}</span>
+        <div class="hl-impact" title="Impact score ${impact}/5">
           ${impactDots}
         </div>
       </div>
@@ -820,19 +830,19 @@ async function renderContracts() {
 
 async function fetchLiveIndex() {
   try {
-    // Try to get the latest tick with intensity/diffusion scores
     const r = await fetch("/api/narrative/index");
     if (!r.ok) throw new Error("no data");
     const data = await r.json();
     return {
-      value: data.value || DEMO_INDEX.value,
-      intensity_score: data.intensity_score || DEMO_INDEX.intensity_score,
-      diffusion_score: data.diffusion_score || DEMO_INDEX.diffusion_score,
-      ts: (data.ts || Date.now() / 1000) * 1000
+      value:           data.value           ?? 0,
+      intensity_score: data.intensity_score ?? 0,
+      diffusion_score: data.diffusion_score ?? 0,
+      ts:              (data.ts || Date.now() / 1000) * 1000,
+      headlines:       data.headlines       || [],
+      live:            true
     };
   } catch(e) {
-    // Fall back to demo data until real collector is running
-    return { ...DEMO_INDEX, ts: Date.now() };
+    return { ...DEMO_INDEX, ts: Date.now(), headlines: [], live: false };
   }
 }
 
@@ -860,15 +870,23 @@ async function init() {
   renderIndex(indexData);
   renderChart(history);
   renderComponents();
-  renderHeadlines(DEMO_HEADLINES);
+
+  // Use real headlines from API if available, otherwise show demo data
+  const headlines = (indexData.headlines && indexData.headlines.length > 0)
+    ? indexData.headlines
+    : DEMO_HEADLINES;
+  renderHeadlines(headlines);
   renderContracts();
 }
 
 init();
 
-// Refresh index every 60s
+// Refresh index + headlines every 60s
 setInterval(async () => {
   const data = await fetchLiveIndex();
   renderIndex(data);
+  if (data.headlines && data.headlines.length > 0) {
+    renderHeadlines(data.headlines);
+  }
 }, 60000);
 </script>

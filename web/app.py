@@ -1266,25 +1266,31 @@ def serve_narrative():
 # =========================================================
 @app.get("/api/narrative/index")
 def api_narrative_index():
-    """Latest FSNI tick with intensity and diffusion scores."""
+    """Latest FSNI tick with intensity, diffusion scores and top headlines."""
     import time as _time
+    import json as _json
     import sqlalchemy as _sa
     session = SessionLocal()
     try:
         row = session.execute(
             _sa.text(
-                "SELECT value, intensity_score, diffusion_score, ts "
+                "SELECT value, intensity_score, diffusion_score, ts, headlines "
                 "FROM index_ticks ORDER BY ts DESC LIMIT 1"
             )
         ).fetchone()
         if not row:
             return {"value": 10.0, "intensity_score": 0.0, "diffusion_score": 0.0,
-                    "ts": _time.time(), "regime": "CALM"}
+                    "ts": _time.time(), "regime": "CALM", "headlines": []}
         v, i, d, ts = float(row[0]), float(row[1] or 0), float(row[2] or 0), float(row[3])
+        try:
+            headlines = _json.loads(row[4]) if row[4] else []
+        except Exception:
+            headlines = []
         regime = ("CRITICAL" if v >= 50 else "ELEVATED" if v >= 30
                   else "WATCH" if v >= 15 else "CALM")
         return {"value": round(v, 2), "intensity_score": round(i, 2),
-                "diffusion_score": round(d, 2), "ts": ts, "regime": regime}
+                "diffusion_score": round(d, 2), "ts": ts, "regime": regime,
+                "headlines": headlines}
     finally:
         session.close()
 

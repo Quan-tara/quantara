@@ -13,9 +13,16 @@ Index formula:
   Final = (Intensity × 0.45) + (Diffusion × 0.55)
 """
 
+import sys
 import json
 import time
 import requests
+
+# Make print() reach Render's log immediately (stdout is buffered in containers)
+try:
+    sys.stdout.reconfigure(line_buffering=True)
+except Exception:
+    pass
 import feedparser
 from db.database import SessionLocal
 from db.models import IndexTick
@@ -216,7 +223,7 @@ def get_persistence_score(session) -> float:
         rows = session.execute(
             sa.text(
                 "SELECT value FROM index_ticks "
-                "WHERE ts >= :cutoff ORDER BY ts DESC"
+                "WHERE ts >= :cutoff AND headlines IS NOT NULL ORDER BY ts DESC"
             ),
             {"cutoff": cutoff_ts}
         ).fetchall()

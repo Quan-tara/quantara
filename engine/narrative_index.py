@@ -2,22 +2,21 @@
 Food Sector Narrative Risk Index — Data Collector
 ===================================================
 Runs every 15 minutes. Pulls from:
-  - RSS feeds (major news outlets)
+  - RSS feeds (major news outlets + food-specific)
   - FDA recall API (regulatory response)
   - GDELT (geographic spread + source diversity)
 
 Scores articles against Intensity and Diffusion axes.
-Stores result in index_ticks table with both axis scores.
+Stores result in index_ticks table with both axis scores and top headlines.
 
 Index formula:
   Final = (Intensity × 0.45) + (Diffusion × 0.55)
 """
 
+import json
 import time
-import math
 import requests
 import feedparser
-from datetime import datetime, timedelta
 from textblob import TextBlob
 from db.database import SessionLocal
 from db.models import IndexTick
@@ -52,31 +51,31 @@ DIFFUSION_TIER2 = [
     "food supply disruption", "broader concern"
 ]
 
-ALL_FOOD_KEYWORDS = (
-    INTENSITY_TIER1 + INTENSITY_TIER2_AMPLIFIERS +
-    DIFFUSION_TIER1 + DIFFUSION_TIER2
-)
-
 
 # ─────────────────────────────────────────────
 # RSS FEED SOURCES
+# Ordered: food-specific first (highest signal),
+# then broad news with food safety search queries.
+# Each has a timeout so one slow feed can't block the run.
 # ─────────────────────────────────────────────
 
 RSS_FEEDS = [
-    # Global news
-    "https://feeds.reuters.com/reuters/businessNews",
-    "https://feeds.bbci.co.uk/news/business/rss.xml",
-    "http://rss.cnn.com/rss/money_news_international.rss",
-    "https://rss.nytimes.com/services/xml/rss/nyt/Business.xml",
-    "https://www.theguardian.com/business/rss",
-    # Food specific
+    # Food sector — highest relevance
     "https://www.foodsafetynews.com/feed/",
     "https://www.foodnavigator.com/rss/editorial.rss",
     "https://www.foodnavigator-usa.com/rss/editorial.rss",
-    # Google News food safety search
+    # Google News food safety searches
     "https://news.google.com/rss/search?q=food+safety+recall+contamination&hl=en-US&gl=US&ceid=US:en",
     "https://news.google.com/rss/search?q=food+recall+outbreak&hl=en-GB&gl=GB&ceid=GB:en",
+    "https://news.google.com/rss/search?q=food+contamination+salmonella+listeria&hl=en-US&gl=US&ceid=US:en",
+    # General business news
+    "https://feeds.reuters.com/reuters/businessNews",
+    "https://feeds.bbci.co.uk/news/business/rss.xml",
+    "https://www.theguardian.com/business/rss",
 ]
+
+FEED_TIMEOUT = 12   # seconds per feed
+MAX_PER_FEED = 20   # articles per feed
 
 
 # ─────────────────────────────────────────────
@@ -96,6 +95,7 @@ def fetch_fda_alerts() -> int:
         if r.status_code == 200:
             data = r.json()
             return data.get("meta", {}).get("results", {}).get("total", 0)
+        print(f"⚠️ FDA API returned {r.status_code}")
         return 0
     except Exception as e:
         print(f"⚠️ FDA API error: {e}")
@@ -123,6 +123,7 @@ def fetch_gdelt_signal() -> dict:
     try:
         r = requests.get(GDELT_API, timeout=15)
         if r.status_code != 200:
+            print(f"⚠️ GDELT returned {r.status_code}")
             return {"country_count": 0, "source_count": 0}
         data = r.json()
         articles = data.get("articles", [])
@@ -133,12 +134,13 @@ def fetch_gdelt_signal() -> dict:
                 countries.add(a["sourcecountry"])
             if a.get("domain"):
                 sources.add(a["domain"])
+        print(f"🌍 GDELT: {len(countries)} countries, {len(sources)} sources from {len(articles)} articles")
         return {
             "country_count": len(countries),
             "source_count":  len(sources)
         }
     except Exception as e:
-        print(f"⚠️ GDELT error (may be blocked in this env): {e}")
+        print(f"⚠️ GDELT error: {e}")
         return {"country_count": 0, "source_count": 0}
 
 
@@ -149,23 +151,25 @@ def fetch_gdelt_signal() -> dict:
 def score_article(title: str, summary: str) -> dict:
     """
     Score one article against intensity and diffusion keyword tiers.
-    Returns dict with intensity_raw and diffusion_raw scores (0-1).
+    Returns dict with intensity_raw, diffusion_raw, is_relevant scores (0-1).
     """
     text = (title + " " + summary).lower()
 
     # Intensity scoring
-    tier1_hits      = sum(1 for kw in INTENSITY_TIER1 if kw in text)
-    amplifier_hits  = sum(1 for kw in INTENSITY_TIER2_AMPLIFIERS if kw in text)
+    tier1_hits     = sum(1 for kw in INTENSITY_TIER1 if kw in text)
+    amplifier_hits = sum(1 for kw in INTENSITY_TIER2_AMPLIFIERS if kw in text)
 
     # Sentiment via TextBlob (-1 to +1, we want negative)
-    blob = TextBlob(title + " " + summary)
-    negativity = max(0, -blob.sentiment.polarity)  # 0 to 1, higher = more negative
+    try:
+        blob = TextBlob(title + " " + summary)
+        negativity = max(0, -blob.sentiment.polarity)
+    except Exception:
+        negativity = 0.0
 
-    # Intensity raw: tier1 hits weighted most, amplifiers boost, sentiment adds
     intensity_raw = min(1.0, (
-        (tier1_hits  * 0.15) +
+        (tier1_hits    * 0.15) +
         (amplifier_hits * 0.20) +
-        (negativity  * 0.30)
+        (negativity    * 0.30)
     ))
 
     # Diffusion scoring
@@ -180,7 +184,9 @@ def score_article(title: str, summary: str) -> dict:
     return {
         "intensity_raw": intensity_raw,
         "diffusion_raw": diffusion_raw,
-        "is_relevant":   tier1_hits > 0 or diff1_hits > 0
+        "is_relevant":   tier1_hits > 0 or diff1_hits > 0,
+        "title":         title.strip(),
+        "score":         intensity_raw + diffusion_raw,   # for ranking
     }
 
 
@@ -215,36 +221,71 @@ def get_persistence_score(session) -> float:
 
 
 # ─────────────────────────────────────────────
+# RSS PULL
+# ─────────────────────────────────────────────
+
+def pull_rss_articles() -> list:
+    """
+    Pull all RSS feeds. Returns list of scored article dicts.
+    Each feed gets its own try/except so one failure doesn't kill the run.
+    feedparser is used with a short timeout via requests to avoid hanging.
+    """
+    results = []
+    total = 0
+    ok_feeds = 0
+
+    for feed_url in RSS_FEEDS:
+        try:
+            # Use requests for timeout control, then pass content to feedparser
+            resp = requests.get(
+                feed_url,
+                timeout=FEED_TIMEOUT,
+                headers={"User-Agent": "Mozilla/5.0 (compatible; QuantaraBot/1.0)"},
+            )
+            if resp.status_code != 200:
+                print(f"⚠️ Feed {feed_url[:60]} → HTTP {resp.status_code}")
+                continue
+
+            feed = feedparser.parse(resp.content)
+            entries = feed.entries[:MAX_PER_FEED]
+            if not entries:
+                print(f"⚠️ Feed {feed_url[:60]} → 0 entries")
+                continue
+
+            ok_feeds += 1
+            for entry in entries:
+                title   = entry.get("title", "")
+                summary = entry.get("summary", "") or entry.get("description", "")
+                if not title:
+                    continue
+                score = score_article(title, summary)
+                total += 1
+                if score["is_relevant"]:
+                    results.append(score)
+
+        except requests.exceptions.Timeout:
+            print(f"⚠️ Feed timeout: {feed_url[:60]}")
+        except Exception as e:
+            print(f"⚠️ Feed error {feed_url[:60]}: {e}")
+
+    print(f"📰 {ok_feeds}/{len(RSS_FEEDS)} feeds OK | {len(results)} relevant / {total} total articles")
+    return results
+
+
+# ─────────────────────────────────────────────
 # MAIN INDEX CALCULATION
 # ─────────────────────────────────────────────
 
 def calculate_narrative_index() -> dict:
     """
     Pull all sources, score, combine into final index.
-    Returns dict with value, intensity_score, diffusion_score.
+    Returns dict with value, intensity_score, diffusion_score, headlines.
     """
     session = SessionLocal()
 
     try:
-        # ── 1. Pull and score RSS articles ──
-        article_scores = []
-        total_articles = 0
-
-        for feed_url in RSS_FEEDS:
-            try:
-                feed = feedparser.parse(feed_url)
-                for entry in feed.entries[:20]:  # max 20 per feed
-                    title   = entry.get("title", "")
-                    summary = entry.get("summary", "") or entry.get("description", "")
-                    score   = score_article(title, summary)
-                    if score["is_relevant"]:
-                        article_scores.append(score)
-                    total_articles += 1
-            except Exception as e:
-                print(f"⚠️ Feed error {feed_url[:50]}: {e}")
-
-        relevant_count = len(article_scores)
-        print(f"📰 {relevant_count} relevant articles from {total_articles} total")
+        # ── 1. RSS articles ──
+        article_scores = pull_rss_articles()
 
         # ── 2. Aggregate article scores ──
         if article_scores:
@@ -254,41 +295,39 @@ def calculate_narrative_index() -> dict:
             avg_intensity = 0.0
             avg_diffusion = 0.0
 
+        # Top 8 headlines by combined score for storage
+        top_headlines = [
+            s["title"] for s in
+            sorted(article_scores, key=lambda x: x["score"], reverse=True)[:8]
+            if s["title"]
+        ]
+
         # ── 3. FDA regulatory signal ──
-        fda_count       = fetch_fda_alerts()
-        # Normalize: 0 alerts = 0, 5+ alerts = 1.0
-        fda_score       = min(1.0, fda_count / 5.0)
+        fda_count = fetch_fda_alerts()
+        fda_score = min(1.0, fda_count / 5.0)
         print(f"🏛️ FDA active alerts: {fda_count} → score {fda_score:.2f}")
 
         # ── 4. GDELT geographic + source diversity ──
-        gdelt           = fetch_gdelt_signal()
-        country_score   = min(1.0, gdelt["country_count"] / 10.0)  # 10+ countries = max
-        source_score    = min(1.0, gdelt["source_count"]  / 20.0)  # 20+ sources = max
-        print(f"🌍 GDELT: {gdelt['country_count']} countries, {gdelt['source_count']} sources")
+        gdelt        = fetch_gdelt_signal()
+        country_score = min(1.0, gdelt["country_count"] / 10.0)
+        source_score  = min(1.0, gdelt["source_count"]  / 20.0)
 
         # ── 5. Time persistence ──
-        persistence     = get_persistence_score(session)
+        persistence = get_persistence_score(session)
         print(f"⏳ Persistence score: {persistence:.2f}")
 
         # ── 6. INTENSITY AXIS (0-100) ──
-        # Severity keywords:  40% of axis
-        # Regulatory (FDA):   35% of axis
-        # Sentiment:          25% of axis (baked into avg_intensity already)
         intensity_axis = (
-            (avg_intensity * 0.65) +   # keyword severity + sentiment combined
-            (fda_score     * 0.35)     # regulatory weight
+            (avg_intensity * 0.65) +
+            (fda_score     * 0.35)
         ) * 100
 
         # ── 7. DIFFUSION AXIS (0-100) ──
-        # Source diversity:   30% of axis
-        # Geographic spread:  25% of axis
-        # Sector breadth:     25% of axis (from diffusion keywords in articles)
-        # Time persistence:   20% of axis
         diffusion_axis = (
-            (source_score    * 0.30) +
-            (country_score   * 0.25) +
-            (avg_diffusion   * 0.25) +
-            (persistence     * 0.20)
+            (source_score  * 0.30) +
+            (country_score * 0.25) +
+            (avg_diffusion * 0.25) +
+            (persistence   * 0.20)
         ) * 100
 
         # ── 8. FINAL INDEX ──
@@ -296,11 +335,13 @@ def calculate_narrative_index() -> dict:
         final_index = round(min(100.0, max(0.0, final_index)), 2)
 
         print(f"📊 Intensity: {intensity_axis:.1f} | Diffusion: {diffusion_axis:.1f} | Final: {final_index}")
+        print(f"📋 Top headlines: {top_headlines[:3]}")
 
         return {
             "value":           final_index,
             "intensity_score": round(intensity_axis, 2),
-            "diffusion_score": round(diffusion_axis, 2)
+            "diffusion_score": round(diffusion_axis, 2),
+            "headlines":       top_headlines,
         }
 
     finally:
@@ -320,11 +361,12 @@ def store_index_tick(scores: dict):
             volatility      = 0.0,
             ts              = time.time(),
             intensity_score = scores["intensity_score"],
-            diffusion_score = scores["diffusion_score"]
+            diffusion_score = scores["diffusion_score"],
+            headlines       = json.dumps(scores.get("headlines", [])),
         )
         session.add(tick)
         session.commit()
-        print(f"✅ Tick stored: {scores['value']} (I:{scores['intensity_score']} D:{scores['diffusion_score']})")
+        print(f"✅ Tick stored: {scores['value']} (I:{scores['intensity_score']} D:{scores['diffusion_score']}) [{len(scores.get('headlines', []))} headlines]")
     except Exception as e:
         session.rollback()
         print(f"❌ Tick store error: {e}")
@@ -357,8 +399,6 @@ def run_collector_loop():
 # ─────────────────────────────────────────────
 # COMPATIBILITY SHIM
 # ─────────────────────────────────────────────
-# Replaces engine/index_provider.py get_risk_index()
-# so existing settlement.py and pnl.py need no changes.
 
 def get_risk_index() -> float:
     """

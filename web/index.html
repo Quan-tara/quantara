@@ -2387,6 +2387,8 @@ async function doLogin(){
   if(!res||!res.ok){document.getElementById('login-err').textContent='❌ Cannot connect to server';return;}
   const info=await res.json();
   currentUser={id:raw,name:info.name,isAdmin:info.is_admin,isMM:info.is_mm};
+  // Remember the session so the FSNI page (and a reload) keeps you logged in
+  try{ localStorage.setItem('q_user_id', raw); localStorage.setItem('q_username', info.name||raw); }catch(e){}
   document.getElementById('ub-name').textContent=currentUser.name;
   document.getElementById('ub-id').textContent=`ID: ...${raw.slice(-6)}`;
   const roleEl=document.getElementById('ub-role');

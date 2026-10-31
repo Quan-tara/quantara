@@ -1088,11 +1088,24 @@ async function doLogin(ev) {
   const u = document.getElementById("li-user").value.trim(), pw = document.getElementById("li-pw").value;
   const r = await fetch("/api/login_pw", { method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ username: u, password: pw }) });
-  if (!r.ok) { T.msg = { err: true, text: "Login failed — check username and password." }; renderAcct(); return; }
+  if (!r.ok) { T.msg = { err: true, login: true, text: "Login failed — check username and password." }; renderAcct(); return; }
   const d = await r.json();
   try { localStorage.setItem("q_user_id", String(d.user_id)); localStorage.setItem("q_username", d.name); } catch (e) {}
   T.msg = null;
   await loadUser(); refreshTrading();
+}
+
+// Same ID login the exchange uses for the market maker / admin account
+async function doIdLogin(ev) {
+  ev.preventDefault();
+  const id = document.getElementById("li-id").value.trim();
+  if (!/^\d+$/.test(id)) { T.msg = { err: true, login: true, text: "Enter a numeric Discord ID." }; renderAcct(); return; }
+  try {
+    const info = await fetch(`/api/user/${id}`).then(r => r.json());
+    try { localStorage.setItem("q_user_id", id); localStorage.setItem("q_username", info.name || id); } catch (e) {}
+    T.msg = null;
+    await loadUser(); refreshTrading(true);
+  } catch (e) { T.msg = { err: true, login: true, text: "Cannot reach the server." }; renderAcct(); }
 }
 
 function doLogout() {
@@ -1109,7 +1122,11 @@ async function renderAcct() {
         <button class="btn" type="submit">LOG IN</button>
       </form>
       <div class="acct-cash">Same account as the exchange · <a href="/" style="color:var(--accent)">register there</a></div>
-      ${T.msg && !T.sel ? `<div class="msg err">${esc(T.msg.text)}</div>` : ""}`;
+      <form class="login-form" style="grid-template-columns:1fr auto" onsubmit="doIdLogin(event)">
+        <input class="inp" id="li-id" inputmode="numeric" placeholder="Market maker: Discord ID">
+        <button class="btn btn-amber" type="submit">ID LOG IN</button>
+      </form>
+      ${T.msg && T.msg.login ? `<div class="msg err">${esc(T.msg.text)}</div>` : ""}`;
     return;
   }
   let w = null;

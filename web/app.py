@@ -726,8 +726,8 @@ async def api_quote_all(req: QuoteAllRequest):
                 Contract.series_id == s.id,
                 Contract.status    == "OPEN"
             ).first()
-            if not active:
-                continue
+            if not active or (active.expires_at and active.expires_at <= datetime.utcnow()):
+                continue   # nothing to quote, or expired and waiting to settle
 
             from engine.fsni_pricing import is_fsni, FSNI_SPREAD
             if is_fsni(s):

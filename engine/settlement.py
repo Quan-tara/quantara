@@ -40,7 +40,7 @@ def settle_contract(contract_id: int, result: str, settlement_rate: float = None
         contract = session.query(Contract).filter(Contract.id == contract_id).first()
         if not contract:
             return f"❌ Contract {contract_id} not found"
-        if contract.status != "OPEN":
+        if contract.status not in ("OPEN", "EXPIRED"):
             return f"❌ Contract already {contract.status}"
 
         positions = session.query(Position).filter(
@@ -178,7 +178,7 @@ def auto_settle_expired():
         now = datetime.utcnow()
 
         expired = session.query(Contract).filter(
-            Contract.status      == "OPEN",
+            Contract.status.in_(["OPEN", "EXPIRED"]),   # EXPIRED = stranded by the old order check
             Contract.auto_settle == True,
             Contract.expires_at  <= now
         ).all()

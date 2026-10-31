@@ -50,8 +50,9 @@ def place_order(user_id: int, contract_id: int, side: str, price: float, quantit
         if contract.status != "OPEN":
             return f"❌ Contract {contract_id} is {contract.status}"
         if contract.expires_at and contract.expires_at < datetime.utcnow():
-            contract.status = "EXPIRED"
-            session.commit()
+            # Reject the order but leave the contract OPEN: the auto-settler only
+            # settles OPEN contracts, so flagging it EXPIRED here would strand it
+            # (never settled, writers' collateral locked forever).
             return "❌ Contract has expired"
 
         if side.upper() == "BUY" and user_id != MM_USER_ID:

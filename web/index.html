@@ -237,6 +237,8 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
 .fo-btn{font-family:var(--mono);font-size:10px;letter-spacing:1px;padding:8px 12px;border-radius:4px;cursor:pointer;background:transparent;border:1px solid var(--accent);color:var(--accent)}
 .fo-btn.amber{border-color:var(--amber);color:var(--amber)}.fo-btn:hover{filter:brightness(1.2);background:rgba(255,179,0,.06)}
 .fo-bulk{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:0 18px 8px}
+.fo-actions{display:flex;gap:6px;flex-wrap:wrap;padding:10px 12px 0}.fo-actions:empty{display:none}
+.fo-btn.red{border-color:var(--red);color:var(--red)}.fo-btn.green{border-color:var(--green);color:var(--green)}
 .fo-msg{padding:0 18px 14px;font-size:11px}
 .fo-pos{margin:8px 12px;padding:9px 11px;border:1px solid var(--border);border-radius:6px;background:var(--s1);font-size:11px}
 .fo-pos-g{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;font-family:var(--mono);font-size:11px;margin-top:5px}
@@ -1209,7 +1211,8 @@ function foGrid(){
       const s=FO.series.find(x=>x.expiry_mins===mins&&x.collateral===col);
       if(!s){h+='<div class="fo-cell">—</div>';return;}
       const m=foMkt(s), settling=s.expires_in==='Expiring...';
-      const st=!s.has_market?(s.paused?'⏸ paused':'not launched'):settling?'settling…':(s.has_orders?s.expires_in:'no quotes yet');
+      const st=(!s.has_market?(s.paused?'⏸ paused':'not launched'):settling?'settling…':(s.has_orders?s.expires_in:'no quotes yet'))
+              +(s.has_market&&s.paused?' · ⏸':'');
       const dot=!s.has_market?'':(s.has_orders&&!settling?'live':'wait');
       h+=`<div class="fo-cell ${FO.sel===s.series_id?'sel':''}" onclick="foSelect(${s.series_id})">
         <span class="fo-dot ${dot}"></span>
@@ -1234,7 +1237,7 @@ async function foPanel(resetForm){
   const settling=s.expires_in==='Expiring...';
   el.innerHTML=`<div class="fo-card">
     <div class="fo-card-h"><strong>${foEsc(s.label)}</strong>
-      <span style="font-family:var(--mono);font-size:10px;color:var(--muted)">${!s.has_market?'not launched':settling?'settling — waiting for FSNI data':foEsc(s.expires_in)+' left'}</span></div>
+      <span style="font-family:var(--mono);font-size:10px;color:var(--muted)">${!s.has_market?(s.paused?'<span style="color:var(--red)">⏸ paused</span>':'not launched'):settling?'settling — waiting for FSNI data':foEsc(s.expires_in)+' left'}${s.has_market&&s.paused?' · <span style="color:var(--red)">⏸ paused — will not relaunch</span>':''}</span></div>
     <div class="fo-stats">
       <div><span>FSNI now</span>${s.index!=null?s.index.toFixed(1):'—'}</div>
       <div><span>Window avg</span>${s.running_avg!=null?s.running_avg.toFixed(1):'—'}</div>
@@ -1244,8 +1247,13 @@ async function foPanel(resetForm){
     </div>
     <div class="fo-book"><div><div style="font-size:8px;color:var(--green);letter-spacing:1px;margin-bottom:3px">BIDS</div>${rows(book.bids||[])}</div>
       <div><div style="font-size:8px;color:var(--red);letter-spacing:1px;margin-bottom:3px">ASKS</div>${rows(book.asks||[])}</div></div>
+    <div class="fo-actions">
+      ${!s.has_market ? `<button class="fo-btn amber" onclick="foLaunch()">🚀 LAUNCH${s.paused?' (resumes series)':''}</button>` : ''}
+      ${s.has_market && !s.paused ? `<button class="fo-btn red" onclick="foPause()" title="Current contract runs to expiry; no new contract after it settles">⏸ PAUSE SERIES</button>` : ''}
+      ${s.paused ? `<button class="fo-btn green" onclick="foResume()" title="Auto-relaunch again after settlement">▶ RESUME SERIES</button>` : ''}
+    </div>
     ${!s.has_market
-      ? `<div style="padding:10px 12px"><button class="fo-btn amber" onclick="foLaunch()">LAUNCH THIS COVER</button></div>`
+      ? ``
       : settling ? `<div style="padding:10px 12px;font-size:11px;color:var(--muted)">Expired — settles automatically once enough FSNI readings exist for its window.</div>`
       : `<div class="fo-form">
           <div><label>BID</label><input id="fo-bid" type="number" step="0.01" value="${bid}"></div>
@@ -1266,7 +1274,24 @@ async function foPost(url,body){
   }catch(e){return {ok:false,d:{detail:'Network error'}};}
 }
 
+async function foPause(){
+  const s=FO.series.find(x=>x.series_id===FO.sel); if(!s) return;
+  if(!confirm(`Pause ${s.label}?\nThe current contract runs to expiry and settles normally, but no new contract is launched after it.`)) return;
+  const r=await foPost(`/api/series/${FO.sel}/pause`,{admin_id:currentUser.id});
+  foMsg(r.ok, r.ok?`${s.label} paused — it will not relaunch after settlement.`:(r.d.detail||'Pause failed'));
+  fsniOpsLoad(false);
+}
+
+async function foResume(){
+  const s=FO.series.find(x=>x.series_id===FO.sel); if(!s) return;
+  const r=await foPost(`/api/series/${FO.sel}/resume`,{admin_id:currentUser.id});
+  foMsg(r.ok, r.ok?`${s.label} resumed — it will relaunch automatically after settlement.`:(r.d.detail||'Resume failed'));
+  fsniOpsLoad(false);
+}
+
 async function foLaunch(){
+  const s0=FO.series.find(x=>x.series_id===FO.sel);
+  if(s0&&s0.paused) await foPost(`/api/series/${FO.sel}/resume`,{admin_id:currentUser.id});   // same as Delivery Pulse: launching resumes
   const r=await foPost(`/api/series/${FO.sel}/launch`,{admin_id:currentUser.id,series_id:FO.sel});
   foMsg(r.ok, r.ok?`Launched contract #${r.d.contract_id}. Now post a quote.`:(r.d.detail||'Launch failed'));
   fsniOpsLoad(true);

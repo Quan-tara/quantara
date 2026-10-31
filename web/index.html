@@ -209,6 +209,12 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
 .grid-title{font-size:9px;color:#b8cce0;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:10px;
   display:flex;justify-content:space-between;align-items:center}
 .series-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:4px}
+.ul-toggle{display:flex;gap:4px;margin-bottom:10px}
+.ul-toggle button{flex:1;font-family:var(--mono);font-size:10px;letter-spacing:1px;padding:6px 8px;
+  background:transparent;color:var(--muted);border:1px solid var(--border);border-radius:4px;cursor:pointer}
+.ul-toggle button.on{color:var(--accent);border-color:var(--accent);background:rgba(0,200,240,.06)}
+.ul-toggle .pilot{font-size:8px;color:var(--amber);margin-left:4px;letter-spacing:.5px}
+.fsni-note{font-size:10px;color:var(--muted);line-height:1.5;margin:-4px 0 10px;display:none}
 .grid-cell{border:1px solid var(--border);border-radius:5px;padding:8px 6px;text-align:center;
   cursor:pointer;transition:all .2s;background:var(--s1);position:relative}
 .grid-cell:hover{border-color:var(--accent);background:rgba(0,200,240,.06)}
@@ -619,9 +625,15 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
 
         <!-- CENTER: Grid + Order form + Book + Secondary -->
         <div class="col">
-          <div class="sh"><span class="sh-title">Delivery Pulse™ Covers</span>
+          <div class="sh"><span class="sh-title ul-title">Delivery Pulse™ Covers</span>
             <span class="sh-sub" id="t-sel-label">click a cell to trade</span></div>
           <div class="grid-container">
+            <div class="ul-toggle">
+              <button data-ul="DP" class="on" onclick="setGridUnderlying('DP')">DELIVERY PULSE</button>
+              <button data-ul="FSNI" onclick="setGridUnderlying('FSNI')">FSNI<span class="pilot">PILOT</span></button>
+            </div>
+            <div class="fsni-note">Food Sector Narrative Index · pays YES if the <strong>average FSNI over the contract window is above 30</strong>.
+              Pilot: the index is still calibrating. <a href="/narrative" style="color:var(--accent)">Open FSNI →</a></div>
             <div class="grid-col-hdr">
               <div class="gch">Standard</div><div class="gch">Plus</div>
               <div class="gch">Pro</div><div class="gch"></div>
@@ -903,9 +915,15 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
 
         <!-- CENTER: MM Grid + Quote + Settle -->
         <div class="col">
-          <div class="sh"><span class="sh-title">Delivery Pulse™ Covers</span>
+          <div class="sh"><span class="sh-title ul-title">Delivery Pulse™ Covers</span>
             <span class="sh-sub">click a grey cell to launch that Cover</span></div>
           <div class="grid-container">
+            <div class="ul-toggle">
+              <button data-ul="DP" class="on" onclick="setGridUnderlying('DP')">DELIVERY PULSE</button>
+              <button data-ul="FSNI" onclick="setGridUnderlying('FSNI')">FSNI<span class="pilot">PILOT</span></button>
+            </div>
+            <div class="fsni-note">FSNI series: quotes are pre-filled from the model mid at ≥25% spread so traders set the price.
+              Settles on the average FSNI over the window (threshold 30).</div>
             <div class="grid-col-hdr">
               <div class="gch" style="color:var(--amber)">Standard</div>
               <div class="gch" style="color:var(--amber)">Plus</div>
@@ -1083,6 +1101,8 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
 // ============================================================
 const API='';
 let currentUser=null, selectedSeriesId=null, lastSnap=null, lastRates=null;
+let gridUnderlying='DP';            // which index the series grid shows: 'DP' or 'FSNI'
+let _deepLinkDone=false;            // ?contract=<id> handled once
 let seriesCache=[], traderTab=1, mmTabN=1;
 const _chartRegistry={};
 
@@ -2006,17 +2026,46 @@ function renderSpikeLog(log){
 async function loadSeries(){
   const data=await fetch(`${API}/api/series`).then(r=>r.json()).catch(()=>[]);
   seriesCache=data;
+  // Deep link from the FSNI page: /?contract=<id> → open that series once
+  let deepHit=null;
+  if(!_deepLinkDone && seriesCache.length){
+    _deepLinkDone=true;
+    const cid=new URLSearchParams(window.location.search).get('contract');
+    deepHit=cid ? seriesCache.find(x=>String(x.active_contract_id)===String(cid)) : null;
+    if(deepHit){ gridUnderlying=deepHit.underlying||'DP'; syncUnderlyingUI(); }
+  }
   renderSeriesGrid();
   updateSettleDropdown();
+  if(deepHit) selectSeries(deepHit.series_id);
 }
+
+function syncUnderlyingUI(){
+  document.querySelectorAll('.ul-toggle button').forEach(b=>b.classList.toggle('on', b.dataset.ul===gridUnderlying));
+  document.querySelectorAll('.ul-title').forEach(t=>t.textContent=
+    gridUnderlying==='FSNI'?'FSNI Covers · Pilot':'Delivery Pulse™ Covers');
+  document.querySelectorAll('.fsni-note').forEach(n=>n.style.display=gridUnderlying==='FSNI'?'block':'none');
+}
+
+function setGridUnderlying(u){
+  if(gridUnderlying===u) return;
+  gridUnderlying=u;
+  const cur=seriesCache.find(x=>x.series_id===selectedSeriesId);
+  if(cur && (cur.underlying||'DP')!==u) selectedSeriesId=null;
+  syncUnderlyingUI();
+  renderSeriesGrid();
+}
+
+const isFsniSeries = s => s && (s.underlying||'DP')==='FSNI';
 
 function renderSeriesGrid(){
   // Organize: 4 expiries × 3 collaterals = 12 cells
   // Display as 3 cols (by collateral) × 4 rows (by expiry)
   // Each row gets an expiry label in a 4th column
-  const expiries=[60,1440,4320,10080];
+  const fsniMode = gridUnderlying==='FSNI';
+  const expiries = fsniMode ? [10080,43200] : [60,1440,4320,10080];
   const collaterals=[100,1000,10000];
-  const expLabels={60:'1h',1440:'24h',4320:'3d',10080:'7d'};
+  const expLabels={60:'1h',1440:'24h',4320:'3d',10080:'7d',43200:'30d'};
+  const pool = seriesCache.filter(x=>(x.underlying||'DP')===gridUnderlying);
 
   ['t-series-grid','m-series-grid'].forEach(gridId=>{
     const isTrader=gridId.startsWith('t-');
@@ -2025,7 +2074,7 @@ function renderSeriesGrid(){
     let html='';
     expiries.forEach(exp=>{
       collaterals.forEach(col=>{
-        const s=seriesCache.find(x=>x.expiry_mins===exp&&x.collateral===col);
+        const s=pool.find(x=>x.expiry_mins===exp&&x.collateral===col);
         if(!s){html+=`<div class="grid-cell no-market"><div class="gc-label">—</div></div>`;return;}
         const sel=selectedSeriesId===s.series_id;
         const live=s.has_market;
@@ -2035,9 +2084,10 @@ function renderSeriesGrid(){
           const tradable=live&&s.has_orders;
           const statusTxt=!live?'no market':!s.has_orders?'no quotes yet':s.expires_in||'';
           const statusClr=!live?'var(--red)':!s.has_orders?'var(--amber)':'var(--muted)';
+          const fsniMid = isFsniSeries(s)&&s.book_bid!=null&&s.book_ask!=null ? (s.book_bid+s.book_ask)/2 : null;
           const impliedTxt = s.implied_rate!=null
             ? `↯ ${s.implied_rate.toFixed(1)}% implied`
-            : '';
+            : fsniMid!=null ? `↯ ${(fsniMid/s.collateral*100).toFixed(1)}% book` : '';
           const lastTradeTxt = s.last_trade_price!=null
             ? `last: €${fmt(s.last_trade_price)}`
             : '';
@@ -2103,8 +2153,8 @@ function selectSeries(seriesId){
   const s=seriesCache.find(x=>x.series_id===seriesId);
   renderSeriesGrid();
 
-  // Update distribution window to match the selected series expiry
-  if(s){
+  // Update distribution window to match the selected series expiry (Delivery Pulse only)
+  if(s && !isFsniSeries(s)){
     const expiryMins = s.expiry_mins || 60;
     let hours, label;
     if(expiryMins <= 60)        { hours=1;   label='last 1h'; }
@@ -2135,7 +2185,10 @@ function selectSeries(seriesId){
           `Series: <strong style="color:var(--text)">${s.label}</strong> &nbsp;·&nbsp; `+
           `Collateral: <strong style="color:var(--text)">€${s.collateral.toLocaleString()}</strong> &nbsp;·&nbsp; `+
           `Fair mid: <strong style="color:var(--accent)">${fmt(s.fair_mid)}</strong><br>`+
-          `Index: ${fmt(s.index)} &nbsp;·&nbsp; Time adj: +${(((tf||1)-1)*100).toFixed(1)}% &nbsp;·&nbsp; `+
+          (isFsniSeries(s)
+            ? `FSNI: ${fmt(s.index)} &nbsp;·&nbsp; Model P(YES): ${s.model_prob!=null?s.model_prob.toFixed(1)+'%':'—'}`+
+              `${s.running_avg!=null?` &nbsp;·&nbsp; Window avg so far: ${fmt(s.running_avg)}`:''} &nbsp;·&nbsp; `
+            : `Index: ${fmt(s.index)} &nbsp;·&nbsp; Time adj: +${(((tf||1)-1)*100).toFixed(1)}% &nbsp;·&nbsp; `)+
           (s.has_market
             ? (s.paused === true
                 ? `Expires in: <strong style="color:var(--text)">${s.expires_in}</strong> &nbsp;<span style="color:var(--red)">⏸ paused — will not relaunch</span>`
@@ -2168,11 +2221,16 @@ function selectSeries(seriesId){
     if(lbl&&s)lbl.textContent=s.label;
     if(s){
       const info=document.getElementById('t-of-info');
-      if(info)info.innerHTML=
-        `<strong>${s.label}</strong><br>`+
-        `Collateral: €${s.collateral.toLocaleString()} | Fair mid: ${fmt(s.fair_mid)} | `+
-        `Settles: rate > ${s.threshold}% = YES<br>`+
-        `${s.expires_in?`Expires in: ${s.expires_in}`:'No active market — ask MM to launch'}`;
+      if(info)info.innerHTML = isFsniSeries(s)
+        ? `<strong>${s.label}</strong> <span style="color:var(--amber);font-size:9px">PILOT</span><br>`+
+          `Collateral: €${s.collateral.toLocaleString()} | Model mid: ${fmt(s.fair_mid)} (${s.model_prob!=null?s.model_prob.toFixed(1):'—'}% YES) | `+
+          `Settles: <strong>average FSNI over the window > ${s.threshold}</strong> = YES<br>`+
+          `FSNI now: ${fmt(s.index)}${s.running_avg!=null?` | Window avg so far: ${fmt(s.running_avg)}`:''}<br>`+
+          `${s.expires_in?`Expires in: ${s.expires_in}`:'No active market — ask MM to launch'}`
+        : `<strong>${s.label}</strong><br>`+
+          `Collateral: €${s.collateral.toLocaleString()} | Fair mid: ${fmt(s.fair_mid)} | `+
+          `Settles: rate > ${s.threshold}% = YES<br>`+
+          `${s.expires_in?`Expires in: ${s.expires_in}`:'No active market — ask MM to launch'}`;
       const pp=document.getElementById('ord-price');if(pp&&s.fair_mid)pp.value=s.fair_mid.toFixed(2);
     }
     loadSeriesMarketplace(seriesId);
@@ -2529,8 +2587,20 @@ function startPositionChartRefresh(shortId, sinceTs, threshold) {
   }, 10000);
 }
 
-async function loadPositionChart(shortId, sinceTs, threshold){
+async function loadPositionChart(shortId, sinceTs, threshold, underlying){
   const meanEl = document.getElementById(`pchart-mean-${shortId}`);
+
+  // FSNI positions: chart the FSNI readings since the contract opened (15-min steps)
+  if(underlying==='FSNI'){
+    const hours = Math.max(1, (Date.now()/1000 - (sinceTs||Date.now()/1000-3600)) / 3600);
+    const d = await fetch(`${API}/api/narrative/history?hours=${Math.ceil(hours)}&limit=2000`).then(r=>r.json()).catch(()=>null);
+    const vals = d && d.ticks ? d.ticks.filter(t=>t.ts>=sinceTs).map(t=>t.value) : [];
+    if(vals.length < 2){ if(meanEl) meanEl.textContent = 'building… (one reading every 15 min)'; return; }
+    const mean = vals.reduce((a,b)=>a+b,0)/vals.length;
+    _posChartCache[shortId] = {values: vals, mean, threshold};
+    drawPositionChart(shortId, vals, mean, threshold);
+    return;
+  }
 
   let minutesAgo = 60;
   if(sinceTs && sinceTs > 0 && sinceTs < Date.now()/1000) {
@@ -2583,7 +2653,7 @@ function drawPositionChart(shortId, vals, mean, threshold){
     <line x1="${padL}" y1="${thrY}" x2="${W-padR}" y2="${thrY}" stroke="rgba(201,168,76,0.6)" stroke-width="1" stroke-dasharray="3 2"/>
     <line x1="${padL}" y1="${meanY}" x2="${W-padR}" y2="${meanY}" stroke="${meanClr}" stroke-width="1" stroke-dasharray="4 2" opacity="0.8"/>
     <circle cx="${pts[pts.length-1][0]}" cy="${pts[pts.length-1][1]}" r="2.5" fill="${lineClr}"/>
-    <text x="${W-padR-1}" y="${parseFloat(thrY)-2}" font-size="7" fill="rgba(201,168,76,0.7)" text-anchor="end" font-family="monospace">20%</text>`;
+    <text x="${W-padR-1}" y="${parseFloat(thrY)-2}" font-size="7" fill="rgba(201,168,76,0.7)" text-anchor="end" font-family="monospace">${thr}</text>`;
   if(meanEl){
     const dist = mean - thr;
     const sign = dist >= 0 ? '+' : '';
@@ -2650,7 +2720,9 @@ async function loadPositions(){
     const pnlCls=p.pnl>=0?'pnl-pos':'pnl-neg';const sign=p.pnl>=0?'+':'';
     const lr=p.role==='WRITER'?`<div class="pos-lock">🔒 Locked: ${fmt(p.locked_total)}</div>`:'';
     const tr=p.listed_for_sale?`<div class="pos-tag">🏷️ Listed @ ${fmt(p.listed_price)}</div>`:'';
-    const runEst = lastSnap && lastSnap.stats ? lastSnap.stats.h1_avg : null;
+    const runEst = p.underlying==='FSNI'
+      ? p.running_avg
+      : (lastSnap && lastSnap.stats ? lastSnap.stats.h1_avg : null);
     const countdown = buildCountdown(p, runEst, p.settlement_threshold||20);
     return `<div class="pos-card ${p.listed_for_sale?'listed':''}">
       <div class="pos-hdr">
@@ -2666,7 +2738,7 @@ async function loadPositions(){
       ${countdown}
       <div class="pos-chart-wrap">
         <div class="pos-chart-label">
-          <span>Index since opened</span>
+          <span>${p.underlying==='FSNI'?'FSNI since opened':'Index since opened'}</span>
           <span id="pchart-mean-${p.short_id}" style="color:var(--muted)">loading...</span>
         </div>
         <svg class="pos-chart-svg" id="pchart-${p.short_id}"
@@ -2686,7 +2758,7 @@ async function loadPositions(){
     if(_posChartCache[p.short_id]) {
       drawPositionChart(p.short_id, _posChartCache[p.short_id].values, _posChartCache[p.short_id].mean, p.settlement_threshold||20);
     }
-    loadPositionChart(p.short_id, sinceTs, p.settlement_threshold||20);
+    loadPositionChart(p.short_id, sinceTs, p.settlement_threshold||20, p.underlying);
   });
 }
 
@@ -3145,7 +3217,8 @@ function refreshSingleQuote(){
   if(!selectedSeriesId||!lastSnap)return;
   const s=seriesCache.find(x=>x.series_id===selectedSeriesId);
   if(!s)return;
-  const spreadPct=parseFloat(document.getElementById('mm-sq-spread')?.value)||10;
+  let spreadPct=parseFloat(document.getElementById('mm-sq-spread')?.value)||10;
+  if(isFsniSeries(s)) spreadPct=Math.max(spreadPct,25);   // FSNI: wide, so traders set the price
   const spread=spreadPct/100;
   const mid=s.fair_mid||0;
   const bid=round2(mid*(1-spread));

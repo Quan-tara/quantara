@@ -39,11 +39,11 @@ async def startup_event():
         # Create all tables (safe to run multiple times — no-op if already exist)
         Base.metadata.create_all(bind=engine)
 
-        # Start narrative index collector (runs every 15 min in background)
-        run_collector_loop()
-
-        # Add new columns to existing tables — each runs independently
+        # Add new columns to existing tables — each runs independently.
+        # (Runs before the collector starts; init_db.py also runs these first.)
         _migrations = [
+            "ALTER TABLE contract_series ADD COLUMN IF NOT EXISTS underlying VARCHAR(16) DEFAULT 'DP'",
+            "ALTER TABLE contracts ADD COLUMN IF NOT EXISTS underlying VARCHAR(16) DEFAULT 'DP'",
             "ALTER TABLE contract_series ADD COLUMN IF NOT EXISTS paused BOOLEAN DEFAULT FALSE",
             "ALTER TABLE contracts ADD COLUMN IF NOT EXISTS settlement_rate FLOAT",
             "ALTER TABLE index_ticks ADD COLUMN IF NOT EXISTS f_weather FLOAT",
@@ -63,6 +63,9 @@ async def startup_event():
                     print(f"✅ Migration: {_sql[:60]}")
             except Exception as _me:
                 print(f"⚠️ Migration note: {_me}")
+
+        # Start narrative index collector (runs every 15 min in background)
+        run_collector_loop()
 
         session = SessionLocal()
         try:
@@ -84,7 +87,24 @@ async def startup_event():
             for sid, col, exp, thr, lbl in SERIES:
                 if not session.query(ContractSeries).filter(ContractSeries.id == sid).first():
                     session.add(ContractSeries(id=sid, collateral=col,
-                                               expiry_mins=exp, threshold=thr, label=lbl))
+                                               expiry_mins=exp, threshold=thr, label=lbl,
+                                               underlying="DP"))
+
+            # FSNI pilot series — pay YES if the average FSNI over the window > 30.
+            # Not auto-launched: the MM launches and quotes them from the exchange.
+            FSNI_SERIES = [
+                (101, 100,   10080, 30.0, "FSNI 7d Standard Cover"),
+                (102, 1000,  10080, 30.0, "FSNI 7d Plus Cover"),
+                (103, 10000, 10080, 30.0, "FSNI 7d Pro Cover"),
+                (104, 100,   43200, 30.0, "FSNI 30d Standard Cover"),
+                (105, 1000,  43200, 30.0, "FSNI 30d Plus Cover"),
+                (106, 10000, 43200, 30.0, "FSNI 30d Pro Cover"),
+            ]
+            for sid, col, exp, thr, lbl in FSNI_SERIES:
+                if not session.query(ContractSeries).filter(ContractSeries.id == sid).first():
+                    session.add(ContractSeries(id=sid, collateral=col,
+                                               expiry_mins=exp, threshold=thr, label=lbl,
+                                               underlying="FSNI"))
 
             # Ensure MM wallet exists
             if not session.query(Wallet).filter(Wallet.user_id == MM_USER_ID).first():
@@ -147,14 +167,18 @@ def api_ticks_since(since_ts: float = 0, minutes_ago: float = 0, limit: int = 36
 
     session = SessionLocal()
     try:
+        # Delivery Pulse rows only — FSNI rows (headlines set) share this table
         rows = session.query(IndexTick).filter(
-            IndexTick.ts >= since_ts
+            IndexTick.ts >= since_ts,
+            IndexTick.headlines.is_(None),
         ).order_by(IndexTick.ts.asc()).limit(limit).all()
 
         # If no rows found, return last N ticks from DB regardless of timestamp
         # (handles case where ticker stopped writing temporarily)
         if not rows:
-            rows = session.query(IndexTick).order_by(
+            rows = session.query(IndexTick).filter(
+                IndexTick.headlines.is_(None)
+            ).order_by(
                 IndexTick.ts.desc()
             ).limit(limit).all()
             rows = list(reversed(rows))
@@ -177,7 +201,9 @@ def api_buckets(hours: float = 1.0):
     cutoff = _time.time() - hours * 3600
     session = SessionLocal()
     try:
-        rows = session.query(IndexTick).filter(IndexTick.ts >= cutoff).all()
+        rows = session.query(IndexTick).filter(
+            IndexTick.ts >= cutoff, IndexTick.headlines.is_(None)
+        ).all()
         vals = [r.value for r in rows]
         if not vals:
             # Fall back to current snapshot buckets (in-memory)
@@ -239,6 +265,9 @@ def time_factor(hours_remaining: float, volatility: float) -> float:
     return 1 + vol_adj * math.sqrt(max(hours_remaining, 0) / 24) * 0.25
 
 def series_fair_price(series: ContractSeries, active_contract=None) -> dict:
+    from engine.fsni_pricing import is_fsni, series_price as _fsni_series_price
+    if is_fsni(series):
+        return _fsni_series_price(series, active_contract)
     snap = get_index_snapshot()
     idx  = snap["index"]
     vol  = snap["volatility"]
@@ -391,7 +420,17 @@ def api_series():
                 "index":        price["idx"],
                 "last_trade_price": None,  # filled below
                 "implied_rate": None,       # filled below
+                "underlying":   (getattr(s, "underlying", None) or "DP").upper(),
+                "model_prob":   price.get("prob"),          # FSNI only
+                "running_avg":  price.get("running_avg"),   # FSNI only
+                "book_bid":     None,
+                "book_ask":     None,
             })
+            # Best bid/ask → market-implied probability (FSNI shows this as the sentiment signal)
+            if active and result[-1]["underlying"] == "FSNI":
+                book = get_order_book(active.id)
+                if book.get("bids"): result[-1]["book_bid"] = book["bids"][0]["price"]
+                if book.get("asks"): result[-1]["book_ask"] = book["asks"][0]["price"]
         # Enrich with last traded price per series (one query for all)
         import sqlalchemy as _sa2
         if result:
@@ -405,6 +444,7 @@ def api_series():
                         FROM trades t
                         JOIN contracts c ON t.contract_id = c.id
                         WHERE c.series_id IS NOT NULL
+                          AND c.status = 'OPEN'   -- live contract only, not a settled predecessor
                         ORDER BY c.series_id, t.created_at DESC
                     """)
                 ).fetchall()
@@ -562,8 +602,12 @@ async def api_launch_series(series_id: int, req: LaunchSeriesRequest):
         if not series:
             raise HTTPException(status_code=404, detail="Series not found")
 
-        idx     = get_risk_index()
-        premium = round(series.collateral * (idx / 100), 2)
+        from engine.fsni_pricing import is_fsni, underlying_of
+        if is_fsni(series):
+            premium = series_fair_price(series, None)["mid"]
+        else:
+            idx     = get_risk_index()
+            premium = round(series.collateral * (idx / 100), 2)
 
         contract = Contract(
             name                 = series.label,
@@ -573,6 +617,7 @@ async def api_launch_series(series_id: int, req: LaunchSeriesRequest):
             settlement_threshold = series.threshold,
             auto_settle          = True,
             expires_at           = datetime.utcnow() + timedelta(minutes=series.expiry_mins),
+            underlying           = underlying_of(series),
         )
         session.add(contract)
         session.commit()
@@ -616,12 +661,17 @@ async def api_launch_all(req: LaunchSeriesRequest):
             ).first()
             if existing:
                 continue
-            idx     = get_risk_index()
-            premium = round(s.collateral * (idx / 100), 2)
+            from engine.fsni_pricing import is_fsni, underlying_of
+            if is_fsni(s):
+                premium = series_fair_price(s, None)["mid"]
+            else:
+                idx     = get_risk_index()
+                premium = round(s.collateral * (idx / 100), 2)
             contract = Contract(
                 name=s.label, collateral=s.collateral, premium=premium,
                 series_id=s.id, settlement_threshold=s.threshold, auto_settle=True,
                 expires_at=datetime.utcnow() + timedelta(minutes=s.expiry_mins),
+                underlying=underlying_of(s),
             )
             session.add(contract)
             session.flush()
@@ -675,10 +725,16 @@ async def api_quote_all(req: QuoteAllRequest):
             if not active:
                 continue
 
-            hrs_left = (active.expires_at - datetime.utcnow()).total_seconds() / 3600
-            tf   = time_factor(max(hrs_left, 0), vol)
-            mid  = s.collateral * (idx / 100) * tf
-            spread = req.spread_pct / 100
+            from engine.fsni_pricing import is_fsni, FSNI_SPREAD
+            if is_fsni(s):
+                # FSNI: model mid, at least ±25 % wide so traders set the real price
+                mid    = series_fair_price(s, active)["mid"]
+                spread = max(req.spread_pct / 100, FSNI_SPREAD)
+            else:
+                hrs_left = (active.expires_at - datetime.utcnow()).total_seconds() / 3600
+                tf   = time_factor(max(hrs_left, 0), vol)
+                mid  = s.collateral * (idx / 100) * tf
+                spread = req.spread_pct / 100
             bid  = round(mid * (1 - spread), 2)
             ask  = round(mid * (1 + spread), 2)
             qty  = req.quantity
@@ -774,6 +830,7 @@ def api_contracts():
                     expires_in = "Expiring..."
             result.append({
                 "id": c.id, "name": c.name, "series_id": c.series_id,
+                "underlying": (getattr(c, "underlying", None) or "DP").upper(),
                 "premium": c.premium, "collateral": c.collateral,
                 "status": c.status, "result": c.result,
                 "settlement_threshold": c.settlement_threshold,
@@ -824,11 +881,17 @@ def api_marketplace(contract_id: int, exclude_user_id: Optional[str] = None):
             except Exception:
                 pass
         listings = query.order_by(Order.price.asc()).all()
+        from engine.fsni_pricing import is_fsni, contract_mark
+        _c = session.query(Contract).filter(Contract.id == contract_id).first()
+        _fsni = _c is not None and is_fsni(_c)
         result = []
         for o in listings:
             pos = session.query(Position).filter(
                 Position.id == o.position_id).first() if o.position_id else None
-            fair_value = round(pos.collateral * (index / 100), 2) if pos else None
+            if pos and _fsni:
+                fair_value = contract_mark(_c, pos.collateral, session)
+            else:
+                fair_value = round(pos.collateral * (index / 100), 2) if pos else None
             result.append({
                 "order_id": o.id, "price": o.price,
                 "quantity": o.quantity - o.filled,
@@ -1017,6 +1080,7 @@ def api_settlements():
             result.append({
                 "id": c.id, "name": c.name, "result": c.result,
                 "series_id": c.series_id,
+                "underlying": (getattr(c, "underlying", None) or "DP").upper(),
                 "settled_at": str(c.settled_at),
                 "settlement_rate": round(getattr(c,"settlement_rate",None), 2) if getattr(c,"settlement_rate",None) else None,
                 "settlement_threshold": c.settlement_threshold or 20.0,
@@ -1064,7 +1128,13 @@ def api_positions(user_id_str: str):
                     if s:
                         series_map[c.series_id] = s
 
-        from engine.pnl import calc_mark_price as _cmp, calc_pnl as _cpnl
+        from engine.pnl import position_mark_pnl as _pmp
+        from engine.fsni_pricing import is_fsni as _is_fsni, contract_state as _cstate
+        _marks = {p.id: _pmp(session, p, index) for p in positions}
+        _fsni_state = {}
+        for cid, c in contracts_map.items():
+            if _is_fsni(c):
+                _fsni_state[cid] = _cstate(c, session)
         return [
             {
                 "id":            p.id,
@@ -1083,8 +1153,13 @@ def api_positions(user_id_str: str):
                 "entry_price":   p.premium,
                 "collateral":    p.collateral,
                 "locked_total":  p.collateral * p.quantity if p.role == "WRITER" else 0,
-                "mark_price":    _cmp(p.collateral, index),
-                "pnl":           _cpnl(p.role, p.premium, p.collateral, index, p.quantity),
+                "mark_price":    _marks[p.id][0],
+                "pnl":           _marks[p.id][1],
+                "underlying":    "FSNI" if p.contract_id in _fsni_state else "DP",
+                # FSNI: average of FSNI readings since the contract opened (what it settles on)
+                "running_avg":   (round(_fsni_state[p.contract_id]["elapsed_mean"], 2)
+                                  if p.contract_id in _fsni_state
+                                  and _fsni_state[p.contract_id]["elapsed_mean"] is not None else None),
                 "status":        p.status,
                 "listed_for_sale": p.id in listed_ids,
                 "listed_price":    listed_ids.get(p.id),

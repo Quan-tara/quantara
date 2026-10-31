@@ -330,6 +330,16 @@ header {
 .btn-yes { background: var(--red); color: #fff }
 .btn-no  { background: var(--s3); color: var(--green); border: 1px solid var(--green) }
 
+.fc-group { padding: 10px 14px 4px; font-family: var(--mono); font-size: 9px; letter-spacing: 1.5px; color: var(--muted); text-transform: uppercase }
+.fc-card { margin: 0 14px 8px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--s2) }
+.fc-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 6px }
+.fc-name { font-size: 12px; font-weight: 600 }
+.fc-exp { font-family: var(--mono); font-size: 9px; color: var(--muted) }
+.fc-probs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 8px }
+.fc-probs div { font-family: var(--mono); font-size: 13px }
+.fc-probs span { display: block; font-family: var(--sans, inherit); font-size: 8px; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); margin-bottom: 2px }
+.fc-trade { display: block; text-align: center; font-family: var(--mono); font-size: 10px; letter-spacing: 1px; padding: 6px; border: 1px solid var(--accent); color: var(--accent); border-radius: 4px; text-decoration: none }
+.fc-trade:hover { background: rgba(0,200,240,.08) }
 .no-contracts {
   padding: 30px 14px; text-align: center;
   color: var(--dim); font-size: 12px; font-style: italic;
@@ -523,9 +533,13 @@ header {
         <span class="signal-label">Current Index</span>
         <span class="signal-val" id="sig-index">—</span>
       </div>
-      <div class="signal-row">
-        <span class="signal-label">Implied YES prob.</span>
+      <div class="signal-row" title="Order-book mid of the 7-day FSNI contract ÷ collateral — what traders are pricing">
+        <span class="signal-label">Market-implied P(YES) · 7d</span>
         <span class="signal-val" id="sig-prob">—</span>
+      </div>
+      <div class="signal-row" title="Reference model: FSNI now, fading back toward ~20 over the window">
+        <span class="signal-label">Model P(YES) · 7d</span>
+        <span class="signal-val" id="sig-model">—</span>
       </div>
       <div class="signal-row">
         <span class="signal-label">Intensity axis</span>
@@ -739,7 +753,6 @@ function renderIndex(data) {
   document.getElementById("sig-index").style.color = r.cls === "calm" ? "var(--green)"
     : r.cls === "watch" ? "var(--amber)"
     : r.cls === "elevated" ? "#fb923c" : "var(--red)";
-  document.getElementById("sig-prob").textContent = fmtPct(v);
   document.getElementById("sig-intensity").textContent = fmt1(iVal);
   document.getElementById("sig-diffusion").textContent = fmt1(dVal);
   document.getElementById("sig-regime").textContent = r.label;
@@ -958,50 +971,64 @@ function renderHeadlines(headlines, meta, emptyMsg) {
 // ── RENDER CONTRACTS ──
 
 async function renderContracts() {
+  // FSNI series from the exchange. For each live contract show three numbers:
+  //   Market  = order-book mid ÷ collateral (or last trade) — what traders price
+  //   Model   = reference model probability
+  //   Avg     = average FSNI so far in this contract's window (what it settles on)
   const wrap = document.getElementById("contracts-wrap");
+  let series;
   try {
-    const r = await fetch("/api/contracts");
-    if (!r.ok) throw new Error("no contracts");
-    const data = await r.json();
-    const fsni = (data.contracts || []).filter(c =>
-      c.name && c.name.toLowerCase().includes("fsni")
-    );
+    const r = await fetch("/api/series");
+    if (!r.ok) throw new Error();
+    series = (await r.json()).filter(s => (s.underlying || "DP") === "FSNI");
+  } catch (e) {
+    wrap.innerHTML = `<div class="no-contracts">Exchange unavailable — retrying.</div>`;
+    return;
+  }
+  const marketProb = s => {
+    if (s.book_bid != null && s.book_ask != null) return (s.book_bid + s.book_ask) / 2 / s.collateral * 100;
+    if (s.implied_rate != null) return s.implied_rate;
+    return null;
+  };
 
-    if (!fsni.length) {
-      wrap.innerHTML = `<div class="no-contracts">No FSNI contracts active.<br><span style="font-size:10px;margin-top:4px;display:block">Delivery Pulse contracts available on the main exchange.</span></div>`;
-      return;
-    }
+  // Market signal panel: use the 7-day €1,000 contract if live, else any live 7d
+  const live7 = series.filter(s => s.has_market && s.expiry_mins === 10080);
+  const ref = live7.find(s => s.collateral === 1000) || live7[0];
+  const mp = ref ? marketProb(ref) : null;
+  document.getElementById("sig-prob").textContent = mp != null ? mp.toFixed(1) + "%" : "no trades yet";
+  document.getElementById("sig-model").textContent =
+    ref && ref.model_prob != null ? ref.model_prob.toFixed(1) + "%"
+    : (series.find(s => s.expiry_mins === 10080)?.model_prob != null
+        ? series.find(s => s.expiry_mins === 10080).model_prob.toFixed(1) + "%" : "—");
 
-    wrap.innerHTML = fsni.map(c => {
-      const expires = c.expires_at ? new Date(c.expires_at) : null;
-      const expiryStr = expires
-        ? "Expires " + expires.toLocaleString([], {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})
-        : "No expiry set";
+  const live = series.filter(s => s.has_market);
+  if (!live.length) {
+    wrap.innerHTML = `<div class="no-contracts">No FSNI contracts launched yet.<br>
+      <span style="font-size:10px;margin-top:4px;display:block">Pilot series (7d / 30d, pays if average FSNI &gt; 30) are set up —
+      the market maker launches them from the exchange.</span></div>`;
+    return;
+  }
 
-      return `<div class="contract-block">
-        <div class="cb-series">${c.name}</div>
-        <div class="cb-question">Will the FSNI exceed the threshold during this contract window?</div>
-        <div class="cb-threshold">⚡ Threshold: ${c.settlement_threshold || 20}%</div>
-        <div class="cb-row">
-          <div class="cb-stat">
-            <div class="cb-stat-label">Premium</div>
-            <div class="cb-stat-value" style="color:var(--accent)">€${c.premium || "—"}</div>
-          </div>
-          <div class="cb-stat">
-            <div class="cb-stat-label">Collateral</div>
-            <div class="cb-stat-value">€${c.collateral || "—"}</div>
-          </div>
+  const groups = [[10080, "7-day covers"], [43200, "30-day covers"]];
+  wrap.innerHTML = groups.map(([mins, title]) => {
+    const rows = live.filter(s => s.expiry_mins === mins).sort((a, b) => a.collateral - b.collateral);
+    if (!rows.length) return "";
+    return `<div class="fc-group">${title} · YES if avg FSNI &gt; ${rows[0].threshold}</div>` + rows.map(s => {
+      const m = marketProb(s);
+      return `<div class="fc-card">
+        <div class="fc-head">
+          <span class="fc-name">€${s.collateral.toLocaleString()} cover</span>
+          <span class="fc-exp">${s.expires_in === "Expiring..." ? "settling…" : esc(s.expires_in || "") + " left"}</span>
         </div>
-        <div class="cb-expiry">⏱ ${expiryStr}</div>
-        <div class="btn-row">
-          <button class="btn-cover btn-yes" onclick="window.location='/?contract=${c.id}'">BUY COVER (YES)</button>
-          <button class="btn-cover btn-no"  onclick="window.location='/?contract=${c.id}'">WRITE (NO)</button>
+        <div class="fc-probs">
+          <div title="Order-book mid or last trade, as % of collateral"><span>Market</span>${m != null ? m.toFixed(1) + "%" : "—"}</div>
+          <div title="Reference model probability"><span>Model</span>${s.model_prob != null ? s.model_prob.toFixed(1) + "%" : "—"}</div>
+          <div title="Average FSNI so far in this window"><span>Avg so far</span>${s.running_avg != null ? s.running_avg.toFixed(1) : "—"}</div>
         </div>
+        <a class="fc-trade" href="/?contract=${s.active_contract_id}">TRADE ON EXCHANGE →</a>
       </div>`;
     }).join("");
-  } catch(e) {
-    wrap.innerHTML = `<div class="no-contracts">Connect to Quantara exchange to trade FSNI contracts.</div>`;
-  }
+  }).join("");
 }
 
 // ── FETCH REAL INDEX FROM API ──
@@ -1066,5 +1093,6 @@ setInterval(async () => {
   const [data, history] = await Promise.all([fetchLiveIndex(), fetchHistory()]);
   renderLive(data);
   renderChart(history);
+  renderContracts();
 }, 60000);
 </script>

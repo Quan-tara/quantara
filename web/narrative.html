@@ -1145,7 +1145,7 @@ function renderGrid() {
       if (!s) { h += `<div class="fg-cell off"><div class="fg-sub">—</div></div>`; return; }
       const m = marketProb(s), settling = s.expires_in === "Expiring...";
       const dot = !s.has_market ? "" : settling ? "wait" : s.has_orders ? "live" : "wait";
-      const sub = !s.has_market ? (s.paused ? "paused" : "not launched")
+      const sub = !s.has_market ? (s.halted_contract_id ? "halted · no trading" : s.paused ? "paused" : "not launched")
                 : settling ? "settling…" : (s.has_orders ? (s.expires_in || "") : "no quotes yet");
       h += `<div class="fg-cell ${T.sel === s.series_id ? "sel" : ""} ${s.has_market ? "" : "off"}" onclick="selectFsni(${s.series_id})">
           <span class="fg-dot ${dot}"></span>

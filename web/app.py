@@ -389,6 +389,10 @@ def api_series():
                 Contract.status    == "OPEN"
             ).first()
 
+            halted = None
+            if not active:
+                halted = session.query(Contract).filter(
+                    Contract.series_id == s.id, Contract.status == "HALTED").first()
             price = series_fair_price(s, active)
 
             # Count live orders for this series
@@ -421,6 +425,8 @@ def api_series():
                 "last_trade_price": None,  # filled below
                 "implied_rate": None,       # filled below
                 "underlying":   (getattr(s, "underlying", None) or "DP").upper(),
+                "halted_contract_id": halted.id if halted else None,
+                "halted_expires_in":  _expires_in(halted) if halted else None,
                 "model_prob":   price.get("prob"),          # FSNI only
                 "running_avg":  price.get("running_avg"),   # FSNI only
                 "book_bid":     None,
@@ -558,6 +564,54 @@ async def api_resume_series(series_id: int, req: AdminRequest):
     except Exception as e:
         session.rollback()
         print(f"❌ Resume error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        session.close()
+
+
+@app.post("/api/series/{series_id}/stop")
+async def api_stop_series(series_id: int, req: AdminRequest):
+    """Stop a series now (used for FSNI covers, whose contracts run 7–30 days):
+      1. cancel every open order on its running contract (MM and users) — no more trading
+      2. pause the series so it does not relaunch
+      3. if nobody holds a position: close the contract (CANCELLED)
+         otherwise: mark it HALTED — no trading, but it still settles at expiry
+         so holders and writers get a fair outcome."""
+    admin_id = parse_user_id(req.admin_id)
+    if admin_id not in (ADMIN_ID, MM_USER_ID):
+        raise HTTPException(status_code=403, detail="Admin only")
+    import sqlalchemy as _sa
+    session = SessionLocal()
+    try:
+        series = session.query(ContractSeries).filter(ContractSeries.id == series_id).first()
+        if not series:
+            raise HTTPException(status_code=404, detail="Series not found")
+        session.execute(_sa.text("UPDATE contract_series SET paused = TRUE WHERE id = :sid"), {"sid": series_id})
+        active = session.query(Contract).filter(
+            Contract.series_id == series_id, Contract.status == "OPEN").first()
+        result = {"series_id": series_id, "label": series.label, "paused": True,
+                  "contract_id": None, "outcome": "no running contract", "orders_cancelled": 0}
+        if active:
+            orders = session.query(Order).filter(Order.contract_id == active.id, Order.status == "OPEN").all()
+            for o in orders:
+                o.status = "CANCELLED"
+            open_pos = session.query(Position).filter(
+                Position.contract_id == active.id, Position.status == "OPEN").count()
+            if open_pos == 0:
+                active.status = "CANCELLED"
+                active.settled_at = datetime.utcnow()
+                outcome = "closed (no positions)"
+            else:
+                active.status = "HALTED"
+                outcome = f"halted — {open_pos} open position(s) settle at expiry"
+            result.update(contract_id=active.id, outcome=outcome, orders_cancelled=len(orders))
+        session.commit()
+        await post_to_discord(f"■ **{series.label}** stopped — {result['outcome']}")
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        session.rollback()
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         session.close()

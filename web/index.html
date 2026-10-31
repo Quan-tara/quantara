@@ -238,6 +238,12 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
 .fo-btn.amber{border-color:var(--amber);color:var(--amber)}.fo-btn:hover{filter:brightness(1.2);background:rgba(255,179,0,.06)}
 .fo-bulk{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:0 18px 8px}
 .fo-actions{display:flex;gap:6px;flex-wrap:wrap;padding:10px 12px 0}.fo-actions:empty{display:none}
+.fo-confirm{display:flex;align-items:center;gap:6px;margin:8px 12px 0;padding:8px 10px;border-radius:4px;font-family:var(--mono);font-size:10px;line-height:1.4}
+.fo-confirm span{flex:1}.fo-confirm.red{background:rgba(255,61,90,.08);border:1px solid var(--red);color:var(--red)}
+.fo-confirm.amber{background:rgba(255,179,0,.08);border:1px solid var(--amber);color:var(--amber)}
+.fo-ok{padding:4px 10px;border:none;border-radius:3px;cursor:pointer;font-family:var(--mono);font-size:10px;color:#000;background:currentColor}
+.fo-confirm.red .fo-ok{background:var(--red);color:#fff}.fo-confirm.amber .fo-ok{background:var(--amber);color:#000}
+.fo-cancel{padding:4px 10px;background:transparent;color:var(--muted);border:1px solid var(--border);border-radius:3px;cursor:pointer;font-family:var(--mono);font-size:10px}
 .fo-btn.red{border-color:var(--red);color:var(--red)}.fo-btn.green{border-color:var(--green);color:var(--green)}
 .fo-msg{padding:0 18px 14px;font-size:11px}
 .fo-pos{margin:8px 12px;padding:9px 11px;border:1px solid var(--border);border-radius:6px;background:var(--s1);font-size:11px}
@@ -1122,12 +1128,9 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
           <div class="fo-index" id="fo-index"></div>
           <div class="fo-grid" id="fo-grid"></div>
           <div class="fo-note">Cell % = market-implied P(YES) from your quotes (order-book mid ÷ collateral); grey = model before any quotes.
-            Pays YES if the <strong>average FSNI over the window is above 30</strong>. FSNI quotes are pre-filled at model mid ±25% so traders set the price.</div>
+            Pays YES if the <strong>average FSNI over the window is above 30</strong>. Quotes are pre-filled at model mid ±25% so traders set the price.
+            Light: <span style="color:var(--green)">●</span> trading · <span style="color:var(--amber)">●</span> launched, no quotes · <span style="color:#4a6080">●</span> not trading.</div>
           <div id="fo-panel"></div>
-          <div class="fo-bulk">
-            <button class="fo-btn amber" onclick="fsniOpsBulk('launch')">LAUNCH ALL FSNI COVERS</button>
-            <button class="fo-btn amber" onclick="fsniOpsBulk('quote')">QUOTE ALL FSNI (±25%)</button>
-          </div>
           <div class="fo-msg" id="fo-msg"></div>
         </div>
         <div class="fo-side">
@@ -1183,7 +1186,7 @@ function idxClass(v){return v<20?'low':v<50?'mid':'high';}
 // FSNI OPERATIONS — market maker console for FSNI covers.
 // Users trade FSNI on /narrative; only the MM launches/quotes here.
 // ============================================================
-const FO = { series: [], sel: null };
+const FO = { series: [], sel: null, confirm: null };
 const foPct = n => n==null ? '—' : n.toFixed(1)+'%';
 const foMkt = s => (s.book_bid!=null && s.book_ask!=null) ? (s.book_bid+s.book_ask)/2/s.collateral*100
                  : (s.implied_rate!=null ? s.implied_rate : null);
@@ -1210,10 +1213,10 @@ function foGrid(){
     [100,1000,10000].forEach(col=>{
       const s=FO.series.find(x=>x.expiry_mins===mins&&x.collateral===col);
       if(!s){h+='<div class="fo-cell">—</div>';return;}
-      const m=foMkt(s), settling=s.expires_in==='Expiring...';
-      const st=(!s.has_market?(s.paused?'⏸ paused':'not launched'):settling?'settling…':(s.has_orders?s.expires_in:'no quotes yet'))
-              +(s.has_market&&s.paused?' · ⏸':'');
-      const dot=!s.has_market?'':(s.has_orders&&!settling?'live':'wait');
+      const m=foMkt(s), state=foState(s);
+      const st={off:s.paused?'⏸ paused':'not launched', halted:'■ halted', settling:'settling…',
+                quoting:'no quotes yet', live:s.expires_in}[state] + (s.has_market&&s.paused?' · ⏸':'');
+      const dot={live:'live', quoting:'wait'}[state]||'';   // green = trading, amber = launched/no quotes, grey = not trading
       h+=`<div class="fo-cell ${FO.sel===s.series_id?'sel':''}" onclick="foSelect(${s.series_id})">
         <span class="fo-dot ${dot}"></span>
         <div class="c">€${col>=1000?col/1000+'k':col}</div>
@@ -1225,7 +1228,7 @@ function foGrid(){
   el.innerHTML=h;
 }
 
-function foSelect(id){ FO.sel=id; document.getElementById('fo-msg').innerHTML=''; foGrid(); foPanel(true); }
+function foSelect(id){ FO.sel=id; FO.confirm=null; document.getElementById('fo-msg').innerHTML=''; foGrid(); foPanel(true); }
 
 async function foPanel(resetForm){
   const el=document.getElementById('fo-panel'); if(!el) return;
@@ -1234,10 +1237,37 @@ async function foPanel(resetForm){
   const rows=l=>l.length?l.slice(0,5).map(o=>`<div class="r"><span>${o.price.toFixed(2)}</span><span style="color:var(--muted)">${o.qty}${o.is_mm?' MM':''}</span></div>`).join(''):'<div style="color:var(--muted)">—</div>';
   const keep=id=>(!resetForm&&document.getElementById(id))?document.getElementById(id).value:null;
   const bid=keep('fo-bid')??(s.fair_mid*0.75).toFixed(2), ask=keep('fo-ask')??(s.fair_mid*1.25).toFixed(2), qty=keep('fo-qty')??5;
-  const settling=s.expires_in==='Expiring...';
+  const st=foState(s);
+  const statusTxt = {
+    off:      s.paused?'<span style="color:var(--red)">⏸ paused</span> · not running':'not launched',
+    halted:   `<span style="color:var(--red)">■ halted</span> — no trading · open positions settle in ${foEsc(s.halted_expires_in||'')}`,
+    settling: 'expired — settling once enough FSNI readings exist',
+    quoting:  `${foEsc(s.expires_in)} left · no quotes yet`,
+    live:     `${foEsc(s.expires_in)} left`,
+  }[st] + (s.has_market&&s.paused?' · <span style="color:var(--red)">⏸ paused — will not relaunch</span>':'');
+
+  // Buttons follow the same rules as Delivery Pulse, plus STOP for long FSNI contracts
+  const running = st==='live'||st==='quoting';
+  const btn = (k,cls,txt,title)=>`<button class="fo-btn ${cls}" onclick="foAsk('${k}')" title="${title}">${txt}</button>`;
+  const actions = [
+    (st==='off'||st==='halted') ? btn('launch','amber','🚀 LAUNCH', s.paused?'Launch a new contract (also resumes the series)':'Launch a new contract for this series') : '',
+    (running && !s.paused) ? btn('pause','red','⏸ PAUSE','Current contract keeps trading to expiry; no new contract after it settles') : '',
+    (s.paused) ? `<button class="fo-btn green" onclick="foResume()" title="Auto-relaunch again after settlement">▶ RESUME</button>` : '',
+    (running) ? btn('stop','red','■ STOP','Cancel all orders and stop trading now') : '',
+  ].join('');
+  const confirmTxt = {
+    launch: `Launch ${foEsc(s.label)}?${s.paused?' This also resumes the series.':''}`,
+    pause:  `Pause ${foEsc(s.label)}? The current contract keeps trading until it expires, then no new contract is launched.`,
+    stop:   `Stop ${foEsc(s.label)} now? All open orders are cancelled and trading stops. If nobody holds a position the contract is closed; otherwise it is halted and settles normally at expiry.`,
+  }[FO.confirm];
+  const confirmBox = FO.confirm ? `<div class="fo-confirm ${FO.confirm==='launch'?'amber':'red'}">
+      <span>${confirmTxt}</span>
+      <button class="fo-ok" onclick="foDo('${FO.confirm}')">${{launch:'Launch',pause:'Pause',stop:'Stop'}[FO.confirm]}</button>
+      <button class="fo-cancel" onclick="foAsk(null)">Cancel</button></div>` : '';
+
   el.innerHTML=`<div class="fo-card">
     <div class="fo-card-h"><strong>${foEsc(s.label)}</strong>
-      <span style="font-family:var(--mono);font-size:10px;color:var(--muted)">${!s.has_market?(s.paused?'<span style="color:var(--red)">⏸ paused</span>':'not launched'):settling?'settling — waiting for FSNI data':foEsc(s.expires_in)+' left'}${s.has_market&&s.paused?' · <span style="color:var(--red)">⏸ paused — will not relaunch</span>':''}</span></div>
+      <span style="font-family:var(--mono);font-size:10px;color:var(--muted);text-align:right">${statusTxt}</span></div>
     <div class="fo-stats">
       <div><span>FSNI now</span>${s.index!=null?s.index.toFixed(1):'—'}</div>
       <div><span>Window avg</span>${s.running_avg!=null?s.running_avg.toFixed(1):'—'}</div>
@@ -1247,22 +1277,27 @@ async function foPanel(resetForm){
     </div>
     <div class="fo-book"><div><div style="font-size:8px;color:var(--green);letter-spacing:1px;margin-bottom:3px">BIDS</div>${rows(book.bids||[])}</div>
       <div><div style="font-size:8px;color:var(--red);letter-spacing:1px;margin-bottom:3px">ASKS</div>${rows(book.asks||[])}</div></div>
-    <div class="fo-actions">
-      ${!s.has_market ? `<button class="fo-btn amber" onclick="foLaunch()">🚀 LAUNCH${s.paused?' (resumes series)':''}</button>` : ''}
-      ${s.has_market && !s.paused ? `<button class="fo-btn red" onclick="foPause()" title="Current contract runs to expiry; no new contract after it settles">⏸ PAUSE SERIES</button>` : ''}
-      ${s.paused ? `<button class="fo-btn green" onclick="foResume()" title="Auto-relaunch again after settlement">▶ RESUME SERIES</button>` : ''}
-    </div>
-    ${!s.has_market
-      ? ``
-      : settling ? `<div style="padding:10px 12px;font-size:11px;color:var(--muted)">Expired — settles automatically once enough FSNI readings exist for its window.</div>`
-      : `<div class="fo-form">
-          <div><label>BID</label><input id="fo-bid" type="number" step="0.01" value="${bid}"></div>
-          <div><label>ASK</label><input id="fo-ask" type="number" step="0.01" value="${ask}"></div>
-          <div><label>QTY</label><input id="fo-qty" type="number" step="1" value="${qty}"></div>
-          <button class="fo-btn amber" onclick="foQuote()">POST QUOTE</button>
-        </div>`}
+    ${running ? `<div class="fo-form">
+        <div><label>BID</label><input id="fo-bid" type="number" step="0.01" value="${bid}"></div>
+        <div><label>ASK</label><input id="fo-ask" type="number" step="0.01" value="${ask}"></div>
+        <div><label>QTY</label><input id="fo-qty" type="number" step="1" value="${qty}"></div>
+        <button class="fo-btn amber" onclick="foQuote()">📡 POST BID + ASK</button>
+      </div>` : ''}
+    <div class="fo-actions">${actions}</div>
+    ${confirmBox}
+    <div style="height:10px"></div>
   </div>`;
 }
+
+// off | halted | settling | quoting | live  — drives the light and the buttons
+function foState(s){
+  if(!s.has_market) return s.halted_contract_id ? 'halted' : 'off';
+  if(s.expires_in==='Expiring...') return 'settling';
+  return s.has_orders ? 'live' : 'quoting';
+}
+
+function foAsk(k){ FO.confirm=k; foPanel(false); }
+function foDo(k){ FO.confirm=null; ({launch:foLaunch,pause:foPause,stop:foStop})[k](); }
 
 function foMsg(ok,t){const m=document.getElementById('fo-msg'); if(m) m.innerHTML=`<span style="color:${ok?'var(--green)':'var(--red)'}">${foEsc(t)}</span>`;}
 
@@ -1276,7 +1311,6 @@ async function foPost(url,body){
 
 async function foPause(){
   const s=FO.series.find(x=>x.series_id===FO.sel); if(!s) return;
-  if(!confirm(`Pause ${s.label}?\nThe current contract runs to expiry and settles normally, but no new contract is launched after it.`)) return;
   const r=await foPost(`/api/series/${FO.sel}/pause`,{admin_id:currentUser.id});
   foMsg(r.ok, r.ok?`${s.label} paused — it will not relaunch after settlement.`:(r.d.detail||'Pause failed'));
   fsniOpsLoad(false);
@@ -1287,6 +1321,13 @@ async function foResume(){
   const r=await foPost(`/api/series/${FO.sel}/resume`,{admin_id:currentUser.id});
   foMsg(r.ok, r.ok?`${s.label} resumed — it will relaunch automatically after settlement.`:(r.d.detail||'Resume failed'));
   fsniOpsLoad(false);
+}
+
+async function foStop(){
+  const s=FO.series.find(x=>x.series_id===FO.sel); if(!s) return;
+  const r=await foPost(`/api/series/${FO.sel}/stop`,{admin_id:currentUser.id});
+  foMsg(r.ok, r.ok?`${s.label} stopped — contract ${r.d.outcome}; ${r.d.orders_cancelled} order(s) cancelled; series paused.`:(r.d.detail||'Stop failed'));
+  fsniOpsLoad(true);
 }
 
 async function foLaunch(){
@@ -1303,14 +1344,6 @@ async function foQuote(){
   const r=await foPost(`/api/series/${FO.sel}/quote`,{admin_id:currentUser.id,series_id:FO.sel,bid,ask,quantity:qty});
   foMsg(r.ok, r.ok?`Quote posted: bid €${bid.toFixed(2)} / ask €${ask.toFixed(2)} × ${qty}`:(r.d.detail||'Quote failed'));
   fsniOpsLoad(false);
-}
-
-async function fsniOpsBulk(kind){
-  const r = kind==='launch'
-    ? await foPost('/api/series/launch_all',{admin_id:currentUser.id,underlying:'FSNI'})
-    : await foPost('/api/series/quote_all',{admin_id:currentUser.id,underlying:'FSNI',spread_pct:25,quantity:5});
-  foMsg(r.ok, !r.ok?(r.d.detail||'Failed'): kind==='launch'?`Launched ${r.d.launched.length} FSNI cover(s).`:`Quoted ${r.d.quoted.length} FSNI cover(s) at model mid ±25%.`);
-  fsniOpsLoad(true);
 }
 
 async function foPositions(){

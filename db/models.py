@@ -18,6 +18,7 @@ class ContractSeries(Base):
     expiry_mins  = Column(Integer, nullable=False)
     threshold    = Column(Float, default=20.0)
     label        = Column(String, nullable=False)
+    underlying   = Column(String(16), default="DP")   # "DP" Delivery Pulse | "FSNI"
 
 
 class Contract(Base):
@@ -34,6 +35,8 @@ class Contract(Base):
     created_at           = Column(DateTime, default=datetime.utcnow)
     expires_at           = Column(DateTime, nullable=False)
     settled_at           = Column(DateTime, nullable=True)
+    underlying           = Column(String(16), default="DP")   # copied from its series
+    settlement_rate      = Column(Float, nullable=True)       # index value it settled on
 
 
 class PublishedRate(Base):

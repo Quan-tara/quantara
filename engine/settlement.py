@@ -125,6 +125,13 @@ def _get_window_rate(session, contract):
     created_at = contract.created_at
     threshold  = contract.settlement_threshold or 20.0
 
+    # FSNI contracts: mean of FSNI readings over the window, nothing else.
+    # Returns rate None if there aren't enough readings yet (caller retries).
+    from engine.fsni_pricing import is_fsni, settlement_rate as _fsni_rate
+    if is_fsni(contract):
+        rate, desc = _fsni_rate(contract, session)
+        return rate, (contract.settlement_threshold or 30.0), desc
+
     duration_h = (expires_at - created_at).total_seconds() / 3600 if (created_at and expires_at) else 24
 
     # 24h contracts use the official published daily rate (includes noise term for realism)
@@ -141,7 +148,7 @@ def _get_window_rate(session, contract):
         row = session.execute(
             _sa.text(
                 "SELECT AVG(value), COUNT(*) FROM index_ticks "
-                "WHERE ts >= :start AND ts <= :end"
+                "WHERE ts >= :start AND ts <= :end AND headlines IS NULL"
             ),
             {"start": window_start_ts, "end": window_end_ts}
         ).fetchone()
@@ -161,6 +168,9 @@ def _get_window_rate(session, contract):
 # Each contract settles against the mean index over its own duration window.
 # 24h contracts use the official published daily rate (with noise).
 # =========================================================
+_SETTLE_WAIT_LOGGED = set()   # contracts already reported as waiting for data
+
+
 def auto_settle_expired():
     """Check for expired auto_settle contracts and settle them."""
     session = SessionLocal()
@@ -180,6 +190,12 @@ def auto_settle_expired():
             cid = c.id
             # Per-contract settlement rate based on its own duration window
             rate, threshold, rate_desc = _get_window_rate(session, c)
+            if rate is None:
+                # Not enough data to settle fairly (e.g. collector was down) — retry next minute
+                if cid not in _SETTLE_WAIT_LOGGED:
+                    _SETTLE_WAIT_LOGGED.add(cid)
+                    print(f"⏸ Contract #{cid} expired but not settled yet: {rate_desc}")
+                continue
             result = "YES" if rate > threshold else "NO"
 
             session.close()
@@ -244,8 +260,12 @@ def _auto_launch_series(series_id: int):
             return
 
         from datetime import timedelta
-        idx     = get_risk_index()
-        premium = round(series.collateral * (idx / 100), 2)
+        from engine.fsni_pricing import is_fsni, series_price, underlying_of
+        if is_fsni(series):
+            premium = series_price(series, None, session)["mid"]
+        else:
+            idx     = get_risk_index()
+            premium = round(series.collateral * (idx / 100), 2)
 
         contract = Contract(
             name                 = series.label,
@@ -255,6 +275,7 @@ def _auto_launch_series(series_id: int):
             settlement_threshold = series.threshold,
             auto_settle          = True,
             expires_at           = datetime.utcnow() + timedelta(minutes=series.expiry_mins),
+            underlying           = underlying_of(series),
         )
         session.add(contract)
         session.commit()

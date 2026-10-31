@@ -695,7 +695,15 @@ def run_collector_loop():
         print("🚀 Narrative Index Collector started")
         while True:
             try:
-                store_index_tick(calculate_narrative_index())
+                scores = calculate_narrative_index()
+                meta = scores["payload"]["meta"]
+                # No news data at all (every feed failed) → don't record a reading.
+                # Contracts settle on the average of readings; a fake near-zero
+                # reading during an outage would distort settlement.
+                if meta.get("feeds_ok", 0) == 0:
+                    print("⏭️ No feeds reachable — reading skipped (not stored)")
+                else:
+                    store_index_tick(scores)
             except Exception as e:
                 print(f"❌ Collector error: {e}")
             time.sleep(COLLECT_EVERY_SECS)
@@ -712,7 +720,9 @@ def get_risk_index() -> float:
     session = SessionLocal()
     try:
         row = session.execute(
-            sa.text("SELECT value FROM index_ticks ORDER BY ts DESC LIMIT 1")
+            # Delivery Pulse rows only (FSNI rows have `headlines` set)
+            sa.text("SELECT value FROM index_ticks WHERE headlines IS NULL "
+                    "ORDER BY ts DESC LIMIT 1")
         ).fetchone()
         return float(row[0]) if row else 10.0
     except Exception:

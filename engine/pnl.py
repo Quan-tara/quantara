@@ -41,6 +41,23 @@ def calc_pnl(role: str, entry_price: float, collateral: float,
         return round((entry_price - mark) * quantity, 2)
 
 
+def position_mark_pnl(session, p, dp_index: float):
+    """(mark, pnl) for one position, valued on its own underlying.
+    Delivery Pulse: collateral × index/100. FSNI: model fair value of the contract."""
+    from db.models import Contract
+    from engine.fsni_pricing import is_fsni, contract_mark
+    c = session.query(Contract).filter(Contract.id == p.contract_id).first()
+    if c is not None and is_fsni(c):
+        mark = contract_mark(c, p.collateral, session)
+    else:
+        mark = calc_mark_price(p.collateral, dp_index)
+    if p.role == "HOLDER":
+        pnl = round((mark - p.premium) * p.quantity, 2)
+    else:
+        pnl = round((p.premium - mark) * p.quantity, 2)
+    return mark, pnl
+
+
 # kept for backward-compat with web/app.py imports
 def calc_market_price(premium: float, index: float) -> float:
     """
@@ -69,8 +86,7 @@ def get_user_pnl(user_id: int):
         lines     = []
 
         for p in positions:
-            mark = calc_mark_price(p.collateral, index)
-            pnl  = calc_pnl(p.role, p.premium, p.collateral, index, p.quantity)
+            mark, pnl = position_mark_pnl(session, p, index)
             total_pnl += pnl
             lines.append(
                 f"  {p.role} | Contract {p.contract_id} | "
@@ -103,8 +119,7 @@ def get_positions_with_pnl(user_id: int):
         msg   = f"📋 **YOUR POSITIONS (Risk Index: {index:.1f})**\n\n"
 
         for p in positions:
-            mark = calc_mark_price(p.collateral, index)
-            pnl  = calc_pnl(p.role, p.premium, p.collateral, index, p.quantity)
+            mark, pnl = position_mark_pnl(session, p, index)
             msg += (
                 f"**{p.role}** | Contract {p.contract_id}\n"
                 f"  Short ID: `{p.id[:8]}` (use for !offer)\n"

@@ -295,7 +295,8 @@ def _restore_history():
         cutoff = time.time() - 3600  # last 60 min
         session = SessionLocal()
         rows = session.query(IndexTick).filter(
-            IndexTick.ts >= cutoff
+            IndexTick.ts >= cutoff,
+            IndexTick.headlines.is_(None),      # Delivery Pulse rows only, not FSNI
         ).order_by(IndexTick.ts.asc()).all()
         session.close()
         if rows:

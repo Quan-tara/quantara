@@ -595,11 +595,11 @@ header {
   <div class="col">
 
     <div class="sh">
-      <span class="sh-title">My Account</span>
+      <span class="sh-title" id="acct-title">My Account</span>
     </div>
     <div class="acct" id="acct"></div>
 
-    <div class="sh"><span class="sh-title">My FSNI Positions</span></div>
+    <div class="sh"><span class="sh-title" id="pos-title">My FSNI Positions</span></div>
     <div id="my-pos"><div class="empty-note">Log in to see your positions.</div></div>
 
     <div class="sh">
@@ -1115,6 +1115,7 @@ function doLogout() {
 
 async function renderAcct() {
   const el = document.getElementById("acct");
+  const at0 = document.getElementById("acct-title"); if (at0) at0.textContent = "My Account";
   if (!T.user) {
     el.innerHTML = `<form class="login-form" onsubmit="doLogin(event)">
         <input class="inp" id="li-user" placeholder="username" autocomplete="username">
@@ -1130,13 +1131,15 @@ async function renderAcct() {
     return;
   }
   let w = null;
-  try { w = await fetch(`/api/wallet/${T.user.id}`).then(r => r.json()); } catch (e) {}
+  const walletId = T.user.isMM ? "0" : T.user.id;
+  const at = document.getElementById("acct-title"); if (at) at.textContent = T.user.isMM ? "Market Maker" : "My Account";   // MM quotes/trades run through the MM book (user 0)
+  try { w = await fetch(`/api/wallet/${walletId}`).then(r => r.json()); } catch (e) {}
   el.innerHTML = `<div class="acct-row">
       <span class="acct-name">${esc(T.user.name)}${T.user.isMM ? ' <span class="pilot-tag" style="margin-left:4px">MARKET MAKER</span>' : ""}</span>
       <button class="link-btn" onclick="doLogout()">log out</button>
     </div>
     <div class="acct-row">
-      <span class="acct-cash">Available <b>${w ? fmtE(w.available) : "—"}</b></span>
+      <span class="acct-cash">${T.user.isMM ? "MM wallet · " : ""}Available <b>${w ? fmtE(w.available) : "—"}</b></span>
       <span class="acct-cash">Locked <b>${w ? fmtE(w.locked_balance) : "—"}</b></span>
     </div>`;
 }
@@ -1202,7 +1205,7 @@ async function renderTicket(prefill) {
       <div><div class="book-h" style="color:var(--green)">BIDS (buyers)</div>${bids.length ? bids.slice(0, 5).map(o => row(o, "b")).join("") : '<div class="book-empty">—</div>'}</div>
       <div><div class="book-h" style="color:var(--red)">ASKS (writers)</div>${asks.length ? asks.slice(0, 5).map(o => row(o, "a")).join("") : '<div class="book-empty">—</div>'}</div>
     </div>
-    ${s.has_market ? `<div class="tk-form">
+    ${T.user && T.user.isMM ? "" : s.has_market ? `<div class="tk-form">
       <div class="tk-inputs">
         <div><div class="tk-lbl">Premium per cover (€)</div><input class="inp" id="tk-price" type="number" min="0.01" step="0.01" value="${price != null ? Number(price).toFixed(2) : ""}" oninput="updateCost()"></div>
         <div><div class="tk-lbl">Qty</div><input class="inp" id="tk-qty" type="number" min="1" step="1" value="${prevQ || 1}" oninput="updateCost()"></div>
@@ -1303,9 +1306,12 @@ function mmQuote() {
 async function renderPositions() {
   const el = document.getElementById("my-pos");
   if (!T.user) { el.innerHTML = '<div class="empty-note">Log in to see your positions.</div>'; return; }
+  const isMM = T.user.isMM;
+  const hdr = document.getElementById("pos-title");
+  if (hdr) hdr.textContent = isMM ? "MM Open FSNI Covers" : "My FSNI Positions";
   let ps = [];
-  try { ps = (await fetch(`/api/positions/${T.user.id}`).then(r => r.json())).filter(p => p.underlying === "FSNI"); } catch (e) {}
-  if (!ps.length) { el.innerHTML = '<div class="empty-note">No open FSNI positions.</div>'; return; }
+  try { ps = (await fetch(`/api/positions/${isMM ? "0" : T.user.id}`).then(r => r.json())).filter(p => p.underlying === "FSNI"); } catch (e) {}
+  if (!ps.length) { el.innerHTML = `<div class="empty-note">${isMM ? "No open MM positions on FSNI covers." : "No open FSNI positions."}</div>`; return; }
   el.innerHTML = ps.map(p => {
     const left = p.expires_at ? Math.max(0, (new Date(p.expires_at.replace(" ", "T") + "Z") - Date.now()) / 3600000) : null;
     const leftTxt = left == null ? "" : left <= 0 ? "settling…" : left >= 24 ? `${Math.floor(left / 24)}d ${Math.floor(left % 24)}h left` : `${Math.floor(left)}h ${Math.round((left % 1) * 60)}m left`;
@@ -1324,7 +1330,7 @@ async function renderPositions() {
         <div><span>Avg vs ${thr}</span>${avg != null ? avg.toFixed(1) : "—"}</div>
       </div>
       <div class="pos-foot"><span>${esc(leftTxt)} ${track ? "· " + track : ""}</span>
-        <button class="link-btn" onclick="cancelFsni('${p.short_id}')">cancel</button></div>
+        ${isMM ? "" : `<button class="link-btn" onclick="cancelFsni('${p.short_id}')">cancel</button>`}</div>
     </div>`;
   }).join("");
 }

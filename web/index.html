@@ -209,12 +209,6 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
 .grid-title{font-size:9px;color:#b8cce0;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:10px;
   display:flex;justify-content:space-between;align-items:center}
 .series-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:4px}
-.ul-toggle{display:flex;gap:4px;margin-bottom:10px}
-.ul-toggle button{flex:1;font-family:var(--mono);font-size:10px;letter-spacing:1px;padding:6px 8px;
-  background:transparent;color:var(--muted);border:1px solid var(--border);border-radius:4px;cursor:pointer}
-.ul-toggle button.on{color:var(--accent);border-color:var(--accent);background:rgba(0,200,240,.06)}
-.ul-toggle .pilot{font-size:8px;color:var(--amber);margin-left:4px;letter-spacing:.5px}
-.fsni-note{font-size:10px;color:var(--muted);line-height:1.5;margin:-4px 0 10px;display:none}
 .grid-cell{border:1px solid var(--border);border-radius:5px;padding:8px 6px;text-align:center;
   cursor:pointer;transition:all .2s;background:var(--s1);position:relative}
 .grid-cell:hover{border-color:var(--accent);background:rgba(0,200,240,.06)}
@@ -625,15 +619,9 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
 
         <!-- CENTER: Grid + Order form + Book + Secondary -->
         <div class="col">
-          <div class="sh"><span class="sh-title ul-title">Delivery Pulse™ Covers</span>
+          <div class="sh"><span class="sh-title">Delivery Pulse™ Covers</span>
             <span class="sh-sub" id="t-sel-label">click a cell to trade</span></div>
           <div class="grid-container">
-            <div class="ul-toggle">
-              <button data-ul="DP" class="on" onclick="setGridUnderlying('DP')">DELIVERY PULSE</button>
-              <button data-ul="FSNI" onclick="setGridUnderlying('FSNI')">FSNI<span class="pilot">PILOT</span></button>
-            </div>
-            <div class="fsni-note">Food Sector Narrative Index · pays YES if the <strong>average FSNI over the contract window is above 30</strong>.
-              Pilot: the index is still calibrating. <a href="/narrative" style="color:var(--accent)">Open FSNI →</a></div>
             <div class="grid-col-hdr">
               <div class="gch">Standard</div><div class="gch">Plus</div>
               <div class="gch">Pro</div><div class="gch"></div>
@@ -915,15 +903,9 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
 
         <!-- CENTER: MM Grid + Quote + Settle -->
         <div class="col">
-          <div class="sh"><span class="sh-title ul-title">Delivery Pulse™ Covers</span>
+          <div class="sh"><span class="sh-title">Delivery Pulse™ Covers</span>
             <span class="sh-sub">click a grey cell to launch that Cover</span></div>
           <div class="grid-container">
-            <div class="ul-toggle">
-              <button data-ul="DP" class="on" onclick="setGridUnderlying('DP')">DELIVERY PULSE</button>
-              <button data-ul="FSNI" onclick="setGridUnderlying('FSNI')">FSNI<span class="pilot">PILOT</span></button>
-            </div>
-            <div class="fsni-note">FSNI series: quotes are pre-filled from the model mid at ≥25% spread so traders set the price.
-              Settles on the average FSNI over the window (threshold 30).</div>
             <div class="grid-col-hdr">
               <div class="gch" style="color:var(--amber)">Standard</div>
               <div class="gch" style="color:var(--amber)">Plus</div>
@@ -1101,8 +1083,7 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
 // ============================================================
 const API='';
 let currentUser=null, selectedSeriesId=null, lastSnap=null, lastRates=null;
-let gridUnderlying='DP';            // which index the series grid shows: 'DP' or 'FSNI'
-let _deepLinkDone=false;            // ?contract=<id> handled once
+const gridUnderlying='DP';          // this exchange lists Delivery Pulse only — FSNI trades on /narrative
 let seriesCache=[], traderTab=1, mmTabN=1;
 const _chartRegistry={};
 
@@ -2025,34 +2006,10 @@ function renderSpikeLog(log){
 // ============================================================
 async function loadSeries(){
   const data=await fetch(`${API}/api/series`).then(r=>r.json()).catch(()=>[]);
-  seriesCache=data;
-  // Deep link from the FSNI page: /?contract=<id> → open that series once
-  let deepHit=null;
-  if(!_deepLinkDone && seriesCache.length){
-    _deepLinkDone=true;
-    const cid=new URLSearchParams(window.location.search).get('contract');
-    deepHit=cid ? seriesCache.find(x=>String(x.active_contract_id)===String(cid)) : null;
-    if(deepHit){ gridUnderlying=deepHit.underlying||'DP'; syncUnderlyingUI(); }
-  }
+  // Delivery Pulse only — FSNI contracts are traded on the FSNI page
+  seriesCache=data.filter(x=>(x.underlying||'DP')==='DP');
   renderSeriesGrid();
   updateSettleDropdown();
-  if(deepHit) selectSeries(deepHit.series_id);
-}
-
-function syncUnderlyingUI(){
-  document.querySelectorAll('.ul-toggle button').forEach(b=>b.classList.toggle('on', b.dataset.ul===gridUnderlying));
-  document.querySelectorAll('.ul-title').forEach(t=>t.textContent=
-    gridUnderlying==='FSNI'?'FSNI Covers · Pilot':'Delivery Pulse™ Covers');
-  document.querySelectorAll('.fsni-note').forEach(n=>n.style.display=gridUnderlying==='FSNI'?'block':'none');
-}
-
-function setGridUnderlying(u){
-  if(gridUnderlying===u) return;
-  gridUnderlying=u;
-  const cur=seriesCache.find(x=>x.series_id===selectedSeriesId);
-  if(cur && (cur.underlying||'DP')!==u) selectedSeriesId=null;
-  syncUnderlyingUI();
-  renderSeriesGrid();
 }
 
 const isFsniSeries = s => s && (s.underlying||'DP')==='FSNI';
@@ -2713,7 +2670,8 @@ function buildCountdown(p, runEst, threshold){
 
 async function loadPositions(){
   if(!currentUser)return;
-  const data=await fetch(`${API}/api/positions/${currentUser.id}`).then(r=>r.json()).catch(()=>[]);
+  const data=(await fetch(`${API}/api/positions/${currentUser.id}`).then(r=>r.json()).catch(()=>[]))
+    .filter(p=>p.underlying!=='FSNI');   // FSNI positions live on the FSNI page
   const el=document.getElementById('t-positions');if(!el)return;
   if(!data.length){el.innerHTML='<div class="empty">No open positions</div>';return;}
   el.innerHTML=data.map(p=>{
@@ -2786,7 +2744,8 @@ async function loadMyTrades(){
   const el = document.getElementById('t-my-trades'); if(!el) return;
   if(!currentUser){ el.innerHTML='<div class="empty">Log in to see your trades</div>'; return; }
   const uid = currentUser.id;
-  const trades = await fetch(`${API}/api/trades/user/${uid}`).then(r=>r.json()).catch(()=>[]);
+  const trades = (await fetch(`${API}/api/trades/user/${uid}`).then(r=>r.json()).catch(()=>[]))
+    .filter(t=>t.underlying!=='FSNI');   // FSNI trades live on the FSNI page
 
   if(!trades.length){
     el.innerHTML='<div class="empty" style="padding:14px">No trades yet</div>';
@@ -2836,11 +2795,16 @@ async function loadMyTrades(){
 // MM sees: opened, settled, result, rate, volume, pnl impact
 // Trader sees: opened, settled, result, rate
 async function loadLedger(){
-  const [contracts, trades, series] = await Promise.all([
+  let [contracts, trades, series] = await Promise.all([
     fetch(`${API}/api/contracts`).then(r=>r.json()).catch(()=>[]),
     fetch(`${API}/api/trades?limit=200`).then(r=>r.json()).catch(()=>[]),
     fetch(`${API}/api/series`).then(r=>r.json()).catch(()=>[])
   ]);
+  // Delivery Pulse only on this exchange
+  const _dpIds = new Set(contracts.filter(c=>(c.underlying||'DP')==='DP').map(c=>c.id));
+  contracts = contracts.filter(c=>_dpIds.has(c.id));
+  trades    = trades.filter(t=>_dpIds.has(t.contract_id));
+  series    = series.filter(x=>(x.underlying||'DP')==='DP');
 
   const isMMUser = currentUser&&(currentUser.isAdmin||currentUser.isMM);
 
@@ -3140,7 +3104,8 @@ function toggleLedger(hdr){
 
 // ── MM POSITIONS (on Operations tab right column) ──
 async function loadMMPositions(){
-  const data=await fetch(`${API}/api/positions/0`).then(r=>r.json()).catch(()=>[]);
+  const data=(await fetch(`${API}/api/positions/0`).then(r=>r.json()).catch(()=>[]))
+    .filter(p=>p.underlying!=='FSNI');   // FSNI MM positions live on the FSNI page
   const el=document.getElementById('mm-positions');if(!el)return;
   if(!data.length){el.innerHTML='<div class="empty">No open MM positions</div>';return;}
   el.innerHTML=data.map(p=>{

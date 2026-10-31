@@ -109,7 +109,7 @@ header {
 .page-wrap {
   position: relative; z-index: 1;
   display: grid;
-  grid-template-columns: 320px 1fr 300px;
+  grid-template-columns: 320px 1fr 380px;
   gap: 0;
   height: calc(100vh - 53px);
   overflow: hidden;
@@ -330,6 +330,75 @@ header {
 .btn-yes { background: var(--red); color: #fff }
 .btn-no  { background: var(--s3); color: var(--green); border: 1px solid var(--green) }
 
+/* ── FSNI TRADING ── */
+.pilot-tag { font-family: var(--mono); font-size: 8px; letter-spacing: 1px; color: var(--amber); border: 1px solid rgba(255,179,0,.4); border-radius: 3px; padding: 1px 5px }
+.acct { padding: 10px 14px; border-bottom: 1px solid var(--border); font-size: 12px; display: flex; flex-direction: column; gap: 8px }
+.acct-row { display: flex; justify-content: space-between; align-items: center; gap: 8px }
+.acct-name { font-family: var(--mono); color: var(--accent); font-size: 11px }
+.acct-cash { font-family: var(--mono); font-size: 11px; color: var(--muted) }
+.acct-cash b { color: var(--text); font-weight: 400 }
+.link-btn { background: none; border: none; color: var(--muted); font-size: 10px; cursor: pointer; text-decoration: underline }
+.login-form { display: grid; grid-template-columns: 1fr 1fr auto; gap: 6px }
+.inp { width: 100%; min-width: 0; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; color: var(--text); font-family: var(--mono); font-size: 12px; padding: 7px 8px }
+.inp:focus { outline: none; border-color: var(--accent) }
+.btn { font-family: var(--mono); font-size: 10px; letter-spacing: 1px; padding: 8px 10px; border-radius: 4px; cursor: pointer; border: 1px solid var(--accent); background: transparent; color: var(--accent) }
+.btn:hover { background: rgba(0,200,240,.08) }
+.btn:disabled { opacity: .4; cursor: not-allowed }
+.btn-buy  { border-color: var(--green); color: var(--green) }
+.btn-buy:hover  { background: rgba(0,230,118,.08) }
+.btn-sell { border-color: var(--red); color: var(--red) }
+.btn-sell:hover { background: rgba(255,61,90,.08) }
+.btn-amber { border-color: var(--amber); color: var(--amber) }
+.msg { font-size: 11px; line-height: 1.4 }
+.msg.ok { color: var(--green) } .msg.err { color: var(--red) }
+
+.fg { display: grid; grid-template-columns: 34px repeat(3, 1fr); gap: 4px; padding: 10px 14px }
+.fg-h { font-family: var(--mono); font-size: 8px; letter-spacing: 1px; color: var(--muted); text-align: center; text-transform: uppercase }
+.fg-exp { display: flex; align-items: center; justify-content: center; font-family: var(--mono); font-size: 10px; color: var(--muted); background: var(--s2); border: 1px solid var(--border); border-radius: 4px }
+.fg-cell { background: var(--s1); border: 1px solid var(--border); border-radius: 5px; padding: 7px 6px; cursor: pointer; text-align: center; position: relative; min-width: 0 }
+.fg-cell:hover { border-color: var(--dim) }
+.fg-cell.sel { border-color: var(--accent); background: rgba(0,200,240,.06) }
+.fg-cell.off { opacity: .55 }
+.fg-col { font-family: var(--mono); font-size: 9px; color: var(--muted) }
+.fg-prob { font-family: var(--mono); font-size: 14px; color: var(--text); margin: 2px 0 }
+.fg-sub { font-size: 9px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.fg-dot { position: absolute; top: 5px; right: 5px; width: 5px; height: 5px; border-radius: 50%; background: var(--dim) }
+.fg-dot.live { background: var(--green) } .fg-dot.wait { background: var(--amber) }
+.fg-note { padding: 0 14px 10px; font-size: 9px; color: var(--dim); line-height: 1.5 }
+
+.ticket { margin: 0 14px 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--s1) }
+.tk-head { padding: 10px 12px 8px; border-bottom: 1px solid var(--border) }
+.tk-title { font-size: 13px; font-weight: 600; display: flex; justify-content: space-between; gap: 8px; align-items: baseline }
+.tk-exp { font-family: var(--mono); font-size: 9px; color: var(--muted); font-weight: 400 }
+.tk-rule { font-size: 11px; color: var(--muted); margin-top: 4px; line-height: 1.45 }
+.tk-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; padding: 8px 12px; border-bottom: 1px solid var(--border) }
+.tk-stats div { font-family: var(--mono); font-size: 12px; min-width: 0 }
+.tk-stats span { display: block; font-family: var(--sans); font-size: 8px; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); margin-bottom: 2px }
+.book { display: grid; grid-template-columns: 1fr 1fr; border-bottom: 1px solid var(--border) }
+.book > div { padding: 6px 12px; min-width: 0 }
+.book > div:first-child { border-right: 1px solid var(--border) }
+.book-h { font-family: var(--mono); font-size: 8px; letter-spacing: 1px; color: var(--muted); margin-bottom: 4px }
+.book-row { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 11px; padding: 2px 0; cursor: pointer }
+.book-row:hover { background: var(--s2) }
+.book-empty { font-size: 10px; color: var(--dim); padding: 2px 0 }
+.tk-form { padding: 10px 12px; display: grid; gap: 8px }
+.tk-inputs { display: grid; grid-template-columns: 1fr 80px; gap: 6px }
+.tk-lbl { font-family: var(--mono); font-size: 8px; letter-spacing: 1px; color: var(--muted); margin-bottom: 3px; text-transform: uppercase }
+.tk-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 6px }
+.tk-cost { font-size: 10px; color: var(--muted); line-height: 1.5 }
+.mm-box { margin: 0 14px 12px; padding: 10px 12px; border: 1px dashed rgba(255,179,0,.45); border-radius: 6px; display: grid; gap: 8px }
+.mm-h { font-family: var(--mono); font-size: 9px; letter-spacing: 1.5px; color: var(--amber) }
+.mm-inputs { display: grid; grid-template-columns: 1fr 1fr 60px; gap: 6px }
+
+.pos { margin: 0 14px 8px; padding: 9px 11px; border: 1px solid var(--border); border-radius: 6px; background: var(--s1); font-size: 11px }
+.pos-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 5px }
+.pos-role { font-family: var(--mono); font-size: 9px; letter-spacing: 1px; padding: 1px 6px; border-radius: 3px }
+.pos-role.h { color: var(--green); border: 1px solid rgba(0,230,118,.4) } .pos-role.w { color: var(--red); border: 1px solid rgba(255,61,90,.4) }
+.pos-pnl { font-family: var(--mono); font-size: 12px }
+.pos-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; font-family: var(--mono); font-size: 11px }
+.pos-grid span { display: block; font-family: var(--sans); font-size: 8px; letter-spacing: 1px; text-transform: uppercase; color: var(--muted) }
+.pos-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; font-size: 10px; color: var(--muted) }
+.empty-note { padding: 10px 14px 14px; font-size: 11px; color: var(--muted); font-style: italic }
 .fc-group { padding: 10px 14px 4px; font-family: var(--mono); font-size: 9px; letter-spacing: 1.5px; color: var(--muted); text-transform: uppercase }
 .fc-card { margin: 0 14px 8px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--s2) }
 .fc-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 6px }
@@ -517,12 +586,21 @@ header {
   <div class="col">
 
     <div class="sh">
-      <span class="sh-title">FSNI Contracts</span>
+      <span class="sh-title">Trade FSNI Covers</span>
+      <span class="pilot-tag">PILOT</span>
     </div>
 
-    <div id="contracts-wrap">
-      <div class="no-contracts">Loading contracts…</div>
-    </div>
+    <div class="acct" id="acct"></div>
+
+    <div class="fg" id="fsni-grid"></div>
+    <div class="fg-note">% = market-implied chance of YES (order-book mid ÷ collateral). Pays YES if the
+      <strong>average FSNI over the contract window is above 30</strong>. Wallet cash is shared with the Delivery Pulse exchange.</div>
+
+    <div id="ticket-wrap"></div>
+    <div id="mm-wrap"></div>
+
+    <div class="sh"><span class="sh-title">My FSNI Positions</span></div>
+    <div id="my-pos"><div class="empty-note">Log in to see your positions.</div></div>
 
     <div class="sh" style="position:relative;z-index:1">
       <span class="sh-title">Market Signal</span>
@@ -970,65 +1048,297 @@ function renderHeadlines(headlines, meta, emptyMsg) {
 
 // ── RENDER CONTRACTS ──
 
-async function renderContracts() {
-  // FSNI series from the exchange. For each live contract show three numbers:
-  //   Market  = order-book mid ÷ collateral (or last trade) — what traders price
-  //   Model   = reference model probability
-  //   Avg     = average FSNI so far in this contract's window (what it settles on)
-  const wrap = document.getElementById("contracts-wrap");
-  let series;
+// ═════════════════════════════════════════════════════════
+// FSNI TRADING — separate from the Delivery Pulse exchange.
+// Same accounts and wallet (shared login via localStorage).
+// BUY COVER  = holder: pays the premium, receives collateral if YES
+// WRITE COVER = writer: locks collateral, keeps the premium if NO
+// ═════════════════════════════════════════════════════════
+const T = { user: null, series: [], sel: null, book: { bids: [], asks: [] }, msg: null, mmMsg: null };
+const fmtE = n => n == null ? "—" : "€" + Number(n).toLocaleString("en", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const pct  = n => n == null ? "—" : n.toFixed(1) + "%";
+
+function marketProb(s) {
+  if (s.book_bid != null && s.book_ask != null) return (s.book_bid + s.book_ask) / 2 / s.collateral * 100;
+  if (s.implied_rate != null) return s.implied_rate;
+  return null;
+}
+
+async function loadUser() {
+  let id = null, name = null;
+  try { id = localStorage.getItem("q_user_id"); name = localStorage.getItem("q_username"); } catch (e) {}
+  if (!id) { T.user = null; return; }
   try {
-    const r = await fetch("/api/series");
-    if (!r.ok) throw new Error();
-    series = (await r.json()).filter(s => (s.underlying || "DP") === "FSNI");
-  } catch (e) {
-    wrap.innerHTML = `<div class="no-contracts">Exchange unavailable — retrying.</div>`;
+    const info = await fetch(`/api/user/${id}`).then(r => r.json());
+    T.user = { id: String(id), name: name || info.name, isMM: !!(info.is_admin || info.is_mm), adminId: String(id) };
+  } catch (e) { T.user = null; }
+}
+
+async function doLogin(ev) {
+  ev.preventDefault();
+  const u = document.getElementById("li-user").value.trim(), pw = document.getElementById("li-pw").value;
+  const r = await fetch("/api/login_pw", { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username: u, password: pw }) });
+  if (!r.ok) { T.msg = { err: true, text: "Login failed — check username and password." }; renderAcct(); return; }
+  const d = await r.json();
+  try { localStorage.setItem("q_user_id", String(d.user_id)); localStorage.setItem("q_username", d.name); } catch (e) {}
+  T.msg = null;
+  await loadUser(); refreshTrading();
+}
+
+function doLogout() {
+  try { localStorage.removeItem("q_user_id"); localStorage.removeItem("q_username"); } catch (e) {}
+  T.user = null; refreshTrading();
+}
+
+async function renderAcct() {
+  const el = document.getElementById("acct");
+  if (!T.user) {
+    el.innerHTML = `<form class="login-form" onsubmit="doLogin(event)">
+        <input class="inp" id="li-user" placeholder="username" autocomplete="username">
+        <input class="inp" id="li-pw" type="password" placeholder="password" autocomplete="current-password">
+        <button class="btn" type="submit">LOG IN</button>
+      </form>
+      <div class="acct-cash">Same account as the exchange · <a href="/" style="color:var(--accent)">register there</a></div>
+      ${T.msg && !T.sel ? `<div class="msg err">${esc(T.msg.text)}</div>` : ""}`;
     return;
   }
-  const marketProb = s => {
-    if (s.book_bid != null && s.book_ask != null) return (s.book_bid + s.book_ask) / 2 / s.collateral * 100;
-    if (s.implied_rate != null) return s.implied_rate;
-    return null;
-  };
+  let w = null;
+  try { w = await fetch(`/api/wallet/${T.user.id}`).then(r => r.json()); } catch (e) {}
+  el.innerHTML = `<div class="acct-row">
+      <span class="acct-name">${esc(T.user.name)}${T.user.isMM ? ' <span class="pilot-tag" style="margin-left:4px">MARKET MAKER</span>' : ""}</span>
+      <button class="link-btn" onclick="doLogout()">log out</button>
+    </div>
+    <div class="acct-row">
+      <span class="acct-cash">Available <b>${w ? fmtE(w.available) : "—"}</b></span>
+      <span class="acct-cash">Locked <b>${w ? fmtE(w.locked_balance) : "—"}</b></span>
+    </div>`;
+}
 
-  // Market signal panel: use the 7-day €1,000 contract if live, else any live 7d
-  const live7 = series.filter(s => s.has_market && s.expiry_mins === 10080);
+function renderGrid() {
+  const el = document.getElementById("fsni-grid");
+  const cols = [100, 1000, 10000], rows = [[10080, "7d"], [43200, "30d"]];
+  let h = `<div></div>` + ["Standard €100", "Plus €1k", "Pro €10k"].map(t => `<div class="fg-h">${t}</div>`).join("");
+  rows.forEach(([mins, lbl]) => {
+    h += `<div class="fg-exp">${lbl}</div>`;
+    cols.forEach(col => {
+      const s = T.series.find(x => x.expiry_mins === mins && x.collateral === col);
+      if (!s) { h += `<div class="fg-cell off"><div class="fg-sub">—</div></div>`; return; }
+      const m = marketProb(s), settling = s.expires_in === "Expiring...";
+      const dot = !s.has_market ? "" : settling ? "wait" : s.has_orders ? "live" : "wait";
+      const sub = !s.has_market ? (s.paused ? "paused" : "not launched")
+                : settling ? "settling…" : (s.has_orders ? (s.expires_in || "") : "no quotes yet");
+      h += `<div class="fg-cell ${T.sel === s.series_id ? "sel" : ""} ${s.has_market ? "" : "off"}" onclick="selectFsni(${s.series_id})">
+          <span class="fg-dot ${dot}"></span>
+          <div class="fg-prob">${settling ? '<span style="color:var(--muted)">…</span>' : m != null ? pct(m) : (s.model_prob != null ? `<span style="color:var(--muted)">${pct(s.model_prob)}</span>` : "—")}</div>
+          <div class="fg-sub">${settling ? "" : (m != null ? "market · " : "model · ")}${esc(sub)}</div>
+        </div>`;
+    });
+  });
+  el.innerHTML = h;
+}
+
+function selectFsni(id) {
+  T.sel = id; T.msg = null; T.mmMsg = null;
+  renderGrid(); renderTicket(true); renderMM(true);
+}
+
+async function loadBook() {
+  if (!T.sel) return;
+  try { T.book = await fetch(`/api/series/${T.sel}/book`).then(r => r.json()); }
+  catch (e) { T.book = { bids: [], asks: [] }; }
+}
+
+async function renderTicket(prefill) {
+  const el = document.getElementById("ticket-wrap");
+  const s = T.series.find(x => x.series_id === T.sel);
+  if (!s) { el.innerHTML = ""; return; }
+  await loadBook();
+  const bids = T.book.bids || [], asks = T.book.asks || [];
+  const bestBid = bids[0]?.price, bestAsk = asks[0]?.price;
+  const prev = document.getElementById("tk-price")?.value, prevQ = document.getElementById("tk-qty")?.value;
+  const price = prefill ? (bestAsk ?? s.fair_mid) : (prev || bestAsk || s.fair_mid);
+  const days = s.expiry_mins / 1440;
+  const row = (o, side) => `<div class="book-row" onclick="fillPrice(${o.price})"><span>${o.price.toFixed(2)}</span><span style="color:var(--muted)">${o.qty}${o.is_mm ? " MM" : ""}</span></div>`;
+  el.innerHTML = `<div class="ticket">
+    <div class="tk-head">
+      <div class="tk-title"><span>FSNI ${days}-day · €${s.collateral.toLocaleString()} cover</span>
+        <span class="tk-exp">${!s.has_market ? "not launched" : s.expires_in === "Expiring..." ? "settling…" : esc(s.expires_in || "") + " left"}</span></div>
+      <div class="tk-rule">Pays <strong>${fmtE(s.collateral)}</strong> per cover if the average FSNI from launch to expiry is above <strong>${s.threshold}</strong>.</div>
+    </div>
+    <div class="tk-stats">
+      <div><span>FSNI now</span>${s.index != null ? s.index.toFixed(1) : "—"}</div>
+      <div><span>Avg so far</span>${s.running_avg != null ? s.running_avg.toFixed(1) : "—"}</div>
+      <div title="Order-book mid ÷ collateral"><span>Market</span>${pct(marketProb(s))}</div>
+      <div title="Reference model probability"><span>Model</span>${pct(s.model_prob)}</div>
+    </div>
+    <div class="book">
+      <div><div class="book-h" style="color:var(--green)">BIDS (buyers)</div>${bids.length ? bids.slice(0, 5).map(o => row(o, "b")).join("") : '<div class="book-empty">—</div>'}</div>
+      <div><div class="book-h" style="color:var(--red)">ASKS (writers)</div>${asks.length ? asks.slice(0, 5).map(o => row(o, "a")).join("") : '<div class="book-empty">—</div>'}</div>
+    </div>
+    ${s.has_market ? `<div class="tk-form">
+      <div class="tk-inputs">
+        <div><div class="tk-lbl">Premium per cover (€)</div><input class="inp" id="tk-price" type="number" min="0.01" step="0.01" value="${price != null ? Number(price).toFixed(2) : ""}" oninput="updateCost()"></div>
+        <div><div class="tk-lbl">Qty</div><input class="inp" id="tk-qty" type="number" min="1" step="1" value="${prevQ || 1}" oninput="updateCost()"></div>
+      </div>
+      <div class="tk-cost" id="tk-cost"></div>
+      <div class="tk-btns">
+        <button class="btn btn-buy" onclick="placeFsni('BUY')" ${T.user ? "" : "disabled"}>BUY COVER (YES)</button>
+        <button class="btn btn-sell" onclick="placeFsni('SELL')" ${T.user ? "" : "disabled"}>WRITE COVER (NO)</button>
+      </div>
+      ${T.user ? "" : '<div class="msg" style="color:var(--muted)">Log in above to trade.</div>'}
+      ${T.msg ? `<div class="msg ${T.msg.err ? "err" : "ok"}">${esc(T.msg.text)}</div>` : ""}
+    </div>` : `<div class="tk-form"><div class="msg" style="color:var(--muted)">This cover isn't trading yet — the market maker launches it.</div></div>`}
+  </div>`;
+  updateCost();
+}
+
+function fillPrice(p) {
+  const el = document.getElementById("tk-price"); if (!el) return;
+  el.value = p.toFixed(2); updateCost();
+}
+
+function updateCost() {
+  const el = document.getElementById("tk-cost"); if (!el) return;
+  const s = T.series.find(x => x.series_id === T.sel); if (!s) return;
+  const p = parseFloat(document.getElementById("tk-price")?.value), q = parseFloat(document.getElementById("tk-qty")?.value) || 1;
+  if (!(p > 0)) { el.textContent = ""; return; }
+  el.innerHTML = `Buy: pay ${fmtE(p * q)} → receive ${fmtE(s.collateral * q)} if YES (implied ${(p / s.collateral * 100).toFixed(1)}%)<br>` +
+                 `Write: lock ${fmtE(s.collateral * q)}, earn ${fmtE(p * q)} if NO`;
+}
+
+async function placeFsni(side) {
+  const s = T.series.find(x => x.series_id === T.sel);
+  if (!s || !T.user) return;
+  const price = parseFloat(document.getElementById("tk-price").value);
+  const qty = parseFloat(document.getElementById("tk-qty").value) || 1;
+  if (!(price > 0) || price >= s.collateral) { T.msg = { err: true, text: "Enter a premium above 0 and below the collateral." }; renderTicket(); return; }
+  try {
+    const r = await fetch("/api/orders", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id: T.user.id, contract_id: s.active_contract_id, side, price, quantity: qty }) });
+    const d = await r.json();
+    const ok = r.ok && (d.status === "ok" || d.order_id || d.id);
+    T.msg = ok ? { err: false, text: `${side === "BUY" ? "Buy" : "Write"} order placed at ${fmtE(price)} × ${qty}. It fills when it meets a matching order.` }
+               : { err: true, text: d.detail || d.message || JSON.stringify(d) };
+  } catch (e) { T.msg = { err: true, text: "Order failed — network error." }; }
+  await refreshTrading();
+}
+
+// ── Market maker controls (admin / MM account only) ──
+async function renderMM(prefill) {
+  const el = document.getElementById("mm-wrap");
+  const s = T.series.find(x => x.series_id === T.sel);
+  if (!T.user || !T.user.isMM || !s) { el.innerHTML = ""; return; }
+  const bid = (s.fair_mid * 0.75).toFixed(2), ask = (s.fair_mid * 1.25).toFixed(2);
+  const pb = prefill ? bid : (document.getElementById("mm-bid")?.value || bid);
+  const pa = prefill ? ask : (document.getElementById("mm-ask")?.value || ask);
+  const pq = document.getElementById("mm-qty")?.value || 5;
+  el.innerHTML = `<div class="mm-box">
+    <div class="mm-h">MARKET MAKER · ${esc(s.label)}</div>
+    ${!s.has_market
+      ? `<button class="btn btn-amber" onclick="mmLaunch()">LAUNCH THIS COVER</button>`
+      : `<div style="font-size:10px;color:var(--muted)">Model mid ${fmtE(s.fair_mid)} (${pct(s.model_prob)}). Pre-filled at ±25% so traders set the price.</div>
+         <div class="mm-inputs">
+           <div><div class="tk-lbl">Bid</div><input class="inp" id="mm-bid" type="number" step="0.01" value="${pb}"></div>
+           <div><div class="tk-lbl">Ask</div><input class="inp" id="mm-ask" type="number" step="0.01" value="${pa}"></div>
+           <div><div class="tk-lbl">Qty</div><input class="inp" id="mm-qty" type="number" step="1" value="${pq}"></div>
+         </div>
+         <div class="tk-btns">
+           <button class="btn btn-amber" onclick="mmQuote()">POST QUOTE</button>
+           <button class="btn btn-amber" onclick="mmQuoteAll()">QUOTE ALL FSNI</button>
+         </div>`}
+    <button class="btn" style="border-style:dashed" onclick="mmLaunchAll()">LAUNCH ALL FSNI COVERS</button>
+    ${T.mmMsg ? `<div class="msg ${T.mmMsg.err ? "err" : "ok"}">${esc(T.mmMsg.text)}</div>` : ""}
+  </div>`;
+}
+
+async function mmCall(url, body, okText) {
+  try {
+    const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const d = await r.json();
+    T.mmMsg = r.ok ? { err: false, text: okText(d) } : { err: true, text: d.detail || JSON.stringify(d) };
+  } catch (e) { T.mmMsg = { err: true, text: "Request failed — network error." }; }
+  await refreshTrading(true);
+}
+const mmLaunch    = () => mmCall(`/api/series/${T.sel}/launch`, { admin_id: T.user.adminId, series_id: T.sel },
+                                 d => `Launched contract #${d.contract_id}. Now post a quote.`);
+const mmLaunchAll = () => mmCall(`/api/series/launch_all`, { admin_id: T.user.adminId, underlying: "FSNI" },
+                                 d => `Launched ${d.launched.length} FSNI cover(s).`);
+const mmQuoteAll  = () => mmCall(`/api/series/quote_all`, { admin_id: T.user.adminId, underlying: "FSNI", spread_pct: 25, quantity: parseFloat(document.getElementById("mm-qty")?.value) || 5 },
+                                 d => `Quoted ${d.quoted.length} FSNI cover(s) at model mid ±25%.`);
+function mmQuote() {
+  const bid = parseFloat(document.getElementById("mm-bid").value), ask = parseFloat(document.getElementById("mm-ask").value);
+  const qty = parseFloat(document.getElementById("mm-qty").value) || 5;
+  mmCall(`/api/series/${T.sel}/quote`, { admin_id: T.user.adminId, series_id: T.sel, bid, ask, quantity: qty },
+         () => `Quote posted: bid ${fmtE(bid)} / ask ${fmtE(ask)} × ${qty}.`);
+}
+
+// ── Positions ──
+async function renderPositions() {
+  const el = document.getElementById("my-pos");
+  if (!T.user) { el.innerHTML = '<div class="empty-note">Log in to see your positions.</div>'; return; }
+  let ps = [];
+  try { ps = (await fetch(`/api/positions/${T.user.id}`).then(r => r.json())).filter(p => p.underlying === "FSNI"); } catch (e) {}
+  if (!ps.length) { el.innerHTML = '<div class="empty-note">No open FSNI positions.</div>'; return; }
+  el.innerHTML = ps.map(p => {
+    const left = p.expires_at ? Math.max(0, (new Date(p.expires_at.replace(" ", "T") + "Z") - Date.now()) / 3600000) : null;
+    const leftTxt = left == null ? "" : left <= 0 ? "settling…" : left >= 24 ? `${Math.floor(left / 24)}d ${Math.floor(left % 24)}h left` : `${Math.floor(left)}h ${Math.round((left % 1) * 60)}m left`;
+    const thr = p.settlement_threshold || 30, avg = p.running_avg;
+    const track = avg == null ? "" : avg > thr ? `<span style="color:var(--green)">on track for YES</span>` : `<span style="color:var(--red)">on track for NO</span>`;
+    return `<div class="pos">
+      <div class="pos-top">
+        <span><span class="pos-role ${p.role === "HOLDER" ? "h" : "w"}">${p.role === "HOLDER" ? "HOLDER · YES" : "WRITER · NO"}</span>
+          <span style="margin-left:6px">${esc(p.series_label)}</span></span>
+        <span class="pos-pnl" style="color:${p.pnl >= 0 ? "var(--green)" : "var(--red)"}">${p.pnl >= 0 ? "+" : ""}${fmtE(p.pnl)}</span>
+      </div>
+      <div class="pos-grid">
+        <div><span>Paid</span>${p.entry_price.toFixed(2)}</div>
+        <div><span>Mark</span>${p.mark_price.toFixed(2)}</div>
+        <div><span>Qty</span>${p.quantity}</div>
+        <div><span>Avg vs ${thr}</span>${avg != null ? avg.toFixed(1) : "—"}</div>
+      </div>
+      <div class="pos-foot"><span>${esc(leftTxt)} ${track ? "· " + track : ""}</span>
+        <button class="link-btn" onclick="cancelFsni('${p.short_id}')">cancel</button></div>
+    </div>`;
+  }).join("");
+}
+
+async function cancelFsni(shortId) {
+  if (!T.user || !confirm(`Cancel position ${shortId}?`)) return;
+  try {
+    const r = await fetch("/api/positions/cancel", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id: T.user.id, short_id: shortId }) });
+    const d = await r.json(); T.msg = { err: !r.ok, text: d.message || d.detail || "Done." };
+  } catch (e) { T.msg = { err: true, text: "Cancel failed — network error." }; }
+  refreshTrading();
+}
+
+// ── Market signal panel (uses the 7-day €1,000 cover) ──
+function renderSignal() {
+  const live7 = T.series.filter(s => s.has_market && s.expiry_mins === 10080);
   const ref = live7.find(s => s.collateral === 1000) || live7[0];
   const mp = ref ? marketProb(ref) : null;
-  document.getElementById("sig-prob").textContent = mp != null ? mp.toFixed(1) + "%" : "no trades yet";
-  document.getElementById("sig-model").textContent =
-    ref && ref.model_prob != null ? ref.model_prob.toFixed(1) + "%"
-    : (series.find(s => s.expiry_mins === 10080)?.model_prob != null
-        ? series.find(s => s.expiry_mins === 10080).model_prob.toFixed(1) + "%" : "—");
+  document.getElementById("sig-prob").textContent = mp != null ? mp.toFixed(1) + "%" : "no market yet";
+  const any7 = ref || T.series.find(s => s.expiry_mins === 10080);
+  document.getElementById("sig-model").textContent = any7 && any7.model_prob != null ? any7.model_prob.toFixed(1) + "%" : "—";
+}
 
-  const live = series.filter(s => s.has_market);
-  if (!live.length) {
-    wrap.innerHTML = `<div class="no-contracts">No FSNI contracts launched yet.<br>
-      <span style="font-size:10px;margin-top:4px;display:block">Pilot series (7d / 30d, pays if average FSNI &gt; 30) are set up —
-      the market maker launches them from the exchange.</span></div>`;
-    return;
+async function refreshTrading(mmPrefill) {
+  try {
+    const r = await fetch("/api/series");
+    T.series = r.ok ? (await r.json()).filter(s => (s.underlying || "DP") === "FSNI") : [];
+  } catch (e) { T.series = []; }
+  if (!T.sel) {
+    const first = T.series.find(s => s.has_market && s.expiry_mins === 10080 && s.collateral === 1000) || T.series.find(s => s.has_market);
+    if (first) T.sel = first.series_id;
   }
+  renderSignal(); renderGrid();
+  await Promise.all([renderAcct(), renderTicket(false), renderMM(!!mmPrefill), renderPositions()]);
+}
 
-  const groups = [[10080, "7-day covers"], [43200, "30-day covers"]];
-  wrap.innerHTML = groups.map(([mins, title]) => {
-    const rows = live.filter(s => s.expiry_mins === mins).sort((a, b) => a.collateral - b.collateral);
-    if (!rows.length) return "";
-    return `<div class="fc-group">${title} · YES if avg FSNI &gt; ${rows[0].threshold}</div>` + rows.map(s => {
-      const m = marketProb(s);
-      return `<div class="fc-card">
-        <div class="fc-head">
-          <span class="fc-name">€${s.collateral.toLocaleString()} cover</span>
-          <span class="fc-exp">${s.expires_in === "Expiring..." ? "settling…" : esc(s.expires_in || "") + " left"}</span>
-        </div>
-        <div class="fc-probs">
-          <div title="Order-book mid or last trade, as % of collateral"><span>Market</span>${m != null ? m.toFixed(1) + "%" : "—"}</div>
-          <div title="Reference model probability"><span>Model</span>${s.model_prob != null ? s.model_prob.toFixed(1) + "%" : "—"}</div>
-          <div title="Average FSNI so far in this window"><span>Avg so far</span>${s.running_avg != null ? s.running_avg.toFixed(1) : "—"}</div>
-        </div>
-        <a class="fc-trade" href="/?contract=${s.active_contract_id}">TRADE ON EXCHANGE →</a>
-      </div>`;
-    }).join("");
-  }).join("");
+async function renderContracts() {   // called by init + the 60 s refresh
+  if (!T._booted) { T._booted = true; await loadUser(); }
+  await refreshTrading();
 }
 
 // ── FETCH REAL INDEX FROM API ──

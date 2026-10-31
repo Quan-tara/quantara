@@ -310,10 +310,10 @@ class AdminRequest(BaseModel):
     admin_id: str
 
 class LaunchSeriesRequest(BaseModel):
-    admin_id: str; series_id: int
+    admin_id: str; series_id: int = 0; underlying: str = "DP"   # underlying used by launch_all
 
 class QuoteAllRequest(BaseModel):
-    admin_id: str; spread_pct: float = 10.0; quantity: float = 5.0
+    admin_id: str; spread_pct: float = 10.0; quantity: float = 5.0; underlying: str = "DP"
 
 class QuoteSeriesRequest(BaseModel):
     admin_id: str; series_id: int; bid: float; ask: float; quantity: float
@@ -653,7 +653,9 @@ async def api_launch_all(req: LaunchSeriesRequest):
     session = SessionLocal()
     launched = []
     try:
-        all_series = session.query(ContractSeries).all()
+        from engine.fsni_pricing import underlying_of
+        _u = (req.underlying or "DP").upper()
+        all_series = [x for x in session.query(ContractSeries).all() if underlying_of(x) == _u]
         for s in all_series:
             existing = session.query(Contract).filter(
                 Contract.series_id == s.id,
@@ -713,7 +715,9 @@ async def api_quote_all(req: QuoteAllRequest):
     session = SessionLocal()
     quoted = []
     try:
-        all_series = session.query(ContractSeries).all()
+        from engine.fsni_pricing import underlying_of
+        _u = (req.underlying or "DP").upper()
+        all_series = [x for x in session.query(ContractSeries).all() if underlying_of(x) == _u]
         snap = get_index_snapshot()
         idx = snap["index"]; vol = snap["volatility"]
 
@@ -1003,6 +1007,7 @@ def api_user_trades(user_id: int, limit: int = 200):
                 "contract_result": contract.result,   # YES / NO / None
                 "contract_status": contract.status,   # OPEN / SETTLED
                 "collateral":    contract.collateral,
+                "underlying":    (getattr(contract, "underlying", None) or "DP").upper(),
             })
         return result
     finally:

@@ -18,15 +18,24 @@ Base.metadata.create_all(bind=engine)
 print("✅ Tables created")
 
 # ── Migrations — add new columns if they don't exist ──
+# Each statement gets its own connection: in Postgres a failed statement
+# aborts the whole transaction, which would skip every migration after it.
+# These must run BEFORE any ORM query below, because the models include them.
 from sqlalchemy import text
-with engine.connect() as conn:
-    # headlines column on index_ticks (added 2026-10-26)
+_MIGRATIONS = [
+    "ALTER TABLE index_ticks ADD COLUMN IF NOT EXISTS headlines TEXT",
+    "ALTER TABLE contract_series ADD COLUMN IF NOT EXISTS underlying VARCHAR(16) DEFAULT 'DP'",
+    "ALTER TABLE contracts ADD COLUMN IF NOT EXISTS underlying VARCHAR(16) DEFAULT 'DP'",
+    "ALTER TABLE contracts ADD COLUMN IF NOT EXISTS settlement_rate FLOAT",
+]
+for _sql in _MIGRATIONS:
     try:
-        conn.execute(text("ALTER TABLE index_ticks ADD COLUMN headlines TEXT"))
-        conn.commit()
-        print("✅ Migration: added index_ticks.headlines")
-    except Exception:
-        pass  # column already exists
+        with engine.connect() as conn:
+            conn.execute(text(_sql))
+            conn.commit()
+        print(f"✅ Migration: {_sql[:70]}")
+    except Exception as _e:
+        print(f"⚠️ Migration note ({_sql[:40]}…): {_e}")
 
 # ── Seed the 12 contract series ──
 SERIES = [

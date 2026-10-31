@@ -1095,19 +1095,6 @@ async function doLogin(ev) {
   await loadUser(); refreshTrading();
 }
 
-// Same ID login the exchange uses for the market maker / admin account
-async function doIdLogin(ev) {
-  ev.preventDefault();
-  const id = document.getElementById("li-id").value.trim();
-  if (!/^\d+$/.test(id)) { T.msg = { err: true, login: true, text: "Enter a numeric Discord ID." }; renderAcct(); return; }
-  try {
-    const info = await fetch(`/api/user/${id}`).then(r => r.json());
-    try { localStorage.setItem("q_user_id", id); localStorage.setItem("q_username", info.name || id); } catch (e) {}
-    T.msg = null;
-    await loadUser(); refreshTrading(true);
-  } catch (e) { T.msg = { err: true, login: true, text: "Cannot reach the server." }; renderAcct(); }
-}
-
 function doLogout() {
   try { localStorage.removeItem("q_user_id"); localStorage.removeItem("q_username"); } catch (e) {}
   T.user = null; refreshTrading();
@@ -1123,23 +1110,26 @@ async function renderAcct() {
         <button class="btn" type="submit">LOG IN</button>
       </form>
       <div class="acct-cash">Same account as the exchange · <a href="/" style="color:var(--accent)">register there</a></div>
-      <form class="login-form" style="grid-template-columns:1fr auto" onsubmit="doIdLogin(event)">
-        <input class="inp" id="li-id" inputmode="numeric" placeholder="Market maker: Discord ID">
-        <button class="btn btn-amber" type="submit">ID LOG IN</button>
-      </form>
       ${T.msg && T.msg.login ? `<div class="msg err">${esc(T.msg.text)}</div>` : ""}`;
     return;
   }
+  if (T.user.isMM) {
+    el.innerHTML = `<div class="acct-row">
+        <span class="acct-name">${esc(T.user.name)} <span class="pilot-tag" style="margin-left:4px">MARKET MAKER</span></span>
+        <button class="link-btn" onclick="doLogout()">log out</button>
+      </div>
+      <div class="msg" style="color:var(--muted)">This page is for users trading FSNI covers. As the market maker, launch and quote them in
+        <a href="/" style="color:var(--amber)">your dashboard → 🥬 FSNI Operations</a>.</div>`;
+    return;
+  }
   let w = null;
-  const walletId = T.user.isMM ? "0" : T.user.id;
-  const at = document.getElementById("acct-title"); if (at) at.textContent = T.user.isMM ? "Market Maker" : "My Account";   // MM quotes/trades run through the MM book (user 0)
-  try { w = await fetch(`/api/wallet/${walletId}`).then(r => r.json()); } catch (e) {}
+  try { w = await fetch(`/api/wallet/${T.user.id}`).then(r => r.json()); } catch (e) {}
   el.innerHTML = `<div class="acct-row">
       <span class="acct-name">${esc(T.user.name)}${T.user.isMM ? ' <span class="pilot-tag" style="margin-left:4px">MARKET MAKER</span>' : ""}</span>
       <button class="link-btn" onclick="doLogout()">log out</button>
     </div>
     <div class="acct-row">
-      <span class="acct-cash">${T.user.isMM ? "MM wallet · " : ""}Available <b>${w ? fmtE(w.available) : "—"}</b></span>
+      <span class="acct-cash">Available <b>${w ? fmtE(w.available) : "—"}</b></span>
       <span class="acct-cash">Locked <b>${w ? fmtE(w.locked_balance) : "—"}</b></span>
     </div>`;
 }
@@ -1253,65 +1243,18 @@ async function placeFsni(side) {
   await refreshTrading();
 }
 
-// ── Market maker controls (admin / MM account only) ──
-async function renderMM(prefill) {
-  const el = document.getElementById("mm-wrap");
-  const s = T.series.find(x => x.series_id === T.sel);
-  if (!T.user || !T.user.isMM || !s) { el.innerHTML = ""; return; }
-  const bid = (s.fair_mid * 0.75).toFixed(2), ask = (s.fair_mid * 1.25).toFixed(2);
-  const pb = prefill ? bid : (document.getElementById("mm-bid")?.value || bid);
-  const pa = prefill ? ask : (document.getElementById("mm-ask")?.value || ask);
-  const pq = document.getElementById("mm-qty")?.value || 5;
-  el.innerHTML = `<div class="mm-box">
-    <div class="mm-h">MARKET MAKER · ${esc(s.label)}</div>
-    ${!s.has_market
-      ? `<button class="btn btn-amber" onclick="mmLaunch()">LAUNCH THIS COVER</button>`
-      : `<div style="font-size:10px;color:var(--muted)">Model mid ${fmtE(s.fair_mid)} (${pct(s.model_prob)}). Pre-filled at ±25% so traders set the price.</div>
-         <div class="mm-inputs">
-           <div><div class="tk-lbl">Bid</div><input class="inp" id="mm-bid" type="number" step="0.01" value="${pb}"></div>
-           <div><div class="tk-lbl">Ask</div><input class="inp" id="mm-ask" type="number" step="0.01" value="${pa}"></div>
-           <div><div class="tk-lbl">Qty</div><input class="inp" id="mm-qty" type="number" step="1" value="${pq}"></div>
-         </div>
-         <div class="tk-btns">
-           <button class="btn btn-amber" onclick="mmQuote()">POST QUOTE</button>
-           <button class="btn btn-amber" onclick="mmQuoteAll()">QUOTE ALL FSNI</button>
-         </div>`}
-    <button class="btn" style="border-style:dashed" onclick="mmLaunchAll()">LAUNCH ALL FSNI COVERS</button>
-    ${T.mmMsg ? `<div class="msg ${T.mmMsg.err ? "err" : "ok"}">${esc(T.mmMsg.text)}</div>` : ""}
-  </div>`;
-}
-
-async function mmCall(url, body, okText) {
-  try {
-    const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-    const d = await r.json();
-    T.mmMsg = r.ok ? { err: false, text: okText(d) } : { err: true, text: d.detail || JSON.stringify(d) };
-  } catch (e) { T.mmMsg = { err: true, text: "Request failed — network error." }; }
-  await refreshTrading(true);
-}
-const mmLaunch    = () => mmCall(`/api/series/${T.sel}/launch`, { admin_id: T.user.adminId, series_id: T.sel },
-                                 d => `Launched contract #${d.contract_id}. Now post a quote.`);
-const mmLaunchAll = () => mmCall(`/api/series/launch_all`, { admin_id: T.user.adminId, underlying: "FSNI" },
-                                 d => `Launched ${d.launched.length} FSNI cover(s).`);
-const mmQuoteAll  = () => mmCall(`/api/series/quote_all`, { admin_id: T.user.adminId, underlying: "FSNI", spread_pct: 25, quantity: parseFloat(document.getElementById("mm-qty")?.value) || 5 },
-                                 d => `Quoted ${d.quoted.length} FSNI cover(s) at model mid ±25%.`);
-function mmQuote() {
-  const bid = parseFloat(document.getElementById("mm-bid").value), ask = parseFloat(document.getElementById("mm-ask").value);
-  const qty = parseFloat(document.getElementById("mm-qty").value) || 5;
-  mmCall(`/api/series/${T.sel}/quote`, { admin_id: T.user.adminId, series_id: T.sel, bid, ask, quantity: qty },
-         () => `Quote posted: bid ${fmtE(bid)} / ask ${fmtE(ask)} × ${qty}.`);
-}
+// Market-maker controls live in the MM dashboard (exchange → 🥬 FSNI Operations), not on this user page.
+function renderMM() { const el = document.getElementById("mm-wrap"); if (el) el.innerHTML = ""; }
 
 // ── Positions ──
 async function renderPositions() {
   const el = document.getElementById("my-pos");
   if (!T.user) { el.innerHTML = '<div class="empty-note">Log in to see your positions.</div>'; return; }
-  const isMM = T.user.isMM;
-  const hdr = document.getElementById("pos-title");
-  if (hdr) hdr.textContent = isMM ? "MM Open FSNI Covers" : "My FSNI Positions";
+  if (T.user.isMM) { el.innerHTML = '<div class="empty-note">Market maker positions are shown in the MM dashboard.</div>'; return; }
+  const isMM = false;
   let ps = [];
-  try { ps = (await fetch(`/api/positions/${isMM ? "0" : T.user.id}`).then(r => r.json())).filter(p => p.underlying === "FSNI"); } catch (e) {}
-  if (!ps.length) { el.innerHTML = `<div class="empty-note">${isMM ? "No open MM positions on FSNI covers." : "No open FSNI positions."}</div>`; return; }
+  try { ps = (await fetch(`/api/positions/${T.user.id}`).then(r => r.json())).filter(p => p.underlying === "FSNI"); } catch (e) {}
+  if (!ps.length) { el.innerHTML = '<div class="empty-note">No open FSNI positions.</div>'; return; }
   el.innerHTML = ps.map(p => {
     const left = p.expires_at ? Math.max(0, (new Date(p.expires_at.replace(" ", "T") + "Z") - Date.now()) / 3600000) : null;
     const leftTxt = left == null ? "" : left <= 0 ? "settling…" : left >= 24 ? `${Math.floor(left / 24)}d ${Math.floor(left % 24)}h left` : `${Math.floor(left)}h ${Math.round((left % 1) * 60)}m left`;

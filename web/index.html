@@ -209,6 +209,40 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
 .grid-title{font-size:9px;color:#b8cce0;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:10px;
   display:flex;justify-content:space-between;align-items:center}
 .series-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:4px}
+/* ── FSNI OPERATIONS (MM tab) ── */
+.fo-wrap{display:grid;grid-template-columns:minmax(0,1fr) 360px;min-height:calc(100vh - 150px)}
+.fo-main{border-right:1px solid var(--border);min-width:0}
+.fo-index{display:flex;gap:18px;flex-wrap:wrap;padding:12px 18px 0;font-family:var(--mono);font-size:11px;color:var(--muted)}
+.fo-index b{color:var(--text);font-weight:400}
+.fo-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) 60px;gap:4px;padding:12px 18px}
+.fo-h{font-family:var(--mono);font-size:9px;color:var(--amber);text-align:center}
+.fo-cell{background:var(--s1);border:1px solid var(--border);border-radius:5px;padding:9px 6px;text-align:center;cursor:pointer;position:relative}
+.fo-cell:hover{border-color:#3a4f70}.fo-cell.sel{border-color:var(--amber);background:rgba(255,179,0,.06)}
+.fo-cell .p{font-family:var(--mono);font-size:16px;color:var(--amber)}.fo-cell .p.model{color:var(--muted)}
+.fo-cell .c{font-size:9px;color:var(--muted)}.fo-cell .st{font-family:var(--mono);font-size:9px;color:var(--muted);margin-top:2px}
+.fo-dot{position:absolute;top:5px;right:5px;width:5px;height:5px;border-radius:50%;background:#4a6080}
+.fo-dot.live{background:var(--green)}.fo-dot.wait{background:var(--amber)}
+.fo-exp{display:flex;align-items:center;justify-content:center;background:var(--s2);border:1px solid var(--border);border-radius:5px;font-family:var(--mono);font-size:11px;color:var(--muted);font-weight:700}
+.fo-note{padding:0 18px 12px;font-size:10px;color:var(--muted);line-height:1.5}
+.fo-card{margin:0 18px 12px;border:1px solid var(--border);border-radius:6px;background:var(--s1)}
+.fo-card-h{padding:10px 12px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;gap:8px;font-size:13px}
+.fo-stats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;padding:8px 12px;border-bottom:1px solid var(--border);font-family:var(--mono);font-size:12px}
+.fo-stats span{display:block;font-family:var(--sans);font-size:8px;letter-spacing:1px;text-transform:uppercase;color:var(--muted)}
+.fo-book{display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid var(--border);font-family:var(--mono);font-size:11px}
+.fo-book>div{padding:6px 12px}.fo-book>div:first-child{border-right:1px solid var(--border)}
+.fo-book .r{display:flex;justify-content:space-between;padding:1px 0}
+.fo-form{display:grid;grid-template-columns:1fr 1fr 70px auto;gap:6px;padding:10px 12px;align-items:end}
+.fo-form label{display:block;font-family:var(--mono);font-size:8px;letter-spacing:1px;color:var(--muted);margin-bottom:3px}
+.fo-form input{width:100%;min-width:0;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-family:var(--mono);font-size:12px;padding:7px 8px}
+.fo-btn{font-family:var(--mono);font-size:10px;letter-spacing:1px;padding:8px 12px;border-radius:4px;cursor:pointer;background:transparent;border:1px solid var(--accent);color:var(--accent)}
+.fo-btn.amber{border-color:var(--amber);color:var(--amber)}.fo-btn:hover{filter:brightness(1.2);background:rgba(255,179,0,.06)}
+.fo-bulk{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:0 18px 8px}
+.fo-msg{padding:0 18px 14px;font-size:11px}
+.fo-pos{margin:8px 12px;padding:9px 11px;border:1px solid var(--border);border-radius:6px;background:var(--s1);font-size:11px}
+.fo-pos-g{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;font-family:var(--mono);font-size:11px;margin-top:5px}
+.fo-pos-g span{display:block;font-family:var(--sans);font-size:8px;letter-spacing:1px;text-transform:uppercase;color:var(--muted)}
+@media(max-width:900px){.fo-wrap{grid-template-columns:1fr}.fo-main{border-right:none}.fo-form{grid-template-columns:1fr 1fr}.fo-stats{grid-template-columns:repeat(3,1fr)}}
+
 .grid-cell{border:1px solid var(--border);border-radius:5px;padding:8px 6px;text-align:center;
   cursor:pointer;transition:all .2s;background:var(--s1);position:relative}
 .grid-cell:hover{border-color:var(--accent);background:rgba(0,200,240,.06)}
@@ -822,7 +856,7 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
       <button class="dash-tab am" id="mt1" onclick="switchMMTab(1)">⚡ Operations</button>
       <button class="dash-tab" id="mt2" onclick="switchMMTab(2)">📊 Analysis</button>
       <button class="dash-tab" id="mt3" onclick="switchMMTab(3)">👥 Users</button>
-      <button class="dash-tab" onclick="window.location='/narrative'" title="Launch and quote FSNI covers">🥬 FSNI Covers ↗</button>
+      <button class="dash-tab" id="mt4" onclick="switchMMTab(4)">🥬 FSNI Operations</button>
     </div>
 
     <!-- MM TAB 1 -->
@@ -1076,6 +1110,30 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
         <span class="sh-sub">all accounts on the platform</span></div>
       <div id="mm-user-list" style="overflow-y:auto;max-height:600px"></div>
     </div><!-- /m-page3 -->
+
+    <!-- ── FSNI OPERATIONS (market maker only) — FSNI covers are traded by users on /narrative ── -->
+    <div class="page" id="m-page4">
+      <div class="fo-wrap">
+        <div class="fo-main">
+          <div class="sh"><span class="sh-title">🥬 FSNI Covers · Pilot</span>
+            <span class="sh-sub">launch and quote — users trade these on the <a href="/narrative" target="_blank" style="color:var(--accent)">FSNI page ↗</a></span></div>
+          <div class="fo-index" id="fo-index"></div>
+          <div class="fo-grid" id="fo-grid"></div>
+          <div class="fo-note">Cell % = market-implied P(YES) from your quotes (order-book mid ÷ collateral); grey = model before any quotes.
+            Pays YES if the <strong>average FSNI over the window is above 30</strong>. FSNI quotes are pre-filled at model mid ±25% so traders set the price.</div>
+          <div id="fo-panel"></div>
+          <div class="fo-bulk">
+            <button class="fo-btn amber" onclick="fsniOpsBulk('launch')">LAUNCH ALL FSNI COVERS</button>
+            <button class="fo-btn amber" onclick="fsniOpsBulk('quote')">QUOTE ALL FSNI (±25%)</button>
+          </div>
+          <div class="fo-msg" id="fo-msg"></div>
+        </div>
+        <div class="fo-side">
+          <div class="sh"><span class="sh-title">MM Open FSNI Covers</span></div>
+          <div id="fo-pos"></div>
+        </div>
+      </div>
+    </div><!-- /m-page4 -->
   </div><!-- /mm -->
 </div><!-- /app -->
 
@@ -1120,6 +1178,130 @@ function idxColor(v){return v<20?'var(--green)':v<50?'var(--amber)':'var(--red)'
 function idxClass(v){return v<20?'low':v<50?'mid':'high';}
 
 // ============================================================
+// FSNI OPERATIONS — market maker console for FSNI covers.
+// Users trade FSNI on /narrative; only the MM launches/quotes here.
+// ============================================================
+const FO = { series: [], sel: null };
+const foPct = n => n==null ? '—' : n.toFixed(1)+'%';
+const foMkt = s => (s.book_bid!=null && s.book_ask!=null) ? (s.book_bid+s.book_ask)/2/s.collateral*100
+                 : (s.implied_rate!=null ? s.implied_rate : null);
+function foEsc(x){return String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+
+async function fsniOpsLoad(resetForm){
+  if(!currentUser||!(currentUser.isAdmin||currentUser.isMM)) return;
+  const [series, idx] = await Promise.all([
+    fetch(`${API}/api/series`).then(r=>r.json()).catch(()=>[]),
+    fetch(`${API}/api/narrative/index`).then(r=>r.json()).catch(()=>null)
+  ]);
+  FO.series = series.filter(x=>(x.underlying||'DP')==='FSNI');
+  if(!FO.sel){ const f=FO.series.find(x=>x.expiry_mins===10080&&x.collateral===1000)||FO.series[0]; if(f) FO.sel=f.series_id; }
+  const ie=document.getElementById('fo-index');
+  if(ie) ie.innerHTML = idx ? `<span>FSNI now <b>${idx.value.toFixed(1)}</b></span><span>Regime <b>${foEsc(idx.regime)}</b></span>`+
+    `<span>Intensity <b>${idx.intensity_score.toFixed(1)}</b></span><span>Diffusion <b>${idx.diffusion_score.toFixed(1)}</b></span>` : '';
+  foGrid(); await foPanel(resetForm); foPositions();
+}
+
+function foGrid(){
+  const el=document.getElementById('fo-grid'); if(!el) return;
+  let h=['Standard €100','Plus €1k','Pro €10k'].map(t=>`<div class="fo-h">${t}</div>`).join('')+'<div></div>';
+  [[10080,'7d'],[43200,'30d']].forEach(([mins,lbl])=>{
+    [100,1000,10000].forEach(col=>{
+      const s=FO.series.find(x=>x.expiry_mins===mins&&x.collateral===col);
+      if(!s){h+='<div class="fo-cell">—</div>';return;}
+      const m=foMkt(s), settling=s.expires_in==='Expiring...';
+      const st=!s.has_market?(s.paused?'⏸ paused':'not launched'):settling?'settling…':(s.has_orders?s.expires_in:'no quotes yet');
+      const dot=!s.has_market?'':(s.has_orders&&!settling?'live':'wait');
+      h+=`<div class="fo-cell ${FO.sel===s.series_id?'sel':''}" onclick="foSelect(${s.series_id})">
+        <span class="fo-dot ${dot}"></span>
+        <div class="c">€${col>=1000?col/1000+'k':col}</div>
+        <div class="p ${m==null?'model':''}">${m!=null?foPct(m):foPct(s.model_prob)}</div>
+        <div class="st">${foEsc(st)}</div></div>`;
+    });
+    h+=`<div class="fo-exp">${lbl}</div>`;
+  });
+  el.innerHTML=h;
+}
+
+function foSelect(id){ FO.sel=id; document.getElementById('fo-msg').innerHTML=''; foGrid(); foPanel(true); }
+
+async function foPanel(resetForm){
+  const el=document.getElementById('fo-panel'); if(!el) return;
+  const s=FO.series.find(x=>x.series_id===FO.sel); if(!s){el.innerHTML='';return;}
+  const book=s.has_market?await fetch(`${API}/api/series/${s.series_id}/book`).then(r=>r.json()).catch(()=>({bids:[],asks:[]})):{bids:[],asks:[]};
+  const rows=l=>l.length?l.slice(0,5).map(o=>`<div class="r"><span>${o.price.toFixed(2)}</span><span style="color:var(--muted)">${o.qty}${o.is_mm?' MM':''}</span></div>`).join(''):'<div style="color:var(--muted)">—</div>';
+  const keep=id=>(!resetForm&&document.getElementById(id))?document.getElementById(id).value:null;
+  const bid=keep('fo-bid')??(s.fair_mid*0.75).toFixed(2), ask=keep('fo-ask')??(s.fair_mid*1.25).toFixed(2), qty=keep('fo-qty')??5;
+  const settling=s.expires_in==='Expiring...';
+  el.innerHTML=`<div class="fo-card">
+    <div class="fo-card-h"><strong>${foEsc(s.label)}</strong>
+      <span style="font-family:var(--mono);font-size:10px;color:var(--muted)">${!s.has_market?'not launched':settling?'settling — waiting for FSNI data':foEsc(s.expires_in)+' left'}</span></div>
+    <div class="fo-stats">
+      <div><span>FSNI now</span>${s.index!=null?s.index.toFixed(1):'—'}</div>
+      <div><span>Window avg</span>${s.running_avg!=null?s.running_avg.toFixed(1):'—'}</div>
+      <div><span>Model P(YES)</span>${foPct(s.model_prob)}</div>
+      <div><span>Model mid</span>€${s.fair_mid!=null?s.fair_mid.toFixed(2):'—'}</div>
+      <div><span>Market P(YES)</span>${foPct(foMkt(s))}</div>
+    </div>
+    <div class="fo-book"><div><div style="font-size:8px;color:var(--green);letter-spacing:1px;margin-bottom:3px">BIDS</div>${rows(book.bids||[])}</div>
+      <div><div style="font-size:8px;color:var(--red);letter-spacing:1px;margin-bottom:3px">ASKS</div>${rows(book.asks||[])}</div></div>
+    ${!s.has_market
+      ? `<div style="padding:10px 12px"><button class="fo-btn amber" onclick="foLaunch()">LAUNCH THIS COVER</button></div>`
+      : settling ? `<div style="padding:10px 12px;font-size:11px;color:var(--muted)">Expired — settles automatically once enough FSNI readings exist for its window.</div>`
+      : `<div class="fo-form">
+          <div><label>BID</label><input id="fo-bid" type="number" step="0.01" value="${bid}"></div>
+          <div><label>ASK</label><input id="fo-ask" type="number" step="0.01" value="${ask}"></div>
+          <div><label>QTY</label><input id="fo-qty" type="number" step="1" value="${qty}"></div>
+          <button class="fo-btn amber" onclick="foQuote()">POST QUOTE</button>
+        </div>`}
+  </div>`;
+}
+
+function foMsg(ok,t){const m=document.getElementById('fo-msg'); if(m) m.innerHTML=`<span style="color:${ok?'var(--green)':'var(--red)'}">${foEsc(t)}</span>`;}
+
+async function foPost(url,body){
+  try{
+    const r=await fetch(`${API}${url}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const d=await r.json().catch(()=>({}));
+    return {ok:r.ok,d};
+  }catch(e){return {ok:false,d:{detail:'Network error'}};}
+}
+
+async function foLaunch(){
+  const r=await foPost(`/api/series/${FO.sel}/launch`,{admin_id:currentUser.id,series_id:FO.sel});
+  foMsg(r.ok, r.ok?`Launched contract #${r.d.contract_id}. Now post a quote.`:(r.d.detail||'Launch failed'));
+  fsniOpsLoad(true);
+}
+
+async function foQuote(){
+  const bid=parseFloat(document.getElementById('fo-bid').value), ask=parseFloat(document.getElementById('fo-ask').value);
+  const qty=parseFloat(document.getElementById('fo-qty').value)||5;
+  const r=await foPost(`/api/series/${FO.sel}/quote`,{admin_id:currentUser.id,series_id:FO.sel,bid,ask,quantity:qty});
+  foMsg(r.ok, r.ok?`Quote posted: bid €${bid.toFixed(2)} / ask €${ask.toFixed(2)} × ${qty}`:(r.d.detail||'Quote failed'));
+  fsniOpsLoad(false);
+}
+
+async function fsniOpsBulk(kind){
+  const r = kind==='launch'
+    ? await foPost('/api/series/launch_all',{admin_id:currentUser.id,underlying:'FSNI'})
+    : await foPost('/api/series/quote_all',{admin_id:currentUser.id,underlying:'FSNI',spread_pct:25,quantity:5});
+  foMsg(r.ok, !r.ok?(r.d.detail||'Failed'): kind==='launch'?`Launched ${r.d.launched.length} FSNI cover(s).`:`Quoted ${r.d.quoted.length} FSNI cover(s) at model mid ±25%.`);
+  fsniOpsLoad(true);
+}
+
+async function foPositions(){
+  const el=document.getElementById('fo-pos'); if(!el) return;
+  const ps=(await fetch(`${API}/api/positions/0`).then(r=>r.json()).catch(()=>[])).filter(p=>p.underlying==='FSNI');
+  if(!ps.length){el.innerHTML='<div class="empty">No open MM positions on FSNI covers</div>';return;}
+  el.innerHTML=ps.map(p=>`<div class="fo-pos">
+    <div style="display:flex;justify-content:space-between"><span><span class="pos-role pr-${p.role.toLowerCase()}">${p.role}</span> ${foEsc(p.series_label)}</span>
+      <span style="font-family:var(--mono);color:${p.pnl>=0?'var(--green)':'var(--red)'}">${p.pnl>=0?'+':''}${p.pnl.toFixed(2)}</span></div>
+    <div class="fo-pos-g"><div><span>Entry</span>${p.entry_price.toFixed(2)}</div><div><span>Mark</span>${p.mark_price.toFixed(2)}</div>
+      <div><span>Qty</span>${p.quantity}</div><div><span>Avg vs ${p.settlement_threshold}</span>${p.running_avg!=null?p.running_avg.toFixed(1):'—'}</div></div>
+  </div>`).join('');
+}
+setInterval(()=>{ if(mmTabN===4) fsniOpsLoad(false); }, 30000);
+
+// ============================================================
 // TAB SWITCHING
 // ============================================================
 function switchTraderTab(n){
@@ -1135,13 +1317,12 @@ function switchTraderTab(n){
 }
 function switchMMTab(n){
   mmTabN=n;
-  document.getElementById('m-page1').className=`page ${n===1?'active':''}`;
-  document.getElementById('m-page2').className=`page ${n===2?'active':''}`;
-  document.getElementById('m-page3').className=`page ${n===3?'active':''}`;
-  document.getElementById('mt1').className=`dash-tab ${n===1?'am':''}`;
-  document.getElementById('mt2').className=`dash-tab ${n===2?'am':''}`;
-  document.getElementById('mt3').className=`dash-tab ${n===3?'am':''}`;
+  [1,2,3,4].forEach(k=>{
+    const pg=document.getElementById('m-page'+k); if(pg) pg.className=`page ${n===k?'active':''}`;
+    const tb=document.getElementById('mt'+k);     if(tb) tb.className=`dash-tab ${n===k?'am':''}`;
+  });
   if(n===3) loadMMUsers();
+  if(n===4) fsniOpsLoad(true);
   document.getElementById('mt1').className=`dash-tab ${n===1?'am':''}`;
   document.getElementById('mt2').className=`dash-tab ${n===2?'am':''}`;
 }

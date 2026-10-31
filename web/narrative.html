@@ -109,7 +109,7 @@ header {
 .page-wrap {
   position: relative; z-index: 1;
   display: grid;
-  grid-template-columns: 320px 1fr 380px;
+  grid-template-columns: 320px 1fr 400px;
   gap: 0;
   height: calc(100vh - 53px);
   overflow: hidden;
@@ -352,7 +352,13 @@ header {
 .msg { font-size: 11px; line-height: 1.4 }
 .msg.ok { color: var(--green) } .msg.err { color: var(--red) }
 
-.fg { display: grid; grid-template-columns: 34px repeat(3, 1fr); gap: 4px; padding: 10px 14px }
+.fg { display: grid; grid-template-columns: 44px repeat(3, 1fr); gap: 6px; padding: 14px 18px 10px }
+.fg-cell { padding: 12px 8px !important }
+.fg-prob { font-size: 18px !important }
+.fg-note { padding: 0 18px 14px !important; font-size: 10px !important }
+.ticket, .mm-box { margin-left: 18px !important; margin-right: 18px !important }
+.feed-wrap.compact .headline-item { padding: 9px 14px }
+.feed-wrap.compact .hl-title { font-size: 12px; margin-bottom: 3px }
 .fg-h { font-family: var(--mono); font-size: 8px; letter-spacing: 1px; color: var(--muted); text-align: center; text-transform: uppercase }
 .fg-exp { display: flex; align-items: center; justify-content: center; font-family: var(--mono); font-size: 10px; color: var(--muted); background: var(--s2); border: 1px solid var(--border); border-radius: 4px }
 .fg-cell { background: var(--s1); border: 1px solid var(--border); border-radius: 5px; padding: 7px 6px; cursor: pointer; text-align: center; position: relative; min-width: 0 }
@@ -568,39 +574,42 @@ header {
 
   </div>
 
-  <!-- COL 2: LIVE HEADLINES FEED -->
+  <!-- COL 2: TRADE — same place as the Delivery Pulse exchange -->
   <div class="col">
+
+    <div class="sh">
+      <span class="sh-title">FSNI Covers</span>
+      <span class="pilot-tag">PILOT</span>
+    </div>
+
+    <div class="fg" id="fsni-grid"></div>
+    <div class="fg-note">% = market-implied chance of YES (order-book mid ÷ collateral); grey = model estimate before any quotes.
+      A cover pays YES if the <strong>average FSNI over the contract window is above 30</strong>. Wallet cash is shared with the Delivery Pulse exchange.</div>
+
+    <div id="ticket-wrap"></div>
+    <div id="mm-wrap"></div>
+
+  </div>
+
+  <!-- COL 3: ACCOUNT · POSITIONS · HEADLINES · SIGNAL -->
+  <div class="col">
+
+    <div class="sh">
+      <span class="sh-title">My Account</span>
+    </div>
+    <div class="acct" id="acct"></div>
+
+    <div class="sh"><span class="sh-title">My FSNI Positions</span></div>
+    <div id="my-pos"><div class="empty-note">Log in to see your positions.</div></div>
 
     <div class="sh">
       <span class="sh-title">Live Headlines</span>
       <span class="sh-badge" id="feed-count">0 stories</span>
     </div>
 
-    <div class="feed-wrap" id="feed-wrap">
+    <div class="feed-wrap compact" id="feed-wrap">
       <div class="feed-empty">Fetching live narrative signals…</div>
     </div>
-
-  </div>
-
-  <!-- COL 3: TRADE -->
-  <div class="col">
-
-    <div class="sh">
-      <span class="sh-title">Trade FSNI Covers</span>
-      <span class="pilot-tag">PILOT</span>
-    </div>
-
-    <div class="acct" id="acct"></div>
-
-    <div class="fg" id="fsni-grid"></div>
-    <div class="fg-note">% = market-implied chance of YES (order-book mid ÷ collateral). Pays YES if the
-      <strong>average FSNI over the contract window is above 30</strong>. Wallet cash is shared with the Delivery Pulse exchange.</div>
-
-    <div id="ticket-wrap"></div>
-    <div id="mm-wrap"></div>
-
-    <div class="sh"><span class="sh-title">My FSNI Positions</span></div>
-    <div id="my-pos"><div class="empty-note">Log in to see your positions.</div></div>
 
     <div class="sh" style="position:relative;z-index:1">
       <span class="sh-title">Market Signal</span>

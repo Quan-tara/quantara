@@ -23,7 +23,7 @@ Nothing here feeds the story score or the FSNI — scores come only from the new
 import time
 
 from db.database import SessionLocal
-from db.models import Narrative, StoryAccount, StoryMarket, StoryPosition, StoryTrade
+from db.models import Narrative, StoryAccount, StoryMarket, StoryPosition, StoryPricePoint, StoryTrade
 
 START_CREDITS     = 10000.0
 IMPACT            = 0.10    # price points per unit traded
@@ -165,6 +165,7 @@ def trade(user_id, sid, side, action, units):
         m.crowd_offset, m.updated_at = new_off, now
         session.add(StoryTrade(user_id=user_id, sid=sid, side=side, action=action, units=units,
                                price=unit, credits=credits, score=score, ts=now))
+        session.add(StoryPricePoint(sid=sid, ts=now, price=round(p_after, 2)))
         session.commit()
         return {"side": side, "action": action, "units": units, "price": round(unit, 2),
                 "credits": credits, "balance": round(acc.credits, 2),

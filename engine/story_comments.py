@@ -129,6 +129,8 @@ def thread(sid, viewer_id=None, name_of=lambda uid: str(uid)):
         if viewer_id is not None:
             mine_reported = {r.comment_id for r in s.query(StoryCommentReport)
                              .filter(StoryCommentReport.user_id == viewer_id).all()}
+        from engine.story_stats import founding_numbers
+        seats = founding_numbers(s)
         names, tally = {}, {v: 0 for v in VERDICTS}
         voted = set()
         # latest verdict per user counts once
@@ -141,7 +143,8 @@ def thread(sid, viewer_id=None, name_of=lambda uid: str(uid)):
             if c.user_id not in names:
                 names[c.user_id] = name_of(c.user_id)
             hidden = c.deleted or (c.reports >= REPORT_HIDE)
-            d = {"id": c.id, "name": names[c.user_id], "ts": c.ts, "verdict": c.verdict,
+            d = {"id": c.id, "name": names[c.user_id], "founding": seats.get(c.user_id),
+                 "ts": c.ts, "verdict": c.verdict,
                  "side": c.side, "units": c.units, "mine": viewer_id == c.user_id,
                  "deleted": c.deleted, "held": (not c.deleted) and c.reports >= REPORT_HIDE,
                  "reported": c.id in mine_reported, "replies": []}

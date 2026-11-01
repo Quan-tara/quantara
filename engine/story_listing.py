@@ -78,6 +78,19 @@ def history_from_readings(session, sid, since_ts):
     return out
 
 
+def _price_point(session, sid, now, score):
+    """Market price at this reading = score + crowd lean (no lean yet → price = score)."""
+    try:
+        from db.models import StoryMarket, StoryPricePoint
+        from engine.story_market import grow_price
+        m = session.query(StoryMarket).filter(StoryMarket.sid == sid).first()
+        if m and m.status != "OPEN":
+            return
+        session.add(StoryPricePoint(sid=sid, ts=now, price=round(grow_price(score, m.crowd_offset if m else 0), 2)))
+    except Exception as e:
+        print(f"⚠️ price point error {sid}: {e}")
+
+
 def _settle(session, sid, final=None, refund=False):
     try:
         from engine.story_market import settle
@@ -144,6 +157,7 @@ def update_listings(stories, session, now=None):
         n.last_score = score
         n.peak_score = max(n.peak_score or 0, score)
         session.add(NarrativePoint(sid=n.sid, ts=now, score=score))
+        _price_point(session, n.sid, now, score)
         if now >= n.closes_at:
             n.status, n.final_score, n.closed_at = "CLOSED", score, now
             _settle(session, n.sid, final=score)
@@ -164,6 +178,7 @@ def update_listings(stories, session, now=None):
         for ts, sc in history_from_readings(session, s["sid"], now - BACKFILL_H * 3600):
             session.add(NarrativePoint(sid=s["sid"], ts=ts, score=sc))
         session.add(NarrativePoint(sid=s["sid"], ts=now, score=s["story_score"]))
+        _price_point(session, s["sid"], now, s["story_score"])
         known[s["sid"]] = n
         print(f"📌 Story listed  {s['sid']}  score {s['story_score']:.1f}  "
               f"[{s['outlets']} outlets]  {s['title'][:70]}")

@@ -392,7 +392,11 @@ def group_stories(articles):
             tier, tier_label = "t2", "STRESS"
         else:
             tier, tier_label = "t3", "WATCH"
+        recent_12h = sum(1 for x in m if x["ts"] >= time.time() - 12 * 3600)
         out.append({
+            "tokens":     sorted(set().union(*(x["tokens"] for x in m))),
+            "hazards":    sorted(set().union(*(x["hazards"] for x in m))),
+            "recent_12h": recent_12h,
             "title":      lead["title"],
             "source":     lead["source"],
             "url":        lead["url"],
@@ -413,6 +417,112 @@ def group_stories(articles):
         })
     out.sort(key=lambda s: (s["score"], s["ts"]), reverse=True)
     return out
+
+
+# ─────────────────────────────────────────────
+# STORY SCORES — 0–100 attention score per story, with a stable ID
+# ─────────────────────────────────────────────
+# What users will trade later. Published method:
+#   reach      = log2(1+outlets) / log2(41)            40 outlets → full marks   (45 %)
+#   geography  = regions reporting / 4 (US/UK/EU/AU)                            (15 %)
+#   severity   = story severity 0–1 (deaths, hospitalisations, Class I…)        (20 %)
+#   momentum   = new articles in the last 12 h / 8  (8+ new articles → full)  (20 %)
+#   freshness  = 1.0 if the newest article is < 12 h old, falling to 0.3 at 98 h
+#   score      = 100 × (weighted sum) × freshness
+# A story keeps its ID across collector runs by matching it to the previous run's
+# stories (same rule used to group articles), so its score can be followed over time.
+
+STORY_INDEX_MAX = 40     # stories kept per reading for matching / trends
+TREND_HOURS     = 3      # trend arrow compares with the score this many hours ago
+
+
+def story_score(s, now=None):
+    now = now or time.time()
+    reach = min(1.0, math.log2(1 + s["outlets"]) / math.log2(41))
+    geo = min(1.0, len(s.get("regions") or []) / 4)
+    sev = float(s.get("severity") or 0)
+    mom = min(1.0, s.get("recent_12h", 0) / 8)
+    age_h = max(0.0, (now - s["ts"]) / 3600)
+    fresh = 1.0 if age_h <= 12 else max(0.3, 1 - (age_h - 12) / 86)
+    return round(100 * (0.45 * reach + 0.15 * geo + 0.20 * sev + 0.20 * mom) * fresh, 1)
+
+
+def _load_story_index(session, before_ts=None):
+    """story_index list from the latest FSNI reading (optionally at or before a time)."""
+    import sqlalchemy as sa
+    q = ("SELECT headlines FROM index_ticks WHERE headlines LIKE :pat"
+         + (" AND ts <= :b" if before_ts else "") + " ORDER BY ts DESC LIMIT 1")
+    params = {"pat": '%"story_index"%'}
+    if before_ts:
+        params["b"] = before_ts
+    try:
+        row = session.execute(sa.text(q), params).fetchone()
+        if not row:
+            return []
+        return (json.loads(row[0]) or {}).get("story_index") or []
+    except Exception as e:
+        print(f"⚠️ story_index load error: {e}")
+        return []
+
+
+def _same_story_over_time(new, old):
+    """Is `new` (this run) the continuation of `old` (previous run)?
+    Stories pick up vocabulary as they grow, so we ask whether most of the OLD story's
+    key words are still present, rather than requiring the two to look alike overall."""
+    if new["hazards"] and old["hazards"] and not (new["hazards"] & old["hazards"]):
+        return False
+    a, b = new["tokens"], old["tokens"]
+    inter = len(a & b)
+    if inter == 0:
+        return False
+    if inter / len(a | b) >= 0.34:
+        return True
+    if inter >= 2 and inter / len(b) >= 0.6:          # most of the old story is still there
+        return True
+    return len(b) == 1 and len(a) <= 3                 # tiny one-word stories, only if still tiny
+
+
+def assign_story_ids(stories, session, now=None):
+    """Give each story a stable sid, first_seen, score, and the score change over TREND_HOURS."""
+    import hashlib
+    now = now or time.time()
+    prev = _load_story_index(session)
+    prev_t = _load_story_index(session, before_ts=now - TREND_HOURS * 3600)
+    prev_sets = [{**p, "tokens": set(p.get("tokens") or []), "hazards": set(p.get("hazards") or [])} for p in prev]
+    then = {p["sid"]: p.get("score") for p in prev_t if p.get("sid")}
+    used = set()
+    for s in stories:
+        s["story_score"] = story_score(s, now)
+    for s in sorted(stories, key=lambda x: x["story_score"], reverse=True):
+        me = {"tokens": set(s["tokens"]), "hazards": set(s["hazards"])}
+        best, best_j = None, 0.0
+        for p in prev_sets:
+            if p["sid"] in used or not _same_story_over_time(me, p):
+                continue
+            j = len(me["tokens"] & p["tokens"]) / max(1, len(p["tokens"]))
+            if j > best_j:
+                best, best_j = p, j
+        if best:
+            s["sid"], s["first_seen"] = best["sid"], best.get("first_seen", s["first_ts"])
+            used.add(best["sid"])
+        else:
+            s["sid"] = hashlib.sha1(f"{s['title']}|{now}".encode()).hexdigest()[:10]
+            s["first_seen"] = now
+        old = then.get(s["sid"])
+        s["score_then"] = old
+        s["score_delta"] = round(s["story_score"] - old, 1) if old is not None else None
+        s["is_new"] = s["first_seen"] >= now - TREND_HOURS * 3600
+    return stories
+
+
+def compact_story_index(stories):
+    """What is stored per reading (top STORY_INDEX_MAX by score) for matching and trends."""
+    top = sorted(stories, key=lambda x: x["story_score"], reverse=True)[:STORY_INDEX_MAX]
+    return [{"sid": s["sid"], "title": s["title"], "score": s["story_score"], "delta": s["score_delta"],
+             "outlets": s["outlets"], "articles": s["articles"], "regions": s["regions"],
+             "categories": s["categories"], "first_seen": s["first_seen"], "ts": s["ts"],
+             "url": s["url"], "source": s["source"],
+             "tokens": s["tokens"][:40], "hazards": s["hazards"]} for s in top]
 
 
 # ─────────────────────────────────────────────
@@ -634,12 +744,18 @@ def calculate_narrative_index() -> dict:
         }
         rss_outlets = raw["outlets"]
 
-        top = [{k: v for k, v in s.items() if k != "all_outlets"} | {"outlet_names": s["all_outlets"][:6]}
-               for s in stories[:MAX_STORIES]]
+        assign_story_ids(stories, session)
+        story_index = compact_story_index(stories)
+        by_score = sorted(stories, key=lambda x: x["story_score"], reverse=True)
+        top = [{k: v for k, v in s.items() if k not in ("all_outlets", "tokens", "hazards")}
+               | {"outlet_names": s["all_outlets"][:6]}
+               for s in by_score[:MAX_STORIES]]
 
         print(f"📊 Intensity: {intensity_axis:.1f} | Diffusion: {diffusion_axis:.1f} | Final: {final_index}")
         for s in top[:3]:
-            print(f"   • [{s['outlets']} outlets] {s['title'][:90]}")
+            d = s.get("score_delta")
+            print(f"   • score {s['story_score']:.1f}{'' if d is None else f' ({d:+.1f}/{TREND_HOURS}h)'} "
+                  f"[{s['outlets']} outlets] {s['title'][:80]}")
 
         return {
             "value":           final_index,
@@ -648,6 +764,7 @@ def calculate_narrative_index() -> dict:
             "payload": {
                 "v": 2,
                 "stories": top,
+                "story_index": story_index,
                 "components": components,
                 "meta": {**stats, "stories_total": n_st, "outlets": rss_outlets,
                          "gdelt_ok": gdelt["ok"], "baseline_runs": n_base, "raw": raw},

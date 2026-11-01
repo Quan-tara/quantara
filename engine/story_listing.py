@@ -77,6 +77,17 @@ def history_from_readings(session, sid, since_ts):
     return out
 
 
+def _settle(session, sid, final=None, refund=False):
+    try:
+        from engine.story_market import settle
+        k = settle(session, sid, final=final, refund=refund)
+        if k:
+            print(f"💰 {'Refunded' if refund else 'Settled'} {k} position(s) on story {sid}"
+                  + ("" if refund else f" at final score {final:.1f}"))
+    except Exception as e:
+        print(f"⚠️ story settlement error {sid}: {e}")
+
+
 def listed_for_matching(session):
     """LISTED stories in the shape assign_story_ids matches against."""
     out = []
@@ -114,6 +125,7 @@ def update_listings(stories, session, now=None):
             n.status, n.closed_at = "MERGED", now
             n.final_score = n.last_score
             active.remove(n)
+            _settle(session, n.sid, refund=True)
             print(f"🔗 Story merged  {n.sid} → {into['sid']}  {n.title[:60]}")
 
     # 1) update / close what is already listed
@@ -133,6 +145,7 @@ def update_listings(stories, session, now=None):
         session.add(NarrativePoint(sid=n.sid, ts=now, score=score))
         if now >= n.closes_at:
             n.status, n.final_score, n.closed_at = "CLOSED", score, now
+            _settle(session, n.sid, final=score)
             print(f"🔒 Story closed  {n.sid}  final {score:.1f}  {n.title[:70]}")
 
     # 2) list new stories that crossed the threshold

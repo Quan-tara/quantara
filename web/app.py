@@ -1650,9 +1650,15 @@ def api_narrative_listed(days: float = 14.0):
                       .order_by(NarrativePoint.ts).all()):
                 pts.setdefault(p.sid, []).append([p.ts, p.score])
         out = []
+        from db.models import StoryMarket
+        from engine.story_market import grow_price, trading_state
+        mk = {m.sid: m for m in session.query(StoryMarket).filter(StoryMarket.sid.in_(sids or ["-"])).all()}
         for n in rows:
             d = _narr_row(n)
             d["spark"] = pts.get(n.sid, [])[-60:]
+            m = mk.get(n.sid)
+            d["price"] = round(grow_price(n.last_score, m.crowd_offset if m else 0), 2)
+            d["trading_open"] = trading_state(n)[0]
             out.append(d)
         return {"now": _time.time(), "rules": {"score": LIST_SCORE, "outlets": LIST_MIN_OUTLETS,
                                                 "window_h": LIST_WINDOW_H},
@@ -1737,6 +1743,94 @@ def api_narrative_story(sid: str):
             "rules": {"score": LIST_SCORE, "outlets": LIST_MIN_OUTLETS, "window_h": LIST_WINDOW_H},
         })
         return d
+    finally:
+        session.close()
+
+
+# =========================================================
+# STORY TRADING — grow / fade with virtual credits (engine/story_market.py)
+# =========================================================
+from pydantic import BaseModel as _BM
+
+
+class StoryTradeRequest(_BM):
+    user_id: str
+    sid: str
+    side: str
+    action: str = "OPEN"
+    units: int
+
+
+@app.get("/api/stories/market/{sid}")
+def api_story_market(sid: str, user_id: str = None):
+    from db.models import Narrative
+    from engine.story_market import market_view
+    session = SessionLocal()
+    try:
+        n = session.query(Narrative).filter(Narrative.sid == sid[:16]).first()
+        if not n:
+            raise HTTPException(status_code=404, detail="Story is not listed")
+        uid = parse_user_id(user_id) if user_id else None
+        v = market_view(session, n, uid)
+        names = {}
+        for t in v["trades"]:
+            if t["user_id"] not in names:
+                try:
+                    names[t["user_id"]] = get_display_name(int(t["user_id"]))
+                except Exception:
+                    names[t["user_id"]] = "trader"
+            t["name"] = names[t["user_id"]]
+            del t["user_id"]
+        return v
+    finally:
+        session.close()
+
+
+@app.post("/api/stories/trade")
+def api_story_trade(req: StoryTradeRequest):
+    from engine.story_market import trade, TradeError
+    uid = parse_user_id(req.user_id)
+    try:
+        return {"status": "ok", **trade(uid, req.sid[:16], req.side, req.action, req.units)}
+    except TradeError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/api/stories/account/{user_id_str}")
+def api_story_account(user_id_str: str):
+    """Credits and all story positions (open first) for one user."""
+    from db.models import Narrative, StoryPosition, StoryMarket
+    from engine.story_market import account, close_value
+    uid = parse_user_id(user_id_str)
+    session = SessionLocal()
+    try:
+        acc = account(session, uid)
+        session.commit()
+        rows = session.query(StoryPosition).filter(StoryPosition.user_id == uid).all()
+        sids = list({r.sid for r in rows}) or ["-"]
+        nar = {n.sid: n for n in session.query(Narrative).filter(Narrative.sid.in_(sids)).all()}
+        mk = {m.sid: m for m in session.query(StoryMarket).filter(StoryMarket.sid.in_(sids)).all()}
+        out, open_value, pnl_total = [], 0.0, 0.0
+        for r in rows:
+            if r.status == "CLOSED" and not r.realized:
+                continue
+            n, m = nar.get(r.sid), mk.get(r.sid)
+            value = (close_value(n.last_score if n else 0, m.crowd_offset if m else 0, r.side, r.units)
+                     if r.status == "OPEN" else (r.payout or 0))
+            pnl = value - r.cost + r.realized
+            if r.status == "OPEN":
+                open_value += value
+            pnl_total += pnl
+            out.append({"sid": r.sid, "title": n.title if n else r.sid, "side": r.side,
+                        "units": r.units, "cost": round(r.cost, 2), "status": r.status,
+                        "story_status": n.status if n else None,
+                        "closes_at": n.closes_at if n else None,
+                        "value": round(value, 2), "pnl": round(pnl, 2), "payout": r.payout,
+                        "final": n.final_score if n else None, "settled_at": r.settled_at})
+        out.sort(key=lambda x: (x["status"] != "OPEN", -(x["settled_at"] or 0)))
+        return {"credits": round(acc.credits, 2), "open_value": round(open_value, 2),
+                "net_worth": round(acc.credits + open_value, 2), "pnl": round(pnl_total, 2),
+                "positions": out}
     finally:
         session.close()
 

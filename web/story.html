@@ -90,6 +90,36 @@ main { max-width: 1240px; margin: 0 auto; padding-top: 18px; display: grid; gap:
 .note { padding: 12px 14px; font-size: 12px; color: var(--muted); line-height: 1.6 }
 .note b { color: var(--text) }
 .side { display: grid; gap: 18px; min-width: 0 }
+/* trading */
+.tp { display: grid; gap: 12px; padding: 14px }
+.tp-prices { display: grid; grid-template-columns: 1fr 1fr; gap: 10px }
+.tp-side { display: grid; gap: 6px; padding: 10px; border-radius: 6px; background: var(--s2); border: 1px solid var(--border) }
+.tp-side.grow { border-color: rgba(255,61,90,.45) }
+.tp-side.fade { border-color: rgba(0,230,118,.45) }
+.tp-side .lbl b { color: var(--text) }
+.tp-price { font-family: var(--mono); font-size: 22px; font-weight: 700 }
+.tp-side.grow .tp-price { color: var(--red) }
+.tp-side.fade .tp-price { color: var(--green) }
+.tp-pays { font-size: 11px; color: var(--muted); line-height: 1.4 }
+.tp-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap }
+.tp-row input { width: 80px; padding: 7px 8px; font-family: var(--mono); font-size: 13px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 4px }
+.btn { font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: 1px; padding: 9px 12px; border-radius: 5px; border: 1px solid var(--border); background: var(--s3); color: var(--text); cursor: pointer }
+.btn:disabled { opacity: .4; cursor: not-allowed }
+.btn.grow { background: var(--red); border-color: var(--red); color: #fff }
+.btn.fade { background: transparent; border-color: var(--green); color: var(--green) }
+.btn.ghost { background: transparent; color: var(--muted) }
+.tp-cost { font-family: var(--mono); font-size: 10px; color: var(--muted) }
+.tp-msg { font-size: 12px; min-height: 16px }
+.tp-msg.err { color: var(--red) } .tp-msg.ok { color: var(--green) }
+.tp-pos { display: grid; gap: 4px; padding: 10px; border-radius: 6px; background: var(--s2) }
+.kv { display: flex; justify-content: space-between; gap: 10px; font-family: var(--mono); font-size: 11px; color: var(--muted) }
+.kv b { color: var(--text) }
+.login { display: grid; gap: 8px; padding: 14px }
+.login input { padding: 8px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 4px; font-size: 13px; min-width: 0 }
+.tr { display: flex; justify-content: space-between; gap: 8px; padding: 7px 14px; border-bottom: 1px solid var(--border); font-family: var(--mono); font-size: 10px; color: var(--muted) }
+.tr:last-child { border-bottom: none }
+.tr b.GROW { color: var(--red) } .tr b.FADE { color: var(--green) }
+.mine { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; padding: 14px }
 </style>
 
 <header>
@@ -140,6 +170,25 @@ function spark(pts, w = 120, h = 30) {
     <polyline fill="none" stroke="var(--amber)" stroke-width="1.6" points="${xy.map(p => p.map(n => n.toFixed(1)).join(",")).join(" ")}"/></svg>`;
 }
 
+// ── ACCOUNT (same login as the exchange and the FSNI page) ──
+const ME = (() => { try { const id = localStorage.getItem("q_user_id"); return id ? { id, name: localStorage.getItem("q_username") || "" } : null; } catch (e) { return null; } })();
+function loginHtml(why) {
+  return `<div class="login"><div class="note" style="padding:0">${esc(why)}</div>
+    <input id="lg-u" placeholder="Username" autocomplete="username">
+    <input id="lg-p" type="password" placeholder="Password" autocomplete="current-password">
+    <div class="tp-row"><button class="btn" onclick="doLogin()">LOG IN</button><span class="tp-msg err" id="lg-msg"></span></div></div>`;
+}
+async function doLogin() {
+  const r = await fetch("/api/login_pw", { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username: $("#lg-u").value, password: $("#lg-p").value }) });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) { $("#lg-msg").textContent = d.detail || "Login failed"; return; }
+  try { localStorage.setItem("q_user_id", String(d.user_id)); localStorage.setItem("q_username", d.name); } catch (e) {}
+  location.reload();
+}
+const cr = n => n == null ? "—" : Math.round(n).toLocaleString("en") + " cr";
+const sgn = n => (n >= 0 ? "+" : "") + Math.round(n).toLocaleString("en");
+
 // ── BOARD ──
 async function board() {
   document.title = "Listed Stories — Quantara";
@@ -165,6 +214,7 @@ async function board() {
             <small class="mono" style="color:var(--muted)">listed at ${s.list_score.toFixed(1)}</small></div></div>
         ${spark(s.spark)}
       </div>
+      ${isOpen ? `<div class="card-meta"><span>GROW <b style="color:var(--red)">${s.price.toFixed(1)}</b></span><span>FADE <b style="color:var(--green)">${(100 - s.price).toFixed(1)}</b></span><span>${s.trading_open ? "trading open" : "trading stopped"}</span></div>` : ""}
       ${isOpen ? `<div class="bar"><i style="width:${(100 * (1 - left / full)).toFixed(1)}%"></i></div>` : ""}
       <div class="card-meta"><span>${s.outlets} outlets</span>
         <span>${isOpen ? "closes in " + dur(left) : "closed " + ago(s.closed_at)}</span>
@@ -178,8 +228,10 @@ async function board() {
         <span>A story is <b>listed</b> when its story score reaches <b>${r.score}</b> with <b>${r.outlets}+</b> outlets.</span>
         <span>It stays listed for <b>${r.window_h}h</b>, then closes on its <b>final score</b>.</span>
         <span>Scores come only from outside news sources — nothing on this site moves them.</span>
+        <span><b>GROW</b> pays the final score per unit, <b>FADE</b> pays 100 − final. Everyone starts with <b>10,000</b> credits.</span>
       </div>
     </section>
+    <section class="panel" id="mine"></section>
     <section class="panel">
       <div class="ph"><span class="lbl">Listed now</span><span class="tag">${open.length}</span></div>
       ${open.length ? `<div class="cards">${open.map(card).join("")}</div>`
@@ -189,6 +241,26 @@ async function board() {
       <div class="ph"><span class="lbl">Closed · last 14 days</span><span class="tag">${closed.length}</span></div>
       ${closed.length ? `<div class="cards">${closed.map(card).join("")}</div>` : `<div class="empty">No closed stories yet.</div>`}
     </section>`;
+  myStories();
+}
+async function myStories() {
+  const el = $("#mine"); if (!el) return;
+  if (!ME) { el.innerHTML = `<div class="ph"><span class="lbl">My stories</span></div>${loginHtml("Log in with your Quantara account to trade stories with virtual credits.")}`; return; }
+  let d; try { d = await (await fetch("/api/stories/account/" + encodeURIComponent(ME.id))).json(); } catch (e) { return; }
+  const open = d.positions.filter(p => p.status === "OPEN"), done = d.positions.filter(p => p.status !== "OPEN").slice(0, 8);
+  const row = p => `<div class="li"><a href="/story/${encodeURIComponent(p.sid)}">${esc(p.title)}</a>
+    <div class="m"><b class="mono" style="color:${p.side === "GROW" ? "var(--red)" : "var(--green)"}">${p.side}</b><span>${p.units} units</span>
+    ${p.status === "OPEN" ? `<span>cost ${cr(p.cost)}</span><span>worth ${cr(p.value)}</span>` : `<span>${p.status.toLowerCase()}${p.final != null && p.status === "SETTLED" ? " at " + p.final.toFixed(1) : ""}</span>`}
+    <span class="${p.pnl >= 0 ? "down" : "up"}">${sgn(p.pnl)} cr</span></div></div>`;
+  el.innerHTML = `<div class="ph"><span class="lbl">My stories · ${esc(ME.name)}</span><span class="tag">${open.length} open</span></div>
+    <div class="mine">
+      <div class="stat"><span class="lbl">Credits</span><span class="v">${cr(d.credits)}</span></div>
+      <div class="stat"><span class="lbl">Open positions (if closed now)</span><span class="v">${cr(d.open_value)}</span></div>
+      <div class="stat"><span class="lbl">Net worth</span><span class="v">${cr(d.net_worth)}</span></div>
+      <div class="stat"><span class="lbl">Profit / loss</span><span class="v ${d.pnl >= 0 ? "down" : "up"}">${sgn(d.pnl)} cr</span></div>
+    </div>
+    ${open.length || done.length ? `<div class="list">${open.map(row).join("")}${done.map(row).join("")}</div>`
+      : `<div class="note">No positions yet. Open a listed story and take a GROW or FADE position.</div>`}`;
 }
 
 // ── STORY ──
@@ -302,6 +374,7 @@ async function story(sid) {
         </section>
       </div>
       <div class="side">
+        ${d.status === "WATCHING" ? "" : `<section class="panel" id="mkt"></section>`}
         <section class="panel"><div class="ph"><span class="lbl">How it started</span></div>${originHtml}</section>
         ${(d.outlet_names || []).length ? `<section class="panel"><div class="ph"><span class="lbl">Outlets</span><span class="tag">${d.outlet_names.length}</span></div>
           <div class="outlets">${d.outlet_names.map(o => `<span class="tag">${esc(o)}</span>`).join("")}</div></section>` : ""}
@@ -317,9 +390,96 @@ async function story(sid) {
       </div>
     </div>`;
   hookChart();
+  if (d.status !== "WATCHING") loadMarket(d.sid);
+}
+
+// ── TRADING ──
+let MK = null, UNITS = 10;
+async function loadMarket(sid) {
+  const q = ME ? "?user_id=" + encodeURIComponent(ME.id) : "";
+  try { const r = await fetch("/api/stories/market/" + encodeURIComponent(sid) + q); if (!r.ok) return; MK = await r.json(); MK.sid = sid; }
+  catch (e) { return; }
+  renderMarket();
+}
+function preview(side, action, units) {      // same formula as the server
+  const p0 = MK.price, move = MK.impact * units;
+  const up = (side === "GROW") === (action === "OPEN");
+  const mid = up ? p0 + move / 2 : p0 - move / 2;
+  return (side === "GROW" ? mid : 100 - mid) * units;
+}
+function renderMarket() {
+  const el = $("#mkt"); if (!el || !MK) return;
+  const pos = ((MK.me || {}).positions || []).filter(p => p.status === "OPEN");
+  const held = pos[0];
+  const lean = MK.offset;
+  const leanTxt = Math.abs(lean) < 0.05 ? "no crowd lean yet" : `crowd lean ${lean > 0 ? "+" : ""}${lean.toFixed(1)}`;
+  let body;
+  if (MK.status !== "OPEN") {
+    const mine = (MK.me || {}).positions || [];
+    body = `<div class="note">${MK.status === "SETTLED" ? `Settled at final score <b>${(MK.final ?? 0).toFixed(1)}</b>. GROW paid ${(MK.final ?? 0).toFixed(1)} per unit, FADE ${(100 - (MK.final ?? 0)).toFixed(1)}.`
+      : "This story was merged into another listing. All positions were refunded."}</div>
+      ${mine.map(p => `<div class="tp" style="padding-top:0"><div class="tp-pos">
+        <div class="kv"><span>${p.side} · ${p.units || ""} ${p.units ? "units" : ""}</span><b>${p.status}</b></div>
+        <div class="kv"><span>Paid out</span><b>${cr(p.payout)}</b></div>
+        <div class="kv"><span>Profit / loss</span><b class="${p.pnl >= 0 ? "down" : "up"}">${sgn(p.pnl)} cr</b></div></div></div>`).join("")}`;
+  } else {
+    const units = Math.max(1, Math.min(MK.max_units, UNITS | 0));
+    const gCost = preview("GROW", "OPEN", units), fCost = preview("FADE", "OPEN", units);
+    const canG = MK.open && ME && !(held && held.side === "FADE");
+    const canF = MK.open && ME && !(held && held.side === "GROW");
+    body = `<div class="tp">
+      <div class="tp-prices">
+        <div class="tp-side grow"><span class="lbl"><b>GROW</b> · per unit</span><span class="tp-price">${MK.price.toFixed(1)}</span>
+          <span class="tp-pays">Pays the final score. Wins if the story ends bigger than this.</span></div>
+        <div class="tp-side fade"><span class="lbl"><b>FADE</b> · per unit</span><span class="tp-price">${MK.fade_price.toFixed(1)}</span>
+          <span class="tp-pays">Pays 100 − final score. Wins if the story ends smaller.</span></div>
+      </div>
+      <div class="tp-cost">Price = score now ${MK.score.toFixed(1)} · ${leanTxt}. Each unit traded moves the price ${MK.impact} points.</div>
+      ${!ME ? "" : MK.open ? `<div class="tp-row">
+          <label class="lbl" for="tp-u">Units</label>
+          <input id="tp-u" type="number" min="1" max="${MK.max_units}" value="${units}" oninput="UNITS=+this.value;renderCosts()">
+          <button class="btn grow" id="b-g" ${canG ? "" : "disabled"} onclick="doTrade('GROW','OPEN')">GROW</button>
+          <button class="btn fade" id="b-f" ${canF ? "" : "disabled"} onclick="doTrade('FADE','OPEN')">FADE</button>
+        </div>
+        <div class="tp-cost" id="tp-costs">GROW ${units} costs ${cr(gCost)} · FADE ${units} costs ${cr(fCost)}</div>`
+        : `<div class="note" style="padding:0">Trading is closed: ${esc(MK.closed_reason)}. Positions pay out when the window closes.</div>`}
+      <div class="tp-msg" id="tp-msg"></div>
+      ${held ? `<div class="tp-pos">
+        <div class="kv"><span>Your position</span><b style="color:${held.side === "GROW" ? "var(--red)" : "var(--green)"}">${held.side} · ${held.units} units</b></div>
+        <div class="kv"><span>Average price</span><b>${held.avg?.toFixed(2)}</b></div>
+        <div class="kv"><span>Cost · worth if closed now</span><b>${cr(held.cost)} · ${cr(held.value)}</b></div>
+        <div class="kv"><span>Profit / loss now</span><b class="${held.pnl >= 0 ? "down" : "up"}">${sgn(held.pnl)} cr</b></div>
+        ${MK.open ? `<div class="tp-row"><button class="btn ghost" onclick="doTrade('${held.side}','CLOSE',${held.units})">CLOSE ALL (${cr(preview(held.side, "CLOSE", held.units))})</button></div>` : ""}
+      </div>` : ""}
+      <div class="kv"><span>${MK.open ? "Trading stops" : "Trading stopped"} ${when(MK.trading_stops_at)}</span><span>${MK.traders} trader${MK.traders === 1 ? "" : "s"}</span></div>
+      ${ME ? `<div class="kv"><span>Your credits</span><b>${cr(MK.me.credits)}</b></div>` : ""}
+    </div>`;
+  }
+  el.innerHTML = `<div class="ph"><span class="lbl">Trade this story</span><span class="tag">virtual credits</span></div>
+    ${body}
+    ${!ME && MK.status === "OPEN" ? loginHtml("Log in with your Quantara account to trade. You start with 10,000 credits.") : ""}
+    ${MK.trades.length ? `<div class="ph" style="border-top:1px solid var(--border)"><span class="lbl">Recent trades</span></div>
+      ${MK.trades.slice(0, 10).map(t => `<div class="tr"><span>${esc(t.name)}</span><span><b class="${t.side}">${t.action === "CLOSE" ? "closed " : ""}${t.side}</b> ${t.units} @ ${t.price.toFixed(1)}</span><span>${ago(t.ts)}</span></div>`).join("")}` : ""}`;
+}
+function renderCosts() {
+  const u = Math.max(1, Math.min(MK.max_units, UNITS | 0)), el = $("#tp-costs");
+  if (el) el.textContent = `GROW ${u} costs ${cr(preview("GROW", "OPEN", u))} · FADE ${u} costs ${cr(preview("FADE", "OPEN", u))}`;
+}
+async function doTrade(side, action, units) {
+  units = units || Math.max(1, Math.min(MK.max_units, UNITS | 0));
+  document.querySelectorAll("#mkt .btn").forEach(b => b.disabled = true);
+  const r = await fetch("/api/stories/trade", { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user_id: ME.id, sid: MK.sid, side, action, units }) });
+  const d = await r.json().catch(() => ({}));
+  await loadMarket(MK.sid);
+  const m = $("#tp-msg");
+  if (!r.ok) { m.className = "tp-msg err"; m.textContent = d.detail || "Trade failed"; return; }
+  m.className = "tp-msg ok";
+  m.textContent = `${action === "CLOSE" ? "Closed" : "Bought"} ${d.units} ${side} at ${d.price.toFixed(2)} — ${action === "CLOSE" ? "received" : "paid"} ${cr(d.credits)}. Price now ${d.new_price.toFixed(1)}.`;
 }
 
 const m = location.pathname.match(/^\/story\/([^/]+)/);
 if (m) story(decodeURIComponent(m[1])); else board();
 setInterval(() => { if (!document.hidden) (m ? story(decodeURIComponent(m[1])) : board()); }, 5 * 60 * 1000);
+setInterval(() => { if (!document.hidden && m && MK && document.activeElement?.id !== "tp-u") loadMarket(MK.sid); }, 30 * 1000);
 </script>

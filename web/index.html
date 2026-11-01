@@ -237,6 +237,20 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
 .fo-btn{font-family:var(--mono);font-size:10px;letter-spacing:1px;padding:8px 12px;border-radius:4px;cursor:pointer;background:transparent;border:1px solid var(--accent);color:var(--accent)}
 .fo-btn.amber{border-color:var(--amber);color:var(--amber)}.fo-btn:hover{filter:brightness(1.2);background:rgba(255,179,0,.06)}
 .fo-bulk{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:0 18px 8px}
+.fa-chart{padding:10px 18px 14px}.fa-chart svg{width:100%;height:110px;display:block}.fa-chart.small svg{height:60px}
+.fo-rng{font-family:var(--mono);font-size:9px;padding:2px 6px;margin-left:2px;border:1px solid var(--border);border-radius:3px;cursor:pointer;color:var(--muted)}
+.fo-rng.on{color:var(--amber);border-color:var(--amber)}
+.fa-move{display:grid;grid-template-columns:118px 56px minmax(0,1fr);gap:10px;padding:6px 18px;font-size:11px;border-bottom:1px solid rgba(42,58,85,.5);align-items:baseline}
+.fa-move .t{font-family:var(--mono);color:var(--muted);white-space:nowrap}.fa-move .d{font-family:var(--mono)}
+.fa-move .w{color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fa-days{position:relative;display:flex;align-items:flex-end;gap:4px;height:120px;padding:18px 18px 10px}
+.fa-day{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%}
+.fa-day b{display:block;width:100%;border-radius:2px 2px 0 0}.fa-day em{font-style:normal;font-family:var(--mono);font-size:9px;margin-bottom:2px}
+.fa-day span{font-family:var(--mono);font-size:8px;color:var(--muted);margin-top:3px;white-space:nowrap}
+.fa-line{position:absolute;left:18px;right:18px;border-top:1px dashed rgba(255,61,90,.75)}
+.fa-line span{position:absolute;right:-2px;top:-12px;font-family:var(--mono);font-size:8px;color:var(--red)}
+.fa-brow{display:grid;grid-template-columns:96px 1fr 36px;gap:8px;align-items:center;font-family:var(--mono);font-size:10px;margin-bottom:7px}
+.fa-brow .bar{height:7px;background:var(--s2);border-radius:4px;overflow:hidden}.fa-brow .bar i{display:block;height:100%}
 .fo-actions{display:flex;gap:6px;flex-wrap:wrap;padding:10px 12px 0}.fo-actions:empty{display:none}
 .fo-confirm{display:flex;align-items:center;gap:6px;margin:8px 12px 0;padding:8px 10px;border-radius:4px;font-family:var(--mono);font-size:10px;line-height:1.4}
 .fo-confirm span{flex:1}.fo-confirm.red{background:rgba(255,61,90,.08);border:1px solid var(--red);color:var(--red)}
@@ -1132,10 +1146,26 @@ header{position:sticky;top:0;z-index:300;display:flex;align-items:center;
             Light: <span style="color:var(--green)">●</span> trading · <span style="color:var(--amber)">●</span> launched, no quotes · <span style="color:#4a6080">●</span> not trading.</div>
           <div id="fo-panel"></div>
           <div class="fo-msg" id="fo-msg"></div>
+
+          <!-- FSNI ANALYTICS — mirrors the Delivery Pulse Analysis tab -->
+          <div class="sh"><span class="sh-title">FSNI History</span>
+            <span class="sh-sub"><span class="fo-rng" data-h="6">6H</span><span class="fo-rng on" data-h="24">24H</span><span class="fo-rng" data-h="168">7D</span>
+              &nbsp;<span id="fa-range" style="font-family:var(--mono)">—</span></span></div>
+          <div class="fa-chart"><svg id="fa-hist" viewBox="0 0 1000 100" preserveAspectRatio="none"></svg></div>
+          <div class="sh"><span class="sh-title">Volatility History</span><span class="sh-sub" id="fa-volrng" style="font-family:var(--mono)">—</span></div>
+          <div class="fa-chart small"><svg id="fa-vol" viewBox="0 0 1000 60" preserveAspectRatio="none"></svg></div>
+          <div class="sh"><span class="sh-title">Move Log</span><span class="sh-sub">readings where FSNI moved 3+ points, with the story leading at that moment</span></div>
+          <div id="fa-moves"></div>
+          <div class="sh"><span class="sh-title">Daily FSNI Average</span><span class="sh-sub">covers settle on the average — red line = 30</span></div>
+          <div class="fa-days" id="fa-daily"></div>
         </div>
         <div class="fo-side">
           <div class="sh"><span class="sh-title">MM Open FSNI Covers</span></div>
           <div id="fo-pos"></div>
+          <div class="sh"><span class="sh-title">Distribution</span><span class="sh-sub" id="fa-dlabel">last 24h</span></div>
+          <div id="fa-buckets" style="padding:10px 16px"></div>
+          <div class="sh"><span class="sh-title">Volatility σ</span><span id="fa-sig" style="font-family:var(--mono);font-size:13px">—</span></div>
+          <div style="padding:8px 16px 14px;font-size:10px;color:var(--muted);line-height:1.5">Std dev of FSNI readings in the selected window (index points). Higher σ = the narrative is moving fast — widen your FSNI quotes.</div>
         </div>
       </div>
     </div><!-- /m-page4 -->
@@ -1203,7 +1233,7 @@ async function fsniOpsLoad(resetForm){
   const ie=document.getElementById('fo-index');
   if(ie) ie.innerHTML = idx ? `<span>FSNI now <b>${idx.value.toFixed(1)}</b></span><span>Regime <b>${foEsc(idx.regime)}</b></span>`+
     `<span>Intensity <b>${idx.intensity_score.toFixed(1)}</b></span><span>Diffusion <b>${idx.diffusion_score.toFixed(1)}</b></span>` : '';
-  foGrid(); await foPanel(resetForm); foPositions();
+  foGrid(); await foPanel(resetForm); foPositions(); foAnalytics();
 }
 
 function foGrid(){
@@ -1357,6 +1387,67 @@ async function foPositions(){
       <div><span>Qty</span>${p.quantity}</div><div><span>Avg vs ${p.settlement_threshold}</span>${p.running_avg!=null?p.running_avg.toFixed(1):'—'}</div></div>
   </div>`).join('');
 }
+// ── FSNI ANALYTICS (MM) ──
+FO.anHours = 24;
+async function foAnalytics(){
+  const [a, h] = await Promise.all([
+    fetch(`${API}/api/narrative/analytics?hours=${FO.anHours}`).then(r=>r.json()).catch(()=>null),
+    fetch(`${API}/api/narrative/history?hours=${FO.anHours}&limit=2000`).then(r=>r.json()).catch(()=>null)
+  ]);
+  if(!a) return;
+  const lbl={6:'last 6h',24:'last 24h',168:'last 7d'}[FO.anHours];
+  document.getElementById('fa-dlabel').textContent=lbl;
+  document.getElementById('fa-range').textContent = a.count ? `${a.min.toFixed(1)} – ${a.max.toFixed(1)}` : 'no data yet';
+
+  // history chart (time-scaled, regime lines 15/30/50)
+  const tk=(h&&h.ticks)||[], svg=document.getElementById('fa-hist');
+  if(tk.length>1){
+    const t0=tk[0].ts, t1=Date.now()/1000, X=t=>((t-t0)/Math.max(1,t1-t0)*1000).toFixed(1), Y=v=>(100-Math.max(0,Math.min(100,v))).toFixed(2);
+    let d=''; tk.forEach((t,i)=>{ const gap=i>0&&t.ts-tk[i-1].ts>2700; d+=(i===0||gap?'M':'L')+X(t.ts)+','+Y(t.value)+' '; });
+    svg.innerHTML=[15,30,50].map(v=>`<line x1="0" x2="1000" y1="${100-v}" y2="${100-v}" stroke="${v===30?'rgba(255,61,90,.6)':'#2a3a55'}" stroke-dasharray="4,4" vector-effect="non-scaling-stroke"/>`).join('')+
+      `<path d="${d.replace(/M/g,'L').replace(/^L/,'M')}L${X(tk[tk.length-1].ts)},100 L0,100 Z" fill="rgba(0,200,240,.12)"/>
+       <path d="${d}" fill="none" stroke="var(--accent)" stroke-width="1.5" vector-effect="non-scaling-stroke"/>`;
+  } else svg.innerHTML='';
+
+  // volatility history
+  const vh=a.vol_history||[], vs=document.getElementById('fa-vol');
+  if(vh.length>1){
+    const mx=Math.max(...vh.map(x=>x.sigma),1), mn=Math.min(...vh.map(x=>x.sigma));
+    const pts=vh.map((x,i)=>`${(i/(vh.length-1)*1000).toFixed(1)},${(58-x.sigma/mx*54).toFixed(1)}`);
+    vs.innerHTML=`<path d="M${pts.join(' L')} L1000,60 L0,60 Z" fill="rgba(255,61,90,.14)"/><path d="M${pts.join(' L')}" fill="none" stroke="var(--red)" stroke-width="1.5" vector-effect="non-scaling-stroke"/>`;
+    document.getElementById('fa-volrng').textContent=`σ ${mn.toFixed(2)} – ${mx.toFixed(2)}`;
+  } else { vs.innerHTML=''; document.getElementById('fa-volrng').textContent='—'; }
+  const sig=a.volatility||0, se=document.getElementById('fa-sig');
+  se.textContent=a.count>1?`${sig.toFixed(2)} ${sig<2?'LOW':sig<5?'MEDIUM':'HIGH'}`:'—';
+  se.style.color=sig<2?'var(--green)':sig<5?'var(--amber)':'var(--red)';
+
+  // distribution by regime
+  const B=[['CALM <15','calm','var(--green)'],['WATCH 15–30','watch','var(--amber)'],['ELEVATED 30–50','elevated','#fb923c'],['CRITICAL 50+','critical','var(--red)']];
+  document.getElementById('fa-buckets').innerHTML=a.count?B.map(([l,k,c])=>`<div class="fa-brow"><span style="color:var(--muted)">${l}</span>
+    <div class="bar"><i style="width:${a.buckets[k]}%;background:${c}"></i></div><span style="text-align:right;color:${c}">${a.buckets[k]}%</span></div>`).join(''):'<div class="empty">No readings yet</div>';
+
+  // move log
+  const mv=a.moves||[];
+  document.getElementById('fa-moves').innerHTML=mv.length?mv.map(m=>{
+    const t=new Date(m.ts*1000), c=m.delta>0?'var(--red)':'var(--green)';
+    const axis=Math.abs(m.d_intensity)>=Math.abs(m.d_diffusion)?'intensity':'diffusion';
+    return `<div class="fa-move"><span class="t">${t.toLocaleDateString([], {month:'2-digit',day:'2-digit'})} ${t.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</span>
+      <span class="d" style="color:${c}">${m.delta>0?'+':''}${m.delta.toFixed(1)}</span>
+      <span class="w" title="${foEsc(m.lead?m.lead.title:'')}">→ ${m.value.toFixed(1)} · mostly ${axis}${m.lead?` · <span style="color:var(--muted)">${foEsc(m.lead.title)}${m.lead.outlets>1?` (+${m.lead.outlets-1} outlets)`:''}</span>`:''}</span></div>`;
+  }).join(''):`<div class="empty" style="padding:12px 18px">No moves of 3+ points in the ${lbl}.</div>`;
+
+  // daily averages
+  const dd=a.daily||[], thr=a.threshold||30, de=document.getElementById('fa-daily');
+  if(!dd.length){de.innerHTML='<div class="empty">No daily data yet</div>';return;}
+  const top=Math.max(60,...dd.map(x=>x.avg))*1.1;
+  de.innerHTML=dd.map(x=>{const c=x.avg>thr?'var(--green)':'var(--red)';
+    return `<div class="fa-day" title="${x.date}: avg ${x.avg.toFixed(2)} (${x.n} readings)"><em style="color:${c}">${x.avg.toFixed(1)}</em>
+      <b style="height:${(x.avg/top*80).toFixed(1)}px;background:${c};opacity:${x.today?.45:.85};${x.today?'outline:1px dashed '+c+';':''}"></b>
+      <span>${x.today?'now':x.date.slice(5)}</span></div>`;}).join('')+
+    `<div class="fa-line" style="bottom:${(thr/top*80+23).toFixed(1)}px"><span>${thr}</span></div>`;
+}
+document.addEventListener('click',e=>{ const r=e.target.closest('.fo-rng'); if(!r) return;
+  FO.anHours=+r.dataset.h; document.querySelectorAll('.fo-rng').forEach(x=>x.classList.toggle('on',x===r)); foAnalytics(); });
 setInterval(()=>{ if(mmTabN===4) fsniOpsLoad(false); }, 30000);
 
 // ============================================================

@@ -1438,6 +1438,104 @@ def api_narrative_index():
     finally:
         session.close()
 
+_FSNI_ANALYTICS_CACHE = {}
+
+@app.get("/api/narrative/analytics")
+def api_narrative_analytics(hours: float = 24.0):
+    """FSNI analytics, mirroring the Delivery Pulse ones:
+      buckets      — share of readings in each regime (CALM <15, WATCH 15–30, ELEVATED 30–50, CRITICAL 50+)
+      volatility   — std dev of readings in the window (index points)
+      vol_history  — rolling std dev over the trailing 8 readings (~2 h)
+      moves        — readings that jumped ≥3 points vs the previous one, with the lead story at that moment
+      daily        — daily (UTC) average FSNI for the last 14 days vs the 30 payout line
+    Only readings made with the baseline-relative scoring are used. Cached 60 s."""
+    import time as _time, json as _json, math as _math
+    import sqlalchemy as _sa
+    from datetime import datetime as _dt, timezone as _tz
+    hours = max(1.0, min(float(hours), 168.0))
+    key = round(hours, 1)
+    hit = _FSNI_ANALYTICS_CACHE.get(key)
+    if hit and _time.time() - hit[0] < 60:
+        return hit[1]
+
+    now = _time.time()
+    since = now - max(hours, 14 * 24) * 3600       # daily averages need 14 days
+    session = SessionLocal()
+    try:
+        rows = session.execute(_sa.text(
+            "SELECT id, value, intensity_score, diffusion_score, ts FROM index_ticks "
+            "WHERE ts >= :since AND headlines LIKE :pat ORDER BY ts ASC"
+        ), {"since": since, "pat": '%"raw":%'}).fetchall()
+        all_t = [{"id": r[0], "v": float(r[1]), "i": float(r[2] or 0), "d": float(r[3] or 0), "ts": float(r[4])} for r in rows]
+        win = [t for t in all_t if t["ts"] >= now - hours * 3600]
+        vals = [t["v"] for t in win]
+
+        def std(xs):
+            if len(xs) < 2: return 0.0
+            m = sum(xs) / len(xs)
+            return _math.sqrt(sum((x - m) ** 2 for x in xs) / (len(xs) - 1))
+
+        n = len(vals)
+        b = {"calm": 0, "watch": 0, "elevated": 0, "critical": 0}
+        for v in vals:
+            b["calm" if v < 15 else "watch" if v < 30 else "elevated" if v < 50 else "critical"] += 1
+        buckets = {k: (round(c / n * 100) if n else 0) for k, c in b.items()}
+
+        vol_hist = []
+        for k in range(len(win)):
+            seg = vals[max(0, k - 7): k + 1]
+            if len(seg) >= 3:
+                vol_hist.append({"ts": win[k]["ts"], "sigma": round(std(seg), 3)})
+
+        # Moves: jumps of >= 3 points between consecutive readings (< 45 min apart)
+        moves = []
+        for a, c in zip(win, win[1:]):
+            dv = c["v"] - a["v"]
+            if abs(dv) >= 3 and c["ts"] - a["ts"] < 2700:
+                moves.append({"id": c["id"], "ts": c["ts"], "delta": round(dv, 2), "value": round(c["v"], 2),
+                              "d_intensity": round(c["i"] - a["i"], 2), "d_diffusion": round(c["d"] - a["d"], 2)})
+        moves = moves[-12:][::-1]
+        if moves:
+            hl = session.execute(_sa.text("SELECT id, headlines FROM index_ticks WHERE id = ANY(:ids)"),
+                                 {"ids": [m["id"] for m in moves]}).fetchall()
+            lead = {}
+            for rid, h in hl:
+                try:
+                    st = (_json.loads(h) or {}).get("stories") or []
+                    lead[rid] = {"title": st[0].get("title"), "outlets": st[0].get("outlets")} if st else None
+                except Exception:
+                    lead[rid] = None
+            for m in moves:
+                m["lead"] = lead.get(m.pop("id"))
+
+        # Daily averages (UTC days), last 14 days incl. today
+        days = {}
+        for t in all_t:
+            d = _dt.fromtimestamp(t["ts"], _tz.utc).strftime("%Y-%m-%d")
+            days.setdefault(d, []).append(t["v"])
+        today = _dt.now(_tz.utc).strftime("%Y-%m-%d")
+        daily = [{"date": d, "avg": round(sum(v) / len(v), 2), "n": len(v), "today": d == today}
+                 for d, v in sorted(days.items())][-14:]
+
+        out = {
+            "hours": hours, "count": n,
+            "current": round(vals[-1], 2) if vals else None,
+            "min": round(min(vals), 2) if vals else None,
+            "max": round(max(vals), 2) if vals else None,
+            "mean": round(sum(vals) / n, 2) if n else None,
+            "volatility": round(std(vals), 3),
+            "vol_history": vol_hist,
+            "buckets": buckets,
+            "moves": moves,
+            "daily": daily,
+            "threshold": 30.0,
+        }
+        _FSNI_ANALYTICS_CACHE[key] = (_time.time(), out)
+        return out
+    finally:
+        session.close()
+
+
 @app.get("/api/narrative/history")
 def api_narrative_history(hours: float = 168.0, limit: int = 500):
     """FSNI tick history for the chart. Default: 7 days, newest `limit` readings.

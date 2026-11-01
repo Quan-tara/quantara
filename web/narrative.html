@@ -330,6 +330,22 @@ header {
 .btn-yes { background: var(--red); color: #fff }
 .btn-no  { background: var(--s3); color: var(--green); border: 1px solid var(--green) }
 
+/* ── ANALYTICS ── */
+.an-wrap { padding: 10px 14px 14px }
+.an-row { display: grid; grid-template-columns: 96px 1fr 34px; gap: 8px; align-items: center; font-family: var(--mono); font-size: 10px; margin-bottom: 6px }
+.an-bar { height: 7px; background: var(--s3); border-radius: 4px; overflow: hidden }
+.an-bar i { display: block; height: 100% }
+.an-sig { font-family: var(--mono); font-size: 13px }
+.an-spark { width: 100%; height: 40px; display: block }
+.an-note { font-size: 10px; color: var(--muted); line-height: 1.5; margin-top: 6px }
+.an-days { position: relative; display: flex; align-items: flex-end; gap: 3px; height: 90px; padding-top: 14px }
+.an-day { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100% }
+.an-day b { display: block; width: 100%; border-radius: 2px 2px 0 0 }
+.an-day span { font-family: var(--mono); font-size: 7px; color: var(--muted); margin-top: 3px; white-space: nowrap }
+.an-day em { font-style: normal; font-family: var(--mono); font-size: 7px; margin-bottom: 2px }
+.an-line { position: absolute; left: 0; right: 0; border-top: 1px dashed rgba(255,61,90,.7); pointer-events: none }
+.an-line span { position: absolute; right: 0; top: -11px; font-family: var(--mono); font-size: 7px; color: var(--red) }
+
 /* ── FSNI TRADING ── */
 .pilot-tag { font-family: var(--mono); font-size: 8px; letter-spacing: 1px; color: var(--amber); border: 1px solid rgba(255,179,0,.4); border-radius: 3px; padding: 1px 5px }
 .acct { padding: 10px 14px; border-bottom: 1px solid var(--border); font-size: 12px; display: flex; flex-direction: column; gap: 8px }
@@ -571,6 +587,18 @@ header {
     <div class="components-wrap" id="components-wrap">
       <!-- populated by JS -->
     </div>
+
+    <!-- ANALYTICS — same set as Delivery Pulse, adapted to FSNI -->
+    <div class="sh"><span class="sh-title">Distribution — last 24h</span><span class="sh-badge" id="an-range">—</span></div>
+    <div class="an-wrap" id="an-buckets"></div>
+
+    <div class="sh"><span class="sh-title">Volatility σ</span><span class="an-sig" id="an-vol">—</span></div>
+    <div class="an-wrap"><svg class="an-spark" id="an-volspark" viewBox="0 0 300 40" preserveAspectRatio="none"></svg>
+      <div class="an-note" id="an-volnote"></div></div>
+
+    <div class="sh"><span class="sh-title">Daily FSNI Average</span><span class="sh-badge">vs 30 payout line</span></div>
+    <div class="an-wrap"><div class="an-days" id="an-daily"></div>
+      <div class="an-note">Covers pay YES when the <strong>average</strong> FSNI over their window is above 30 — this is the daily version of that number. Today is dashed.</div></div>
 
   </div>
 
@@ -1316,6 +1344,46 @@ async function renderContracts() {   // called by init + the 60 s refresh
   await refreshTrading();
 }
 
+// ── ANALYTICS (Delivery Pulse-style, adapted to FSNI) ──
+async function renderAnalytics() {
+  let a;
+  try { a = await fetch("/api/narrative/analytics?hours=24").then(r => r.json()); } catch (e) { return; }
+  document.getElementById("an-range").textContent = a.count ? `${a.min.toFixed(1)} – ${a.max.toFixed(1)}` : "no data yet";
+  const B = [["CALM <15", "calm", "var(--green)"], ["WATCH 15–30", "watch", "var(--amber)"],
+             ["ELEVATED 30–50", "elevated", "#fb923c"], ["CRITICAL 50+", "critical", "var(--red)"]];
+  document.getElementById("an-buckets").innerHTML = a.count ? B.map(([lbl, k, c]) =>
+    `<div class="an-row"><span style="color:var(--muted)">${lbl}</span><div class="an-bar"><i style="width:${a.buckets[k]}%;background:${c}"></i></div>
+     <span style="text-align:right;color:${c}">${a.buckets[k]}%</span></div>`).join("")
+    : '<div class="an-note">Builds up as readings arrive (one every 15 min).</div>';
+
+  const sig = a.volatility || 0;
+  const vEl = document.getElementById("an-vol");
+  vEl.textContent = a.count > 1 ? `${sig.toFixed(2)} ${sig < 2 ? "LOW" : sig < 5 ? "MEDIUM" : "HIGH"}` : "—";
+  vEl.style.color = sig < 2 ? "var(--green)" : sig < 5 ? "var(--amber)" : "var(--red)";
+  const vh = a.vol_history || [];
+  const svg = document.getElementById("an-volspark");
+  if (vh.length > 1) {
+    const mx = Math.max(...vh.map(x => x.sigma), 1);
+    const pts = vh.map((x, i) => `${(i / (vh.length - 1) * 300).toFixed(1)},${(38 - x.sigma / mx * 34).toFixed(1)}`);
+    svg.innerHTML = `<path d="M${pts.join(" L")} L300,40 L0,40 Z" fill="rgba(255,61,90,.15)"/>
+      <path d="M${pts.join(" L")}" fill="none" stroke="var(--red)" stroke-width="1.5" vector-effect="non-scaling-stroke"/>`;
+    document.getElementById("an-volnote").textContent =
+      `How much FSNI moves between readings (std dev, index points). Range today σ ${Math.min(...vh.map(x => x.sigma)).toFixed(2)} – ${mx.toFixed(2)}.`;
+  } else { svg.innerHTML = ""; document.getElementById("an-volnote").textContent = "Needs a few readings."; }
+
+  const d = a.daily || [], thr = a.threshold || 30;
+  const el = document.getElementById("an-daily");
+  if (!d.length) { el.innerHTML = '<div class="an-note">No daily data yet.</div>'; return; }
+  const top = Math.max(60, ...d.map(x => x.avg)) * 1.1;
+  el.innerHTML = d.map(x => {
+    const above = x.avg > thr, c = above ? "var(--green)" : "var(--red)";
+    return `<div class="an-day" title="${x.date}: avg ${x.avg.toFixed(1)} from ${x.n} readings">
+      <em style="color:${c}">${x.avg.toFixed(0)}</em>
+      <b style="height:${(x.avg / top * 70).toFixed(1)}px;background:${c};opacity:${x.today ? .45 : .85};${x.today ? "outline:1px dashed " + c + ";" : ""}"></b>
+      <span>${x.today ? "now" : x.date.slice(5)}</span></div>`;
+  }).join("") + `<div class="an-line" style="bottom:${(thr / top * 70 + 13).toFixed(1)}px"><span>${thr}</span></div>`;
+}
+
 // ── FETCH REAL INDEX FROM API ──
 
 async function fetchLiveIndex() {
@@ -1369,6 +1437,7 @@ async function init() {
   renderLive(indexData);
   renderChart(history);
   renderContracts();
+  renderAnalytics();
 }
 
 init();
@@ -1379,5 +1448,6 @@ setInterval(async () => {
   renderLive(data);
   renderChart(history);
   renderContracts();
+  renderAnalytics();
 }, 60000);
 </script>

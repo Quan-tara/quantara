@@ -97,6 +97,25 @@ def update_listings(stories, session, now=None):
     for n in active:
         known.setdefault(n.sid, n)
 
+    # 0) a listed story that is no longer separate in the news but has been absorbed by
+    #    another listed story (same event, different words) → MERGED into that story
+    from engine.narrative_index import same_event
+    listed_live = [s for s in stories if s["sid"] in known and known[s["sid"]].status == "LISTED"]
+    for n in list(active):
+        if n.sid in live:
+            continue
+        snap = json.loads(n.snapshot or "{}")
+        tk, hz = set(snap.get("tokens", [])), set(snap.get("hazards", []))
+        into = next((s for s in listed_live if s["sid"] != n.sid
+                     and same_event(tk, hz, set(s["tokens"]), set(s["hazards"]))), None)
+        if into:
+            snap["merged_into"] = into["sid"]
+            n.snapshot = json.dumps(snap)
+            n.status, n.closed_at = "MERGED", now
+            n.final_score = n.last_score
+            active.remove(n)
+            print(f"🔗 Story merged  {n.sid} → {into['sid']}  {n.title[:60]}")
+
     # 1) update / close what is already listed
     for n in active:
         snap = json.loads(n.snapshot or "{}")

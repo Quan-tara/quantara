@@ -217,6 +217,7 @@ stores store us uk across states state company companies brand brands
 dead death deaths died dies two three four five dozen dozens people hospitalized
 hospitalised hospitalizes hospitalization investigation investigating underway sickens
 sicken cases case confirmed officials authorities warning warnings
+may might could prompt prompts prompted roundup week weekly today
 der die das den dem des und oder von vom für zu zum zur im in am an auf mit aus bei
 nach über wegen ist sind wird werden wurde wurden ein eine einen einem einer eines nicht
 auch noch neue neuer neues jetzt sofort aktuell dringend achtung wichtig mehrere
@@ -335,6 +336,43 @@ def _categories(text):
     return {cat for cat, kws in CATEGORIES.items() if _has_any(text, kws)}
 
 
+# Where an outlet is based, from its web address. The Google News edition that
+# found an article says nothing about the outlet (a Florida station shows up in
+# the UK edition), so the edition is only a fallback.
+_TLD_REGION = [(".co.uk", "UK"), (".org.uk", "UK"), (".gov.uk", "UK"), (".uk", "UK"),
+               (".com.au", "AU"), (".net.au", "AU"), (".gov.au", "AU"), (".au", "AU"),
+               (".ie", "EU"), (".de", "EU"), (".at", "EU"), (".ch", "EU"), (".fr", "EU"),
+               (".nl", "EU"), (".be", "EU"), (".es", "EU"), (".it", "EU"), (".eu", "EU"),
+               (".dk", "EU"), (".se", "EU"), (".pl", "EU"), (".pt", "EU"), (".fi", "EU"),
+               (".lu", "EU"), (".cz", "EU"), (".gr", "EU"), (".us", "US"), (".gov", "US")]
+_KNOWN_OUTLETS = {"bbc.com": "UK", "theguardian.com": "UK", "ft.com": "UK", "economist.com": "UK",
+                  "just-food.com": "UK", "thegrocer.co.uk": "UK", "irishtimes.com": "EU",
+                  "irishexaminer.com": "EU", "euronews.com": "EU", "politico.eu": "EU",
+                  "foodnavigator.com": "EU", "dw.com": "EU", "thelocal.com": "EU"}
+
+
+def _outlet_region(href, fallback):
+    host = re.sub(r"^https?://", "", (href or "").lower()).split("/")[0].split(":")[0]
+    if not host or "news.google" in host:
+        return fallback
+    host = host[4:] if host.startswith("www.") else host
+    for dom, reg in _KNOWN_OUTLETS.items():
+        if host == dom or host.endswith("." + dom):
+            return reg
+    for tld, reg in _TLD_REGION:
+        if host.endswith(tld):
+            return reg
+    if host.endswith((".com", ".org", ".net", ".news", ".tv", ".info", ".co")):
+        # generic address: German-language results are European, others mostly US
+        return "EU" if fallback == "EU" and _GERMAN_FEED.get("on") else "US"
+    if host.endswith(".ca"):
+        return "US"        # North America — counted with US (four regions: US/UK/EU/AU)
+    return fallback
+
+
+_GERMAN_FEED = {"on": False}
+
+
 def _entry_ts(entry):
     for k in ("published_parsed", "updated_parsed"):
         t = entry.get(k)
@@ -372,10 +410,12 @@ def pull_rss_articles():
             ok_feeds += 1
             feed_name = (feed.feed.get("title") or "").strip()
 
+            _GERMAN_FEED["on"] = "ceid=DE" in feed_url or "ceid=AT" in feed_url
             for e in entries:
-                src = ""
+                src, src_href = "", ""
                 if e.get("source") and hasattr(e.source, "get"):
                     src = (e.source.get("title") or "").strip()
+                    src_href = e.source.get("href") or e.source.get("url") or ""
                 src = src or feed_name or "Unknown"
                 title = _clean_title(e.get("title", ""), src)
                 if not title:
@@ -401,7 +441,7 @@ def pull_rss_articles():
                     "source":     src,
                     "url":        e.get("link", ""),
                     "ts":         ts or now,
-                    "region":     region,
+                    "region":     _outlet_region(src_href, region),
                     "tokens":     _story_tokens(title),
                     "hazards":    _hazards(text),
                     "categories": _categories(text),
@@ -423,6 +463,52 @@ def pull_rss_articles():
 # STORY GROUPING
 # ─────────────────────────────────────────────
 
+MERGE_MAX_HAZARDS = 2     # roundups ("Botulism, Salmonella, E. coli, Listeria…") are never merged
+
+
+def _toks(st):
+    return set().union(*(x["tokens"] for x in st["members"]))
+
+
+def _haz(st):
+    return set().union(*(x["hazards"] for x in st["members"]))
+
+
+def same_event(tok_a, haz_a, tok_b, haz_b, rare=None):
+    """Two stories are one event if they name the same hazard and share at least two
+    distinctive words (e.g. 'whole' + 'amazon' for one ashwagandha recall headlined two
+    ways). `rare`: words seen in few stories this run — when given, only those count."""
+    common_h = haz_a & haz_b
+    if not common_h or len(haz_a) > MERGE_MAX_HAZARDS or len(haz_b) > MERGE_MAX_HAZARDS:
+        return False
+    shared = tok_a & tok_b
+    if rare is not None:
+        shared &= rare
+    return len(shared) >= 2
+
+
+def _merge_same_event(stories):
+    """Second pass: article-by-article grouping misses the same event told with
+    different words. Merge stories that share a hazard and two rare words."""
+    from collections import Counter
+    changed = True
+    while changed:
+        changed = False
+        sets = [(_toks(s), _haz(s)) for s in stories]
+        df = Counter(t for ts, _ in sets for t in ts)
+        rare = {t for t, n in df.items() if n <= 2}
+        for i in range(len(stories)):
+            for j in range(i + 1, len(stories)):
+                if same_event(sets[i][0], sets[i][1], sets[j][0], sets[j][1], rare):
+                    stories[i]["members"] += stories[j]["members"]
+                    del stories[j]
+                    changed = True
+                    break
+            if changed:
+                break
+    return stories
+
+
 def group_stories(articles):
     """Greedy clustering: each article joins the first story it matches."""
     stories = []
@@ -433,6 +519,7 @@ def group_stories(articles):
                 break
         else:
             stories.append({"members": [a]})
+    stories = _merge_same_event(stories)
 
     out = []
     for s in stories:
@@ -572,11 +659,14 @@ def assign_story_ids(stories, session, now=None):
         for p in prev_sets:
             if p["sid"] in used or not _same_story_over_time(me, p):
                 continue
-            j = len(me["tokens"] & p["tokens"]) / max(1, len(p["tokens"]))
+            shared = len(me["tokens"] & p["tokens"])
+            # most shared words wins (so when two stories merge, the bigger one keeps its
+            # id); ties go to the one whose words are most fully covered
+            j = shared + shared / max(1, len(p["tokens"]))
             if j > best_j:
                 best, best_j = p, j
         if best:
-            s["sid"], s["first_seen"] = best["sid"], best.get("first_seen", s["first_ts"])
+            s["sid"], s["first_seen"] = best["sid"], best.get("first_seen") or s["first_ts"]
             used.add(best["sid"])
         else:
             s["sid"] = hashlib.sha1(f"{s['title']}|{now}".encode()).hexdigest()[:10]

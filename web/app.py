@@ -1572,6 +1572,27 @@ def api_narrative_components_history(hours: float = 24.0):
         session.close()
 
 
+@app.get("/api/narrative/stories")
+def api_narrative_stories():
+    """All scored stories from the latest FSNI reading (up to 40), highest story score first.
+    Each: sid, title, score (0–100), delta (change over the last 3 h, null if new), outlets,
+    articles, regions, categories, first_seen, ts, url, source."""
+    import json as _json
+    import sqlalchemy as _sa
+    session = SessionLocal()
+    try:
+        row = session.execute(_sa.text(
+            "SELECT ts, headlines FROM index_ticks WHERE headlines LIKE :pat ORDER BY ts DESC LIMIT 1"
+        ), {"pat": '%"story_index"%'}).fetchone()
+        if not row:
+            return {"ts": None, "stories": []}
+        idx = (_json.loads(row[1]) or {}).get("story_index") or []
+        return {"ts": float(row[0]),
+                "stories": [{k: v for k, v in x.items() if k not in ("tokens", "hazards")} for x in idx]}
+    finally:
+        session.close()
+
+
 @app.get("/api/narrative/history")
 def api_narrative_history(hours: float = 168.0, limit: int = 500):
     """FSNI tick history for the chart. Default: 7 days, newest `limit` readings.

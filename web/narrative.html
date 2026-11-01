@@ -330,6 +330,9 @@ header {
 .btn-yes { background: var(--red); color: #fff }
 .btn-no  { background: var(--s3); color: var(--green); border: 1px solid var(--green) }
 
+.hl-score { margin-left: auto; font-family: var(--mono); font-size: 10px; color: var(--muted); white-space: nowrap; cursor: help }
+.hl-score b { color: var(--text); font-weight: 700; font-size: 11px; margin-right: 2px }
+.hl-new { font-size: 8px; letter-spacing: 1px; color: var(--accent); border: 1px solid var(--accent); border-radius: 3px; padding: 0 4px }
 /* ── FACTORS (Delivery Pulse format) ── */
 .fx { padding: 8px 12px 0; border-bottom: 1px solid var(--border) }
 .fx-top { display: flex; align-items: center; gap: 8px }
@@ -1350,11 +1353,23 @@ function renderHeadlines(headlines, meta, emptyMsg) {
       ? `<a href="${esc(url)}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">${esc(title)}</a>`
       : esc(title);
 
+    // Story score (0–100) with the change over the last 3 hours
+    let scoreBadge = "";
+    if (isObj && typeof h.story_score === "number") {
+      const d = h.score_delta;
+      const arrow = d == null ? (h.is_new ? '<span class="hl-new">NEW</span>' : "")
+        : d > 0.5 ? `<span style="color:var(--red)">▲ +${d.toFixed(1)}</span>`
+        : d < -0.5 ? `<span style="color:var(--green)">▼ ${d.toFixed(1)}</span>`
+        : `<span style="color:var(--muted)">● ${d >= 0 ? "+" : ""}${d.toFixed(1)}</span>`;
+      scoreBadge = `<span class="hl-score" title="Story score 0–100: reach, spread, severity, momentum, freshness. Arrow = change over 3h.">
+        <b>${h.story_score.toFixed(1)}</b> ${arrow}</span>`;
+    }
     return `<div class="headline-item">
       <div class="hl-source">
         ${esc(source)}
         <span class="hl-tier ${esc(tier)}">${esc(tierLbl)}</span>
         ${geos}
+        ${scoreBadge}
       </div>
       <div class="hl-title">${titleHtml}</div>
       <div class="hl-meta">

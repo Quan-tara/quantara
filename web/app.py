@@ -1653,12 +1653,16 @@ def api_narrative_listed(days: float = 14.0):
         from db.models import StoryMarket
         from engine.story_market import grow_price, trading_state
         mk = {m.sid: m for m in session.query(StoryMarket).filter(StoryMarket.sid.in_(sids or ["-"])).all()}
+        import sqlalchemy as _sa
+        ccount = dict(session.execute(_sa.text(
+            "SELECT sid, count(*) FROM story_comments WHERE NOT deleted GROUP BY sid")).fetchall())
         for n in rows:
             d = _narr_row(n)
             d["spark"] = pts.get(n.sid, [])[-60:]
             m = mk.get(n.sid)
             d["price"] = round(grow_price(n.last_score, m.crowd_offset if m else 0), 2)
             d["trading_open"] = trading_state(n)[0]
+            d["comments"] = ccount.get(n.sid, 0)
             out.append(d)
         return {"now": _time.time(), "rules": {"score": LIST_SCORE, "outlets": LIST_MIN_OUTLETS,
                                                 "window_h": LIST_WINDOW_H},
@@ -1751,6 +1755,7 @@ def api_narrative_story(sid: str):
 # STORY TRADING — grow / fade with virtual credits (engine/story_market.py)
 # =========================================================
 from pydantic import BaseModel as _BM
+from typing import Optional as _Opt
 
 
 class StoryTradeRequest(_BM):
@@ -1833,6 +1838,52 @@ def api_story_account(user_id_str: str):
                 "positions": out}
     finally:
         session.close()
+
+
+# =========================================================
+# STORY COMMENTS (engine/story_comments.py) — never an input to scores or payouts
+# =========================================================
+class StoryCommentRequest(_BM):
+    user_id: str
+    body: str
+    verdict: _Opt[str] = None
+    parent_id: _Opt[int] = None
+
+
+class StoryCommentActionRequest(_BM):
+    user_id: str
+    action: str = "report"     # report | delete | restore | block | unblock
+    reason: _Opt[str] = None
+
+
+@app.get("/api/stories/{sid}/comments")
+def api_story_comments(sid: str, user_id: str = None):
+    from engine.story_comments import thread
+    uid = parse_user_id(user_id) if user_id else None
+    return thread(sid[:16], uid, get_display_name)
+
+
+@app.post("/api/stories/{sid}/comments")
+def api_story_comment_post(sid: str, req: StoryCommentRequest):
+    from engine.story_comments import post, CommentError
+    try:
+        cid = post(parse_user_id(req.user_id), sid[:16], req.body, req.verdict, req.parent_id)
+        return {"status": "ok", "id": cid}
+    except CommentError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/api/stories/comments/{comment_id}/action")
+def api_story_comment_action(comment_id: int, req: StoryCommentActionRequest):
+    from engine.story_comments import report, moderate, CommentError
+    uid = parse_user_id(req.user_id)
+    try:
+        if req.action == "report":
+            return {"status": "ok", "reports": report(uid, comment_id, req.reason)}
+        moderate(uid, comment_id, req.action)
+        return {"status": "ok"}
+    except CommentError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @app.get("/api/narrative/history")

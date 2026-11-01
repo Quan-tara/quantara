@@ -119,6 +119,38 @@ main { max-width: 1240px; margin: 0 auto; padding-top: 18px; display: grid; gap:
 .tr { display: flex; justify-content: space-between; gap: 8px; padding: 7px 14px; border-bottom: 1px solid var(--border); font-family: var(--mono); font-size: 10px; color: var(--muted) }
 .tr:last-child { border-bottom: none }
 .tr b.GROW { color: var(--red) } .tr b.FADE { color: var(--green) }
+/* discussion */
+.dc-read { display: grid; gap: 6px; padding: 12px 14px; border-bottom: 1px solid var(--border) }
+.dc-bar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; background: var(--s3) }
+.dc-bar i { display: block; height: 100% }
+.dc-legend { display: flex; gap: 14px; flex-wrap: wrap; font-family: var(--mono); font-size: 10px; color: var(--muted) }
+.dc-legend b { color: var(--text) }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 5px; vertical-align: middle }
+.v-REAL { background: var(--red) } .v-EXAGGERATED { background: var(--amber) } .v-HYPE { background: var(--accent) }
+.dc-form { display: grid; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--border) }
+.dc-form textarea { width: 100%; min-height: 64px; resize: vertical; padding: 8px 10px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 5px; font: 13px/1.5 var(--sans) }
+.dc-form textarea:focus, .tp-row input:focus, .login input:focus { outline: 1px solid var(--accent); border-color: var(--accent) }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; align-items: center }
+.chip { font-family: var(--mono); font-size: 10px; padding: 4px 9px; border-radius: 12px; border: 1px solid var(--border); background: transparent; color: var(--muted); cursor: pointer }
+.chip.on { color: var(--bg); border-color: transparent }
+.chip.on.REAL { background: var(--red) } .chip.on.EXAGGERATED { background: var(--amber) } .chip.on.HYPE { background: var(--accent) }
+.dc-foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap }
+.dc-hint { font-size: 11px; color: var(--dim) }
+.cm { display: grid; gap: 5px; padding: 12px 14px; border-bottom: 1px solid var(--border); min-width: 0 }
+.cm:last-child { border-bottom: none }
+.cm.reply { margin-left: 22px; padding-left: 12px; border-left: 2px solid var(--s3); border-bottom: none; padding-block: 8px }
+.cm-head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-family: var(--mono); font-size: 10px; color: var(--muted) }
+.cm-head .who { color: var(--text); font-weight: 700; font-size: 11px }
+.cm-body { font-size: 13px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere }
+.cm-body.gone { color: var(--dim); font-style: italic }
+.pos { font-family: var(--mono); font-size: 9px; padding: 1px 6px; border-radius: 3px; border: 1px solid }
+.pos.GROW { color: var(--red); border-color: rgba(255,61,90,.5) } .pos.FADE { color: var(--green); border-color: rgba(0,230,118,.5) }
+.vd { font-family: var(--mono); font-size: 9px; font-weight: 700; letter-spacing: .5px; padding: 1px 6px; border-radius: 3px; color: var(--bg) }
+.cm-act { display: flex; gap: 12px; flex-wrap: wrap }
+.cm-act button { background: none; border: none; padding: 0; font-family: var(--mono); font-size: 10px; color: var(--dim); cursor: pointer }
+.cm-act button:hover { color: var(--accent) }
+.cm-act button.danger:hover { color: var(--red) }
+.mod { font-family: var(--mono); font-size: 9px; color: var(--amber) }
 .mine { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; padding: 14px }
 </style>
 
@@ -172,17 +204,19 @@ function spark(pts, w = 120, h = 30) {
 
 // ── ACCOUNT (same login as the exchange and the FSNI page) ──
 const ME = (() => { try { const id = localStorage.getItem("q_user_id"); return id ? { id, name: localStorage.getItem("q_username") || "" } : null; } catch (e) { return null; } })();
+let LG = 0;
 function loginHtml(why) {
+  const k = ++LG;
   return `<div class="login"><div class="note" style="padding:0">${esc(why)}</div>
-    <input id="lg-u" placeholder="Username" autocomplete="username">
-    <input id="lg-p" type="password" placeholder="Password" autocomplete="current-password">
-    <div class="tp-row"><button class="btn" onclick="doLogin()">LOG IN</button><span class="tp-msg err" id="lg-msg"></span></div></div>`;
+    <input id="lg-u${k}" placeholder="Username" autocomplete="username">
+    <input id="lg-p${k}" type="password" placeholder="Password" autocomplete="current-password">
+    <div class="tp-row"><button class="btn" onclick="doLogin(${k})">LOG IN</button><span class="tp-msg err" id="lg-msg${k}"></span></div></div>`;
 }
-async function doLogin() {
+async function doLogin(k) {
   const r = await fetch("/api/login_pw", { method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ username: $("#lg-u").value, password: $("#lg-p").value }) });
+    body: JSON.stringify({ username: $("#lg-u" + k).value, password: $("#lg-p" + k).value }) });
   const d = await r.json().catch(() => ({}));
-  if (!r.ok) { $("#lg-msg").textContent = d.detail || "Login failed"; return; }
+  if (!r.ok) { $("#lg-msg" + k).textContent = d.detail || "Login failed"; return; }
   try { localStorage.setItem("q_user_id", String(d.user_id)); localStorage.setItem("q_username", d.name); } catch (e) {}
   location.reload();
 }
@@ -214,7 +248,7 @@ async function board() {
             <small class="mono" style="color:var(--muted)">listed at ${s.list_score.toFixed(1)}</small></div></div>
         ${spark(s.spark)}
       </div>
-      ${isOpen ? `<div class="card-meta"><span>GROW <b style="color:var(--red)">${s.price.toFixed(1)}</b></span><span>FADE <b style="color:var(--green)">${(100 - s.price).toFixed(1)}</b></span><span>${s.trading_open ? "trading open" : "trading stopped"}</span></div>` : ""}
+      ${isOpen ? `<div class="card-meta"><span>GROW <b style="color:var(--red)">${s.price.toFixed(1)}</b></span><span>FADE <b style="color:var(--green)">${(100 - s.price).toFixed(1)}</b></span><span>${s.trading_open ? "trading open" : "trading stopped"}</span><span>💬 ${s.comments || 0}</span></div>` : ""}
       ${isOpen ? `<div class="bar"><i style="width:${(100 * (1 - left / full)).toFixed(1)}%"></i></div>` : ""}
       <div class="card-meta"><span>${s.outlets} outlets</span>
         <span>${isOpen ? "closes in " + dur(left) : "closed " + ago(s.closed_at)}</span>
@@ -367,6 +401,7 @@ async function story(sid) {
           ${windowHtml}
           <div class="chart-wrap">${chart(d)}</div>
         </section>
+        ${d.status === "WATCHING" ? "" : `<section class="panel" id="dc"></section>`}
         <section class="panel">
           <div class="ph"><span class="lbl">Coverage</span><span class="tag">${d.articles.length}</span></div>
           <div class="list">${d.articles.map(art).join("") || `<div class="empty">No articles stored.</div>`}</div>
@@ -390,8 +425,96 @@ async function story(sid) {
       </div>
     </div>`;
   hookChart();
-  if (d.status !== "WATCHING") loadMarket(d.sid);
+  if (d.status !== "WATCHING") { loadMarket(d.sid); loadComments(d.sid); }
 }
+
+// ── DISCUSSION ──
+let DC = null, DC_SID = null, VERDICT = null, REPLY_TO = null;
+const VLBL = { REAL: "Real", EXAGGERATED: "Exaggerated", HYPE: "Hype" };
+async function loadComments(sid) {
+  DC_SID = sid;
+  const q = ME ? "?user_id=" + encodeURIComponent(ME.id) : "";
+  try { const r = await fetch(`/api/stories/${encodeURIComponent(sid)}/comments${q}`); if (!r.ok) return; DC = await r.json(); }
+  catch (e) { return; }
+  renderComments();
+}
+function dcBusy() {      // don't redraw while someone is typing
+  const a = document.activeElement;
+  return !!(a && a.tagName === "TEXTAREA" && a.closest("#dc")) || [...document.querySelectorAll("#dc textarea")].some(t => t.value.trim());
+}
+function composer(parent) {
+  const k = parent ? "r" + parent : "top";
+  return `<div class="dc-form" ${parent ? 'style="border-bottom:none;padding:8px 0 0"' : ""}>
+    <textarea id="ta-${k}" maxlength="${DC.rules.max_len}" placeholder="${parent ? "Write a reply…" : "Is this story real, exaggerated or hype? What do you think happens next?"}"
+      oninput="$('#cc-${k}').textContent=this.value.length+' / ${DC.rules.max_len}'"></textarea>
+    <div class="dc-foot">
+      ${parent ? "<span></span>" : `<div class="chips"><span class="lbl">Your read</span>
+        ${Object.keys(VLBL).map(v => `<button class="chip ${v} ${VERDICT === v ? "on" : ""}" onclick="setVerdict('${v}')">${VLBL[v]}</button>`).join("")}</div>`}
+      <div class="tp-row"><span class="dc-hint" id="cc-${k}">0 / ${DC.rules.max_len}</span>
+        ${parent ? `<button class="btn ghost" onclick="REPLY_TO=null;renderComments()">CANCEL</button>` : ""}
+        <button class="btn" onclick="postComment(${parent || "null"})">${parent ? "REPLY" : "POST"}</button></div>
+    </div>
+    <div class="tp-msg err" id="dm-${k}"></div>
+  </div>`;
+}
+function setVerdict(v) {
+  const keep = $("#ta-top") ? $("#ta-top").value : "";
+  VERDICT = VERDICT === v ? null : v;
+  renderComments();
+  if ($("#ta-top")) { $("#ta-top").value = keep; $("#ta-top").focus(); }
+}
+function cmHtml(c, isReply) {
+  const pos = c.side ? `<span class="pos ${c.side}" title="Holds this position on the story">${c.side} ${c.units ?? ""}</span>` : "";
+  const vd = c.verdict ? `<span class="vd v-${c.verdict}">${VLBL[c.verdict].toUpperCase()}</span>` : "";
+  const body = c.body == null
+    ? `<div class="cm-body gone">${c.deleted ? "Comment removed." : "Hidden after several reports — waiting for review."}</div>`
+    : `<div class="cm-body ${c.deleted ? "gone" : ""}">${esc(c.body)}</div>`;
+  const acts = [];
+  if (ME && !isReply && !c.deleted && !DC.blocked) acts.push(`<button onclick="REPLY_TO=${c.id};renderComments();$('#ta-r${c.id}')?.focus()">Reply</button>`);
+  if (ME && !c.mine && !c.deleted) acts.push(c.reported ? `<button disabled>Reported</button>` : `<button class="danger" onclick="cmAct(${c.id},'report')">Report</button>`);
+  if (DC.moderator) {
+    acts.push(c.deleted || c.held ? `<button onclick="cmAct(${c.id},'restore')">Restore</button>` : `<button class="danger" onclick="cmAct(${c.id},'delete')">Delete</button>`);
+    acts.push(c.author_blocked ? `<button onclick="cmAct(${c.id},'unblock')">Unblock author</button>` : `<button class="danger" onclick="cmAct(${c.id},'block')">Block author</button>`);
+  }
+  return `<div class="cm ${isReply ? "reply" : ""}">
+    <div class="cm-head"><span class="who">${esc(c.name)}</span>${pos}${vd}<span>${ago(c.ts)}</span>
+      ${DC.moderator && c.reports ? `<span class="mod">⚑ ${c.reports} report${c.reports > 1 ? "s" : ""}</span>` : ""}</div>
+    ${body}
+    ${acts.length ? `<div class="cm-act">${acts.join("")}</div>` : ""}
+    ${!isReply ? c.replies.map(r => cmHtml(r, true)).join("") : ""}
+    ${!isReply && REPLY_TO === c.id ? composer(c.id) : ""}
+  </div>`;
+}
+function renderComments() {
+  const el = $("#dc"); if (!el || !DC) return;
+  const t = DC.tally, n = t.REAL + t.EXAGGERATED + t.HYPE;
+  const read = n ? `<div class="dc-read">
+      <span class="lbl">Crowd read · ${n} ${n === 1 ? "person" : "people"}</span>
+      <div class="dc-bar">${Object.keys(VLBL).map(v => `<i class="v-${v}" style="width:${(100 * t[v] / n).toFixed(1)}%"></i>`).join("")}</div>
+      <div class="dc-legend">${Object.keys(VLBL).map(v => `<span><i class="dot v-${v}"></i>${VLBL[v]} <b>${Math.round(100 * t[v] / n)}%</b></span>`).join("")}</div>
+    </div>` : "";
+  el.innerHTML = `<div class="ph"><span class="lbl">Discussion</span>
+      <span class="mono" style="font-size:10px;color:var(--muted)">${DC.count} comment${DC.count === 1 ? "" : "s"} · doesn't affect the score or payouts</span></div>
+    ${read}
+    ${!ME ? loginHtml("Log in to join the discussion.") : DC.blocked ? `<div class="note">You can't comment right now.</div>` : composer(null)}
+    ${DC.comments.length ? DC.comments.map(c => cmHtml(c, false)).join("") : `<div class="empty">No comments yet. Is this story the real thing — or overblown?</div>`}`;
+}
+async function postComment(parent) {
+  const k = parent ? "r" + parent : "top", ta = $("#ta-" + k);
+  const r = await fetch(`/api/stories/${encodeURIComponent(DC_SID)}/comments`, { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user_id: ME.id, body: ta.value, verdict: parent ? null : VERDICT, parent_id: parent }) });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) { $("#dm-" + k).textContent = d.detail || "Could not post"; return; }
+  ta.value = ""; REPLY_TO = null; if (!parent) VERDICT = null;
+  await loadComments(DC_SID);
+}
+async function cmAct(id, action) {
+  const r = await fetch(`/api/stories/comments/${id}/action`, { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user_id: ME.id, action }) });
+  if (!r.ok) { const d = await r.json().catch(() => ({})); alertLine(d.detail || "Action failed"); }
+  await loadComments(DC_SID);
+}
+function alertLine(t) { const m = $("#dm-top"); if (m) m.textContent = t; }
 
 // ── TRADING ──
 let MK = null, UNITS = 10;
@@ -480,6 +603,7 @@ async function doTrade(side, action, units) {
 
 const m = location.pathname.match(/^\/story\/([^/]+)/);
 if (m) story(decodeURIComponent(m[1])); else board();
-setInterval(() => { if (!document.hidden) (m ? story(decodeURIComponent(m[1])) : board()); }, 5 * 60 * 1000);
+setInterval(() => { if (!document.hidden && !(m && (dcBusy() || REPLY_TO != null))) (m ? story(decodeURIComponent(m[1])) : board()); }, 5 * 60 * 1000);
 setInterval(() => { if (!document.hidden && m && MK && document.activeElement?.id !== "tp-u") loadMarket(MK.sid); }, 30 * 1000);
+setInterval(() => { if (!document.hidden && m && DC_SID && !dcBusy() && REPLY_TO == null) loadComments(DC_SID); }, 30 * 1000);
 </script>

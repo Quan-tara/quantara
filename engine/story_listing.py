@@ -41,7 +41,8 @@ def _snapshot(s, old=None):
         "outlets": max(len(outlets), s.get("outlets", 0)),
         "outlet_names": outlets,
         "articles": arts,
-        "regions": sorted(set((old or {}).get("regions", [])) | set(s.get("regions") or [])),
+        # current regions only (older readings may carry tags from before the outlet-based fix)
+        "regions": sorted(s.get("regions") or (old or {}).get("regions", [])),
         "categories": sorted(set((old or {}).get("categories", [])) | set(s.get("categories") or [])),
         "severity": max(float((old or {}).get("severity", 0)), float(s.get("severity") or 0)),
         "tokens": list(s.get("tokens") or (old or {}).get("tokens", []))[:40],

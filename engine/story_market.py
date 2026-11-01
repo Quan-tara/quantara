@@ -118,6 +118,8 @@ def trade(user_id, sid, side, action, units):
         if not ok:
             raise TradeError(f"Trading closed — {why}")
         m = market(session, sid, lock=True)
+        if m.status != "OPEN":
+            raise TradeError(f"Trading closed — market already {m.status.lower()}")
         acc = account(session, user_id)
         pos = (session.query(StoryPosition)
                .filter(StoryPosition.user_id == user_id, StoryPosition.sid == sid,

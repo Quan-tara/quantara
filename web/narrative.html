@@ -353,7 +353,7 @@ header {
   font-family: var(--mono); font-size: 11px; letter-spacing: 2px; color: var(--muted); cursor: pointer }
 .tab.on { color: var(--accent); border-bottom-color: var(--accent); background: rgba(0,200,240,.04) }
 .page-wrap { height: calc(100vh - 53px - 40px) !important }
-.an-page { position: relative; z-index: 1; display: grid; grid-template-columns: minmax(0,1fr) 360px; min-height: calc(100vh - 93px) }
+.an-page { position: relative; z-index: 1; display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); min-height: calc(100vh - 93px) }
 .an-page[hidden] { display: none }
 .an-main { border-right: 1px solid var(--border); min-width: 0 }
 .an-mono { font-family: var(--mono); font-size: 10px; color: var(--muted); margin-left: 8px }
@@ -368,6 +368,10 @@ header {
 .na-days { position: relative; display: flex; align-items: flex-end; gap: 4px; height: 130px; padding: 18px 18px 10px }
 .na-days .an-day em { font-size: 9px } .na-days .an-day span { font-size: 8px }
 .na-days .an-line { left: 18px; right: 18px }
+.na-stats { display: grid; grid-template-columns: repeat(5, minmax(0,1fr)); gap: 8px; padding: 10px 18px 14px }
+.na-stats div { font-family: var(--mono); font-size: 13px; min-width: 0 }
+.na-stats span { display: block; font-family: var(--sans); font-size: 8px; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); margin-bottom: 2px }
+@media (max-width: 900px) { .na-stats { grid-template-columns: repeat(3, 1fr) } }
 .an-stat { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 11px; padding: 4px 0; border-bottom: 1px solid rgba(42,58,85,.4) }
 .an-stat span:first-child { color: var(--muted); font-family: var(--sans) }
 @media (max-width: 900px) {
@@ -753,6 +757,9 @@ header {
     <div class="na-chart"><svg id="na-hist" viewBox="0 0 1000 100" preserveAspectRatio="none"></svg>
       <div class="an-note">Dashed lines: regime boundaries 15 / 50; red = 30, the payout line.</div></div>
 
+    <div class="sh"><span class="sh-title">Window Stats</span><span class="an-sub" id="na-dlabel">last 24h</span></div>
+    <div class="na-stats" id="na-stats"></div>
+
     <div class="sh"><span class="sh-title">Volatility History</span><span id="na-volrng" class="an-mono">—</span></div>
     <div class="na-chart small"><svg id="na-vol" viewBox="0 0 1000 60" preserveAspectRatio="none"></svg></div>
 
@@ -762,17 +769,10 @@ header {
     <div class="sh"><span class="sh-title">Daily FSNI Average</span><span class="an-sub">covers settle on the average — red line = 30</span></div>
     <div class="na-days" id="na-daily"></div>
 
-    <div class="sh"><span class="sh-title">Series Ledger</span><span class="an-sub">full per-series history · click a series to expand</span></div>
-    <div id="na-ledger"></div>
   </div>
   <div class="an-side">
-    <div class="sh"><span class="sh-title">Distribution</span><span class="an-sub" id="na-dlabel">last 24h</span></div>
-    <div class="an-wrap" id="na-buckets"></div>
-    <div class="sh"><span class="sh-title">Volatility σ</span><span class="an-sig" id="na-sig">—</span></div>
-    <div class="an-wrap"><div class="an-note">How much FSNI moves between readings in the selected window (std dev, index points).
-      A high σ means the narrative is moving fast and cover prices can change quickly.</div></div>
-    <div class="sh"><span class="sh-title">Window Stats</span></div>
-    <div class="an-wrap" id="na-stats"></div>
+    <div class="sh"><span class="sh-title">Series Ledger</span><span class="an-sub">full per-series history · click a series to expand</span></div>
+    <div id="na-ledger"></div>
   </div>
 </div>
 
@@ -1615,22 +1615,14 @@ async function renderAnalysisTab() {
       html: `${tipTime(x.ts)}<br>σ: ${x.sigma.toFixed(3)} <span style="color:var(--muted);font-size:9px">(last 8 readings)</span>` })));
     document.getElementById("na-volrng").textContent = `σ ${mn.toFixed(2)} – ${mx.toFixed(2)}`;
   } else { vs.innerHTML = ""; document.getElementById("na-volrng").textContent = "—"; }
-  const sig = a.volatility || 0, se = document.getElementById("na-sig");
-  se.textContent = a.count > 1 ? `${sig.toFixed(2)} ${sig < 2 ? "LOW" : sig < 5 ? "MEDIUM" : "HIGH"}` : "—";
-  se.style.color = sig < 2 ? "var(--green)" : sig < 5 ? "var(--amber)" : "var(--red)";
-
-  // distribution
-  const B = [["CALM <15", "calm", "var(--green)"], ["WATCH 15–30", "watch", "var(--amber)"], ["ELEVATED 30–50", "elevated", "#fb923c"], ["CRITICAL 50+", "critical", "var(--red)"]];
-  document.getElementById("na-buckets").innerHTML = a.count ? B.map(([l, k, c]) =>
-    `<div class="an-row"><span style="color:var(--muted)">${l}</span><div class="an-bar"><i style="width:${a.buckets[k]}%;background:${c}"></i></div>
-     <span style="text-align:right;color:${c}">${a.buckets[k]}%</span></div>`).join("") : '<div class="an-note">No readings yet.</div>';
-
-  // stats
+  // window stats (distribution and σ live on the Trade tab)
+  const sig = a.volatility || 0, sc = sig < 2 ? "var(--green)" : sig < 5 ? "var(--amber)" : "var(--red)";
   document.getElementById("na-stats").innerHTML = a.count ? [
-    ["Readings", a.count], ["Current", a.current.toFixed(1)], ["Average", a.mean.toFixed(1)],
+    ["Current", a.current.toFixed(1)], ["Average", a.mean.toFixed(1)],
     ["Low – high", `${a.min.toFixed(1)} – ${a.max.toFixed(1)}`],
-    ["Time above 30", `${(a.buckets.elevated + a.buckets.critical)}%`]
-  ].map(([k, v]) => `<div class="an-stat"><span>${k}</span><span>${v}</span></div>`).join("") : "";
+    ["Time above 30", `${(a.buckets.elevated + a.buckets.critical)}%`],
+    ["Volatility σ", `<span style="color:${sc};display:inline;font:inherit;letter-spacing:0;text-transform:none">${sig.toFixed(2)}</span>`]
+  ].map(([k, v]) => `<div><span>${k}</span>${v}</div>`).join("") : '<div class="an-note">No readings yet.</div>';
 
   // move log
   const mv = a.moves || [];

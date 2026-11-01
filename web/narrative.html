@@ -375,6 +375,24 @@ header {
   .tab { min-width: 0; flex: 1 } .page-wrap { height: auto !important }
 }
 
+/* hover cursor overlay */
+.hv-cross { position: absolute; width: 1px; background: rgba(0,200,240,.5); pointer-events: none; display: none }
+.hv-dot { position: absolute; width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 50%; background: var(--accent);
+  box-shadow: 0 0 0 3px rgba(0,200,240,.2); pointer-events: none; display: none }
+.na-chart, .na-days { position: relative } .na-chart svg { cursor: crosshair }
+/* series ledger */
+.lg-s { border-bottom: 1px solid var(--border) }
+.lg-h { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 9px 18px; cursor: pointer; flex-wrap: wrap }
+.lg-h:hover { background: var(--s2) }
+.lg-name { font-family: var(--mono); font-size: 11px; color: var(--accent) }
+.lg-stats { display: flex; gap: 14px; font-family: var(--mono); font-size: 10px; color: var(--muted) }
+.lg-stats b { color: var(--text); font-weight: 400 }
+.lg-rows { display: none; max-height: 260px; overflow-y: auto; background: rgba(0,0,0,.12) }
+.lg-s.open .lg-rows { display: block }
+.lg-r { display: grid; grid-template-columns: 1fr 1.3fr .8fr 1.3fr; gap: 8px; padding: 5px 18px; font-family: var(--mono); font-size: 10px; border-top: 1px solid rgba(42,58,85,.4) }
+.lg-r.hd { color: var(--muted); font-size: 8px; letter-spacing: 1px }
+.lg-yes { color: var(--green) } .lg-no { color: var(--red) } .lg-open { color: var(--amber) } .lg-off { color: var(--muted) }
+
 /* ── FSNI TRADING ── */
 .pilot-tag { font-family: var(--mono); font-size: 8px; letter-spacing: 1px; color: var(--amber); border: 1px solid rgba(255,179,0,.4); border-radius: 3px; padding: 1px 5px }
 .acct { padding: 10px 14px; border-bottom: 1px solid var(--border); font-size: 12px; display: flex; flex-direction: column; gap: 8px }
@@ -743,6 +761,9 @@ header {
 
     <div class="sh"><span class="sh-title">Daily FSNI Average</span><span class="an-sub">covers settle on the average — red line = 30</span></div>
     <div class="na-days" id="na-daily"></div>
+
+    <div class="sh"><span class="sh-title">Series Ledger</span><span class="an-sub">full per-series history · click a series to expand</span></div>
+    <div id="na-ledger"></div>
   </div>
   <div class="an-side">
     <div class="sh"><span class="sh-title">Distribution</span><span class="an-sub" id="na-dlabel">last 24h</span></div>
@@ -1431,6 +1452,9 @@ async function renderAnalytics() {
     const pts = vh.map((x, i) => `${(i / (vh.length - 1) * 300).toFixed(1)},${(38 - x.sigma / mx * 34).toFixed(1)}`);
     svg.innerHTML = `<path d="M${pts.join(" L")} L300,40 L0,40 Z" fill="rgba(255,61,90,.15)"/>
       <path d="M${pts.join(" L")}" fill="none" stroke="var(--red)" stroke-width="1.5" vector-effect="non-scaling-stroke"/>`;
+    svg.parentElement.style.position = "relative"; svg.style.cursor = "crosshair";
+    hoverChart(svg, 300, 40, vh.map((x, i) => ({ x: i / (vh.length - 1) * 300, y: 38 - x.sigma / mx * 34,
+      html: `${tipTime(x.ts)}<br>σ: ${x.sigma.toFixed(3)}` })));
     document.getElementById("an-volnote").textContent =
       `How much FSNI moves between readings (std dev, index points). Range today σ ${Math.min(...vh.map(x => x.sigma)).toFixed(2)} – ${mx.toFixed(2)}.`;
   } else { svg.innerHTML = ""; document.getElementById("an-volnote").textContent = "Needs a few readings."; }
@@ -1446,6 +1470,100 @@ async function renderAnalytics() {
       <b style="height:${(x.avg / top * 70).toFixed(1)}px;background:${c};opacity:${x.today ? .45 : .85};${x.today ? "outline:1px dashed " + c + ";" : ""}"></b>
       <span>${x.today ? "now" : x.date.slice(5)}</span></div>`;
   }).join("") + `<div class="an-line" style="bottom:${(thr / top * 70 + 13).toFixed(1)}px"><span>${thr}</span></div>`;
+  hoverBars(el, d, thr);
+}
+
+// ── HOVER CURSOR for analytics charts (same tooltip as the main platform) ──
+// pts: [{x, y, html}] in the SVG's viewBox units.
+function hoverChart(svg, vbW, vbH, pts) {
+  const box = svg.parentElement;
+  let cross = box.querySelector(".hv-cross"), dot = box.querySelector(".hv-dot");
+  if (!cross) { cross = document.createElement("div"); cross.className = "hv-cross"; box.appendChild(cross); }
+  if (!dot)   { dot = document.createElement("div");   dot.className = "hv-dot";     box.appendChild(dot); }
+  svg._hv = { pts, vbW, vbH, cross, dot };
+  if (svg._hvBound) return;
+  svg._hvBound = true;
+  const move = (cx, cy) => {
+    const h = svg._hv; if (!h || h.pts.length < 1) return;
+    const r = svg.getBoundingClientRect(), b = box.getBoundingClientRect();
+    const fx = Math.max(0, Math.min(1, (cx - r.left) / r.width)) * h.vbW;
+    let best = h.pts[0]; for (const p of h.pts) if (Math.abs(p.x - fx) < Math.abs(best.x - fx)) best = p;
+    const left = r.left - b.left + best.x / h.vbW * r.width, top = r.top - b.top + best.y / h.vbH * r.height;
+    h.cross.style.cssText = `display:block;left:${left}px;top:${r.top - b.top}px;height:${r.height}px`;
+    h.dot.style.cssText = `display:block;left:${left}px;top:${top}px`;
+    _tooltip.innerHTML = best.html; _tooltip.style.display = "block";
+    const tw = _tooltip.offsetWidth;
+    _tooltip.style.left = (cx + 12 + tw > innerWidth ? cx - tw - 12 : cx + 12) + "px";
+    _tooltip.style.top = (cy - 48) + "px";
+  };
+  const leave = () => { const h = svg._hv; _tooltip.style.display = "none"; if (h) { h.cross.style.display = "none"; h.dot.style.display = "none"; } };
+  svg.addEventListener("mousemove", e => move(e.clientX, e.clientY));
+  svg.addEventListener("mouseleave", leave);
+  svg.addEventListener("touchstart", e => move(e.touches[0].clientX, e.touches[0].clientY), { passive: true });
+  svg.addEventListener("touchmove",  e => move(e.touches[0].clientX, e.touches[0].clientY), { passive: true });
+  svg.addEventListener("touchend", leave);
+}
+const tipTime = ts => `<span style="color:var(--muted);font-size:9px">${fmtWhen(ts, true)} · ${ago(ts)}</span>`;
+
+// Daily bars: hover tooltip per bar
+function hoverBars(container, daily, thr) {
+  container.querySelectorAll(".an-day").forEach((el, i) => {
+    const x = daily[i]; if (!x) return;
+    el.removeAttribute("title");
+    el.onmousemove = e => {
+      const above = x.avg > thr;
+      _tooltip.innerHTML = `<span style="color:var(--muted);font-size:9px">${x.date}${x.today ? " · today so far" : ""}</span><br>` +
+        `Avg FSNI: ${x.avg.toFixed(2)} <span style="color:${above ? "var(--green)" : "var(--red)"};font-size:9px">${above ? "ABOVE" : "BELOW"} ${thr}</span><br>` +
+        `<span style="color:var(--muted);font-size:9px">${x.n} readings</span>`;
+      _tooltip.style.display = "block";
+      _tooltip.style.left = (e.clientX + 12) + "px"; _tooltip.style.top = (e.clientY - 48) + "px";
+    };
+    el.onmouseleave = () => { _tooltip.style.display = "none"; };
+  });
+}
+
+// ── SERIES LEDGER (FSNI) ──
+const LG_OPEN = new Set();
+async function renderLedger(elId, mm) {
+  const el = document.getElementById(elId); if (!el) return;
+  const [contracts, trades, series] = await Promise.all([
+    fetch("/api/contracts").then(r => r.json()).catch(() => []),
+    fetch("/api/trades?limit=1000").then(r => r.json()).catch(() => []),
+    fetch("/api/series").then(r => r.json()).catch(() => [])
+  ]);
+  const fs = series.filter(x => (x.underlying || "DP") === "FSNI").sort((a, b) => a.expiry_mins - b.expiry_mins || a.collateral - b.collateral);
+  const fc = contracts.filter(c => (c.underlying || "DP") === "FSNI");
+  const ids = new Set(fc.map(c => c.id));
+  const vol = {}; trades.filter(t => ids.has(t.contract_id)).forEach(t => {
+    (vol[t.contract_id] = vol[t.contract_id] || { q: 0, b: new Set() }).q += t.quantity; vol[t.contract_id].b.add(t.buyer_id); });
+  const d = s => s ? s.replace("T", " ").slice(5, 16) : "—";
+  let any = false;
+  const html = fs.map(s => {
+    const cs = fc.filter(c => c.series_id === s.series_id).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    if (!cs.length) return "";
+    any = true;
+    const yes = cs.filter(c => c.result === "YES").length, no = cs.filter(c => c.result === "NO").length;
+    const tv = cs.reduce((a, c) => a + (vol[c.id]?.q || 0), 0);
+    const rows = cs.map(c => {
+      const res = c.result || (c.status === "OPEN" ? "OPEN" : c.status);
+      const cls = res === "YES" ? "lg-yes" : res === "NO" ? "lg-no" : res === "OPEN" ? "lg-open" : "lg-off";
+      const closed = c.settled_at ? d(c.settled_at) : `<span class="lg-open">exp. ${d(c.expires_at)}</span>`;
+      const avg = c.settlement_rate != null ? `${c.settlement_rate.toFixed(2)} <span style="color:var(--muted)">vs ${c.settlement_threshold}</span>`
+                : (c.status === "OPEN" && s.active_contract_id === c.id && s.running_avg != null)
+                  ? `<span class="lg-open">${s.running_avg.toFixed(2)} so far</span>` : `<span style="color:var(--muted)">vs ${c.settlement_threshold}</span>`;
+      const v = vol[c.id];
+      const extra = mm ? `<span>${v ? v.q.toFixed(1) : "0"}</span><span style="color:var(--muted)">${c.status === "OPEN" ? "active · " + (c.expires_in || "") : c.status === "HALTED" ? "halted" : (v ? v.b.size : 0) + " trader(s)"}</span>` : "";
+      return `<div class="lg-r" ${mm ? 'style="grid-template-columns:1fr 1.3fr .8fr 1.3fr .6fr 1.4fr"' : ""}><span>${d(c.created_at)}</span><span>${closed}</span><span class="${cls}">${res}</span><span>${avg}</span>${extra}</div>`;
+    }).join("");
+    return `<div class="lg-s ${LG_OPEN.has(s.series_id) ? "open" : ""}">
+      <div class="lg-h" onclick="this.parentElement.classList.toggle('open');LG_OPEN.has(${s.series_id})?LG_OPEN.delete(${s.series_id}):LG_OPEN.add(${s.series_id})">
+        <span class="lg-name">${s.expiry_mins === 10080 ? "7d" : "30d"} · €${s.collateral.toLocaleString()} · avg &gt; ${s.threshold}</span>
+        <span class="lg-stats"><span>Instances <b>${cs.length}</b></span><span>YES <b class="lg-yes">${yes}</b></span><span>NO <b class="lg-no">${no}</b></span><span>Vol <b>${tv.toFixed(1)}</b></span></span>
+      </div>
+      <div class="lg-rows"><div class="lg-r hd" ${mm ? 'style="grid-template-columns:1fr 1.3fr .8fr 1.3fr .6fr 1.4fr"' : ""}><span>OPENED</span><span>EXP / SETTLED</span><span>RESULT</span><span>AVG FSNI</span>${mm ? "<span>VOL</span><span>NOTES</span>" : ""}</div>${rows}</div>
+    </div>`;
+  }).join("");
+  el.innerHTML = any ? html : '<div class="an-note" style="padding:12px 18px">No FSNI contract history yet.</div>';
 }
 
 // ── TABS ──
@@ -1461,6 +1579,7 @@ function switchTab(t) {
 let NA_HOURS = 24;
 async function renderAnalysisTab() {
   if (document.getElementById("tab-analysis").hidden) return;
+  renderLedger("na-ledger", false);
   const [a, h] = await Promise.all([
     fetch(`/api/narrative/analytics?hours=${NA_HOURS}`).then(r => r.json()).catch(() => null),
     fetch(`/api/narrative/history?hours=${NA_HOURS}&limit=2000`).then(r => r.json()).catch(() => null)
@@ -1479,6 +1598,11 @@ async function renderAnalysisTab() {
     svg.innerHTML = [15, 30, 50].map(v => `<line x1="0" x2="1000" y1="${100 - v}" y2="${100 - v}" stroke="${v === 30 ? "rgba(255,61,90,.6)" : "#2a3a55"}" stroke-dasharray="4,4" vector-effect="non-scaling-stroke"/>`).join("") +
       `<path d="${d.replace(/M/g, "L").replace(/^L/, "M")}L${X(tk[tk.length - 1].ts)},100 L0,100 Z" fill="rgba(0,200,240,.12)"/>
        <path d="${d}" fill="none" stroke="var(--accent)" stroke-width="1.5" vector-effect="non-scaling-stroke"/>`;
+    hoverChart(svg, 1000, 100, tk.map(t => {
+      const r = regime(t.value), col = r.cls === "calm" ? "var(--green)" : r.cls === "watch" ? "var(--amber)" : r.cls === "elevated" ? "#fb923c" : "var(--red)";
+      return { x: +X(t.ts), y: +Y(t.value), html: `${tipTime(t.ts)}<br>FSNI: ${t.value.toFixed(2)} <span style="color:${col};font-size:9px">${r.label}</span><br>` +
+        `<span style="color:var(--muted);font-size:9px">Intensity ${t.intensity_score.toFixed(1)} · Diffusion ${t.diffusion_score.toFixed(1)}</span>` };
+    }));
   } else svg.innerHTML = "";
 
   // volatility history + sigma
@@ -1487,6 +1611,8 @@ async function renderAnalysisTab() {
     const mx = Math.max(...vh.map(x => x.sigma), 1), mn = Math.min(...vh.map(x => x.sigma));
     const pts = vh.map((x, i) => `${(i / (vh.length - 1) * 1000).toFixed(1)},${(58 - x.sigma / mx * 54).toFixed(1)}`);
     vs.innerHTML = `<path d="M${pts.join(" L")} L1000,60 L0,60 Z" fill="rgba(255,61,90,.14)"/><path d="M${pts.join(" L")}" fill="none" stroke="var(--red)" stroke-width="1.5" vector-effect="non-scaling-stroke"/>`;
+    hoverChart(vs, 1000, 60, vh.map((x, i) => ({ x: i / (vh.length - 1) * 1000, y: 58 - x.sigma / mx * 54,
+      html: `${tipTime(x.ts)}<br>σ: ${x.sigma.toFixed(3)} <span style="color:var(--muted);font-size:9px">(last 8 readings)</span>` })));
     document.getElementById("na-volrng").textContent = `σ ${mn.toFixed(2)} – ${mx.toFixed(2)}`;
   } else { vs.innerHTML = ""; document.getElementById("na-volrng").textContent = "—"; }
   const sig = a.volatility || 0, se = document.getElementById("na-sig");
@@ -1525,6 +1651,7 @@ async function renderAnalysisTab() {
       <b style="height:${(x.avg / top * 85).toFixed(1)}px;background:${c};opacity:${x.today ? .45 : .85};${x.today ? "outline:1px dashed " + c + ";" : ""}"></b>
       <span>${x.today ? "now" : x.date.slice(5)}</span></div>`; }).join("") +
     `<div class="an-line" style="bottom:${(thr / top * 85 + 23).toFixed(1)}px"><span>${thr}</span></div>`;
+  hoverBars(de, dd, thr);
 }
 document.addEventListener("click", e => {
   const r = e.target.closest(".an-rng"); if (!r) return;

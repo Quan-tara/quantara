@@ -64,7 +64,8 @@ UA = {"User-Agent": "Mozilla/5.0 (compatible; QuantaraBot/1.0; +https://quantara
 def _gn(q, region):
     """Google News search feed for a query in a given edition."""
     ed = {"US": ("en-US", "US", "US:en"), "UK": ("en-GB", "GB", "GB:en"),
-          "IE": ("en-IE", "IE", "IE:en"), "AU": ("en-AU", "AU", "AU:en")}[region]
+          "IE": ("en-IE", "IE", "IE:en"), "AU": ("en-AU", "AU", "AU:en"),
+          "DE": ("de", "DE", "DE:de"), "AT": ("de-AT", "AT", "AT:de")}[region]
     return (f"https://news.google.com/rss/search?q={q}+when:3d"
             f"&hl={ed[0]}&gl={ed[1]}&ceid={ed[2]}")
 
@@ -79,6 +80,12 @@ RSS_FEEDS = [
     (_gn("food+allergy+alert+recall", "UK"), "UK"),
     (_gn("food+safety+recall", "IE"), "EU"),
     (_gn("food+recall", "AU"), "AU"),
+    # Europe — EU-level English coverage, then German-language news (DE/AT)
+    (_gn("RASFF+OR+EFSA+OR+%22food+alert%22+europe", "IE"), "EU"),
+    (_gn("Lebensmittel+R%C3%BCckruf", "DE"), "EU"),
+    (_gn("R%C3%BCckruf+Salmonellen+OR+Listerien+OR+EHEC", "DE"), "EU"),
+    (_gn("Lebensmittelwarnung+OR+Produktwarnung", "DE"), "EU"),
+    (_gn("Lebensmittel+R%C3%BCckruf", "AT"), "EU"),
     # General business news (catches market impact)
     ("https://feeds.bbci.co.uk/news/business/rss.xml", "UK"),
     ("https://www.theguardian.com/business/rss", "UK"),
@@ -97,11 +104,19 @@ HAZARD_TERMS = [
     "contamination", "contaminated", "undeclared", "allergen", "allergy alert",
     "food fraud", "adulterat", "aflatoxin", "melamine", "foreign matter",
     "metal fragments", "plastic pieces", "glass fragments", "lead levels",
+    # German
+    "salmonellen", "listerien", "ehec", "noroviren", "kolibakterien", "keime",
+    "lebensmittelvergiftung", "verunreinigt", "verunreinigung", "schimmel", "schimmelpilz",
+    "glassplitter", "metallteile", "metallsplitter", "kunststoffteile", "plastikteile",
+    "fremdkörper", "allergene", "nicht deklariert", "aflatoxine", "ethylenoxid", "mineralöl",
 ]
 
 # A recall/outbreak term needs a food term to count (so car recalls don't)
 EVENT_TERMS = ["recall", "outbreak", "withdrawn", "withdrawal", "safety alert",
-               "public health alert", "do not eat", "sickened"]
+               "public health alert", "do not eat", "sickened",
+               # German
+               "rückruf", "rückrufaktion", "ruft zurück", "rufen zurück", "zurückgerufen",
+               "lebensmittelwarnung", "produktwarnung", "warnung", "ausbruch", "erkrankt"]
 
 # Severity amplifiers
 SEVERITY_TERMS = {
@@ -111,6 +126,12 @@ SEVERITY_TERMS = {
     "multistate": 1, "multi-state": 1, "criminal": 2, "investigation": 1,
     "cover-up": 2, "negligence": 1, "class action": 1, "lawsuit": 1,
     "public health emergency": 3, "outbreak": 1,
+    # German
+    "tote": 3, "todesfall": 3, "todesfälle": 3, "gestorben": 3, "verstorben": 3,
+    "krankenhaus": 2, "klinik": 2, "intensivstation": 2, "nierenversagen": 2,
+    "kinder": 1, "kleinkinder": 1, "säugling": 1, "säuglinge": 1, "baby": 1,
+    "bundesweit": 1, "europaweit": 1, "staatsanwaltschaft": 2, "ermittlungen": 1,
+    "ausbruch": 1, "klage": 1,
 }
 
 # Industry-wide language (diffusion signal)
@@ -119,35 +140,53 @@ SPREAD_TERMS = ["sector-wide", "industry-wide", "multiple brands", "several bran
                 "international recall", "global recall", "multiple countries",
                 "other companies", "competitors", "precautionary recall",
                 "supply chain", "multistate", "multi-state", "expanded recall",
-                "recall expanded", "expands recall"]
+                "recall expanded", "expands recall",
+                "bundesweit", "europaweit", "mehrere hersteller", "mehrere marken",
+                "mehrere länder", "rückruf ausgeweitet", "weitet rückruf aus", "lieferkette"]
 
 # Food categories — for sector breadth and relevance
 CATEGORIES = {
     "produce":      ["lettuce", "spinach", "greens", "salad", "cucumber", "tomato", "onion",
                      "sprouts", "jalape", "pepper", "cantaloupe", "melon", "fruit",
-                     "vegetable", "berries", "strawberr", "produce", "herbs", "cilantro"],
+                     "vegetable", "berries", "strawberr", "produce", "herbs", "cilantro",
+                     "salat", "spinat", "gurke", "tomate", "zwiebel", "sprossen", "gemüse",
+                     "obst", "beeren", "erdbeer", "himbeer", "kräuter", "melone", "paprika"],
     "meat":         ["beef", "pork", "chicken", "poultry", "turkey", "meat", "sausage",
-                     "ham", "deli", "bacon", "jerky", "hot dog"],
+                     "ham", "deli", "bacon", "jerky", "hot dog",
+                     "fleisch", "wurst", "schinken", "hähnchen", "geflügel", "salami",
+                     "hackfleisch", "rindfleisch", "schweinefleisch", "leberwurst", "aufschnitt"],
     "seafood":      ["fish", "seafood", "salmon", "tuna", "oyster", "shrimp", "shellfish",
-                     "clam", "mussel", "crab"],
+                     "clam", "mussel", "crab",
+                     "fisch", "lachs", "thunfisch", "garnelen", "muscheln", "räucherlachs"],
     "dairy":        ["cheese", "milk", "dairy", "yogurt", "yoghurt", "ice cream",
-                     "butter", "cream"],
-    "eggs":         ["egg"],
-    "infant":       ["infant formula", "baby food", "formula"],
+                     "butter", "cream",
+                     "käse", "milch", "joghurt", "sahne", "quark", "frischkäse", "mozzarella"],
+    "eggs":         ["egg", "eier"],
+    "infant":       ["infant formula", "baby food", "formula",
+                     "babynahrung", "säuglingsnahrung", "babybrei"],
     "pet food":     ["pet food", "dog food", "cat food", "pet treat", "dog treat",
-                     "kibble", "raw pet"],
+                     "kibble", "raw pet",
+                     "tierfutter", "hundefutter", "katzenfutter"],
     "bakery/grain": ["bread", "flour", "cereal", "bakery", "pasta", "rice", "granola",
-                     "cookie", "cake", "cracker"],
+                     "cookie", "cake", "cracker",
+                     "brot", "mehl", "nudeln", "backwaren", "kekse", "müsli", "brötchen"],
     "snacks":       ["chocolate", "candy", "snack", "chips", "nuts", "peanut", "almond",
-                     "pistachio", "confection", "cookies"],
-    "beverages":    ["juice", "drink", "beverage", "water", "tea", "coffee", "smoothie"],
-    "spices":       ["spice", "cinnamon", "seasoning", "sauce", "dressing", "condiment"],
+                     "pistachio", "confection", "cookies",
+                     "schokolade", "nüsse", "erdnüsse", "süßigkeiten", "pistazien"],
+    "beverages":    ["juice", "drink", "beverage", "water", "tea", "coffee", "smoothie",
+                     "saft", "getränk", "mineralwasser", "kaffee", "tee"],
+    "spices":       ["spice", "cinnamon", "seasoning", "sauce", "dressing", "condiment",
+                     "gewürz", "soße", "gewürzmischung"],
     "prepared":     ["ready-to-eat", "ready meal", "frozen", "sandwich", "meal kit",
-                     "soup", "dip", "hummus", "salsa"],
-    "supplements":  ["supplement", "protein powder", "vitamin"],
+                     "soup", "dip", "hummus", "salsa",
+                     "fertiggericht", "tiefkühl", "suppe", "pizza"],
+    "supplements":  ["supplement", "protein powder", "vitamin",
+                     "nahrungsergänzungsmittel"],
 }
 FOOD_TERMS = ["food", "foods", "meal", "eat", "restaurant", "grocery", "supermarket",
-              "fda", "usda", "fsis", "food standards agency", "fsai", "efsa"] + \
+              "fda", "usda", "fsis", "food standards agency", "fsai", "efsa", "rasff",
+              "lebensmittel", "supermarkt", "discounter", "bvl", "verbraucherschutz",
+              "aldi", "lidl", "rewe", "edeka", "kaufland", "penny", "netto"] + \
              [kw for kws in CATEGORIES.values() for kw in kws]
 
 NEG_WORDS = {
@@ -158,6 +197,10 @@ NEG_WORDS = {
     "recalled", "recalls", "warning", "alert", "ban", "banned", "unsafe", "risk",
     "threat", "toxic", "deadly", "widespread", "massive", "critical", "urgent",
     "fears", "scare", "lawsuit", "failure", "failed",
+    # German
+    "tod", "tote", "gestorben", "erkrankt", "erkrankungen", "krankenhaus", "gefahr",
+    "gefährlich", "gesundheitsgefahr", "warnung", "warnt", "rückruf", "verunreinigt",
+    "giftig", "dringend", "achtung", "ausbruch", "infektion", "infektionen",
 }
 
 # Words that carry no "which story is this" information — ignored for grouping
@@ -174,11 +217,22 @@ stores store us uk across states state company companies brand brands
 dead death deaths died dies two three four five dozen dozens people hospitalized
 hospitalised hospitalizes hospitalization investigation investigating underway sickens
 sicken cases case confirmed officials authorities warning warnings
+der die das den dem des und oder von vom für zu zum zur im in am an auf mit aus bei
+nach über wegen ist sind wird werden wurde wurden ein eine einen einem einer eines nicht
+auch noch neue neuer neues jetzt sofort aktuell dringend achtung wichtig mehrere
+rückruf rückrufe rückrufaktion ruft rufen zurück zurückgerufen warnung warnt produktwarnung
+lebensmittelwarnung lebensmittel produkt produkte hersteller firma marke marken
+salmonellen listerien keime gefahr gesundheitsgefahr verbraucher kunden betroffen
+betroffene betroffenen deutschland österreich bundesweit verkauft sollten essen verzehr
+verzehren supermarkt supermärkten discounter aldi lidl rewe edeka kaufland penny netto
 """.split())
 
 SYNONYMS = {"cat": "pet", "cats": "pet", "dog": "pet", "dogs": "pet", "pets": "pet",
             "kibble": "pet", "eggs": "egg", "cucumbers": "cucumber",
-            "tomatoes": "tomato", "onions": "onion", "cheeses": "cheese"}
+            "tomatoes": "tomato", "onions": "onion", "cheeses": "cheese",
+            "eier": "egg", "käse": "cheese", "gurke": "cucumber", "gurken": "cucumber",
+            "hähnchen": "chicken", "lachs": "salmon", "hundefutter": "pet",
+            "katzenfutter": "pet", "tierfutter": "pet"}
 
 
 # ─────────────────────────────────────────────
@@ -186,7 +240,8 @@ SYNONYMS = {"cat": "pet", "cats": "pet", "dog": "pet", "dogs": "pet", "pets": "p
 # ─────────────────────────────────────────────
 
 # Terms matched as word prefixes (everything else must be a whole word, plural ok)
-_PREFIX_TERMS = {"jalape", "strawberr", "confection", "hospitali", "adulterat", "botul"}
+_PREFIX_TERMS = {"jalape", "strawberr", "confection", "hospitali", "adulterat", "botul",
+                 "erdbeer", "himbeer", "tiefkühl"}
 _RX_CACHE = {}
 
 
@@ -214,7 +269,7 @@ def _clean_title(title, source):
 
 
 def _story_tokens(title):
-    words = re.findall(r"[a-z0-9]+", title.lower())
+    words = re.findall(r"[a-z0-9äöüß]+", title.lower())
     out = set()
     for w in words:
         w = SYNONYMS.get(w, w)
@@ -231,7 +286,15 @@ def _hazards(text):
             "e.coli": "ecoli", "ecoli": "ecoli", "botul": "botulism",
             "norovirus": "norovirus", "hepatitis a": "hepa", "cyclospora": "cyclospora",
             "undeclared": "allergen", "allergen": "allergen", "allergy": "allergen",
-            "campylobacter": "campylobacter", "cronobacter": "cronobacter"}
+            "campylobacter": "campylobacter", "cronobacter": "cronobacter",
+            "salmonell": "salmonella", "listeri": "listeria", "ehec": "ecoli",
+            "kolibakterien": "ecoli", "noroviren": "norovirus", "nicht deklariert": "allergen",
+            # foreign bodies (glass, metal, plastic) — a hazard of their own
+            "glass fragment": "foreign", "glass pieces": "foreign", "metal fragment": "foreign",
+            "metal pieces": "foreign", "plastic pieces": "foreign", "foreign matter": "foreign",
+            "foreign object": "foreign", "glassplitter": "foreign", "metallteil": "foreign",
+            "metallsplitter": "foreign", "kunststoffteil": "foreign", "plastikteil": "foreign",
+            "fremdkörper": "foreign"}
     return {v for k, v in keys.items() if k in text}
 
 
@@ -254,7 +317,7 @@ def _same_story(a, b):
 
 
 def _negativity(text):
-    words = re.findall(r"[a-z]+", text)
+    words = re.findall(r"[a-zäöüß]+", text)
     hits = sum(1 for w in words if w in NEG_WORDS)
     return min(1.0, hits * 0.12)
 
@@ -414,6 +477,10 @@ def group_stories(articles):
             "tier":       tier,
             "tier_label": tier_label,
             "all_outlets": outlets,
+            # article list (newest first) — kept for listed stories' pages, not stored per reading
+            "members":    [{"title": x["title"], "source": x["source"], "url": x["url"],
+                            "ts": x["ts"], "region": x["region"]}
+                           for x in sorted(m, key=lambda x: x["ts"], reverse=True)[:40]],
         })
     out.sort(key=lambda s: (s["score"], s["ts"]), reverse=True)
     return out
@@ -487,6 +554,12 @@ def assign_story_ids(stories, session, now=None):
     import hashlib
     now = now or time.time()
     prev = _load_story_index(session)
+    try:   # listed stories that fell out of the last reading can still be picked up again
+        from engine.story_listing import listed_for_matching
+        have = {p.get("sid") for p in prev}
+        prev = prev + [x for x in listed_for_matching(session) if x["sid"] not in have]
+    except Exception as e:
+        print(f"⚠️ listed-story matching skipped: {e}")
     prev_t = _load_story_index(session, before_ts=now - TREND_HOURS * 3600)
     prev_sets = [{**p, "tokens": set(p.get("tokens") or []), "hazards": set(p.get("hazards") or [])} for p in prev]
     then = {p["sid"]: p.get("score") for p in prev_t if p.get("sid")}
@@ -521,7 +594,8 @@ def compact_story_index(stories):
     return [{"sid": s["sid"], "title": s["title"], "score": s["story_score"], "delta": s["score_delta"],
              "outlets": s["outlets"], "articles": s["articles"], "regions": s["regions"],
              "categories": s["categories"], "first_seen": s["first_seen"], "ts": s["ts"],
-             "url": s["url"], "source": s["source"],
+             "url": s["url"], "source": s["source"], "listed": s.get("listed", False),
+             "closes_at": s.get("closes_at"),
              "tokens": s["tokens"][:40], "hazards": s["hazards"]} for s in top]
 
 
@@ -745,9 +819,14 @@ def calculate_narrative_index() -> dict:
         rss_outlets = raw["outlets"]
 
         assign_story_ids(stories, session)
-        story_index = compact_story_index(stories)
         by_score = sorted(stories, key=lambda x: x["story_score"], reverse=True)
-        top = [{k: v for k, v in s.items() if k not in ("all_outlets", "tokens", "hazards")}
+        try:
+            from engine.story_listing import update_listings
+            update_listings(stories, session)
+        except Exception as e:
+            print(f"⚠️ Story listing error: {e}")
+        story_index = compact_story_index(stories)
+        top = [{k: v for k, v in s.items() if k not in ("all_outlets", "tokens", "hazards", "members")}
                | {"outlet_names": s["all_outlets"][:6]}
                for s in by_score[:MAX_STORIES]]
 

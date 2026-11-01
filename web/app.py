@@ -1736,6 +1736,9 @@ def api_narrative_story(sid: str):
                             "shared": sorted(shared)[:5], "same_hazard": same_h, "r": round(r, 3)})
         rel.sort(key=lambda x: x["r"], reverse=True)
 
+        from db.models import StoryPricePoint
+        d["price_points"] = [[p.ts, p.price] for p in session.query(StoryPricePoint)
+                             .filter(StoryPricePoint.sid == sid).order_by(StoryPricePoint.ts).all()]
         arts = sorted(articles, key=lambda a: a.get("ts") or 0)
         d["article_count"] = max(len(articles), d.get("articles") or 0) if isinstance(d.get("articles"), int) else len(articles)
         d.update({
@@ -1884,6 +1887,46 @@ def api_story_comment_action(comment_id: int, req: StoryCommentActionRequest):
         return {"status": "ok"}
     except CommentError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/leaderboard")
+def serve_leaderboard():
+    return FileResponse(os.path.join(os.path.dirname(__file__), "story.html"))
+
+
+@app.get("/history")
+def serve_history():
+    return FileResponse(os.path.join(os.path.dirname(__file__), "story.html"))
+
+
+@app.get("/api/stories/history/{user_id_str}")
+def api_story_history(user_id_str: str):
+    """Every story call one user made (from the trade log), with totals and founding seat."""
+    from engine.story_stats import user_history
+    uid = parse_user_id(user_id_str)
+    session = SessionLocal()
+    try:
+        d = user_history(session, uid)
+        d["name"] = get_display_name(uid)
+        return d
+    finally:
+        session.close()
+
+
+@app.get("/api/stories/leaderboard")
+def api_story_leaderboard(period: str = "all", user_id: str = None):
+    from engine.story_stats import leaderboard
+    period = "week" if period == "week" else "all"
+    session = SessionLocal()
+    try:
+        d = leaderboard(session, period, get_display_name, limit=1000)
+        if user_id:
+            me = next((r for r in d["rows"] if r["user_id"] == str(parse_user_id(user_id))), None)
+            d["me"] = me
+        d["rows"] = d["rows"][:100]
+        return d
+    finally:
+        session.close()
 
 
 @app.get("/api/narrative/history")

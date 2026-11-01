@@ -151,6 +151,20 @@ main { max-width: 1240px; margin: 0 auto; padding-top: 18px; display: grid; gap:
 .cm-act button:hover { color: var(--accent) }
 .cm-act button.danger:hover { color: var(--red) }
 .mod { font-family: var(--mono); font-size: 9px; color: var(--amber) }
+.fb { font-family: var(--mono); font-size: 9px; font-weight: 700; color: var(--amber); border: 1px solid rgba(255,179,0,.5); border-radius: 3px; padding: 0 5px; white-space: nowrap }
+.tabs { display: flex; gap: 6px }
+.tabs button { font-family: var(--mono); font-size: 10px; padding: 5px 10px; border-radius: 4px; border: 1px solid var(--border); background: transparent; color: var(--muted); cursor: pointer }
+.tabs button.on { color: var(--text); border-color: var(--accent) }
+.tbl-wrap { overflow-x: auto }
+table.lb { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 640px }
+table.lb th { font-family: var(--mono); font-size: 9px; font-weight: 400; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); text-align: right; padding: 9px 14px; border-bottom: 1px solid var(--border) }
+table.lb td { padding: 10px 14px; border-bottom: 1px solid var(--border); text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums }
+table.lb th:nth-child(2), table.lb td:nth-child(2) { text-align: left }
+table.lb td.name { font-family: var(--sans); font-weight: 600 }
+table.lb tr.me td { background: rgba(0,200,240,.07) }
+table.lb td.best { font-family: var(--sans); font-size: 11px; color: var(--muted); text-align: left; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+table.lb th.best { text-align: left }
+.rk { color: var(--muted) } .rk.top { color: var(--amber); font-weight: 700 }
 .mine { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; padding: 14px }
 </style>
 
@@ -159,6 +173,8 @@ main { max-width: 1240px; margin: 0 auto; padding-top: 18px; display: grid; gap:
   <nav class="nav">
     <a href="/narrative">← FSNI</a>
     <a href="/stories" id="nav-board">Listed stories</a>
+    <a href="/leaderboard" id="nav-lb">Leaderboard</a>
+    <a href="/history" id="nav-hist">My history</a>
     <a href="/">Exchange</a>
   </nav>
 </header>
@@ -223,6 +239,86 @@ async function doLogin(k) {
 const cr = n => n == null ? "—" : Math.round(n).toLocaleString("en") + " cr";
 const sgn = n => (n >= 0 ? "+" : "") + Math.round(n).toLocaleString("en");
 
+const fBadge = n => `<span class="fb" title="Founding member — one of the first 100 traders">★ FOUNDER #${n}</span>`;
+function navOn(id) { document.querySelectorAll(".nav a").forEach(a => a.classList.toggle("on", a.id === id)); }
+
+// ── LEADERBOARD ──
+let LB_PERIOD = "all";
+async function leaderboardPage() {
+  document.title = "Leaderboard — Quantara"; navOn("nav-lb");
+  const q = `?period=${LB_PERIOD}` + (ME ? "&user_id=" + encodeURIComponent(ME.id) : "");
+  let d; try { d = await (await fetch("/api/stories/leaderboard" + q)).json(); }
+  catch (e) { $("#main").innerHTML = `<div class="empty">Could not load the leaderboard.</div>`; return; }
+  const key = LB_PERIOD === "week" ? "profit_week" : "profit";
+  const row = r => `<tr class="${ME && r.user_id === String(ME.id) ? "me" : ""}">
+    <td class="rk ${r.rank <= 3 ? "top" : ""}">${r.rank}</td>
+    <td class="name">${esc(r.name)} ${r.founding ? fBadge(r.founding) : ""}</td>
+    <td class="${r[key] >= 0 ? "down" : "up"}">${sgn(r[key])}</td>
+    <td>${r.stories}</td>
+    <td>${r.win_rate == null ? "—" : r.win_rate + "%"}</td>
+    <td>${r.finished}${r.open ? ` <span style="color:var(--dim)">+${r.open} open</span>` : ""}</td>
+    <td class="best">${r.best ? `<a href="/story/${encodeURIComponent(r.best.sid)}" style="color:inherit">${r.best.side} · ${esc(r.best.title)}</a> <span class="down">${sgn(r.best.profit)}</span>` : "—"}</td></tr>`;
+  const me = d.me;
+  $("#main").innerHTML = `
+    <section class="panel">
+      <div class="ph"><span class="lbl">Leaderboard</span>
+        <div class="tabs"><button class="${LB_PERIOD === "all" ? "on" : ""}" onclick="LB_PERIOD='all';leaderboardPage()">ALL TIME</button>
+          <button class="${LB_PERIOD === "week" ? "on" : ""}" onclick="LB_PERIOD='week';leaderboardPage()">THIS WEEK</button></div></div>
+      <div class="rules">
+        <span>${LB_PERIOD === "week" ? "Profit on calls <b>finished in the last 7 days</b>." : "Profit on every call — open positions at what they'd fetch if closed now."}</span>
+        <span>A <b>call</b> is one GROW or FADE on one story. <b>Win rate</b> counts finished calls with a profit.</span>
+        <span><b>★ Founding members</b>: the first ${d.seats} people to trade — ${d.seats_taken} of ${d.seats} seats taken.</span>
+      </div>
+      ${me ? `<div class="mine">
+        <div class="stat"><span class="lbl">Your rank</span><span class="v">#${me.rank} <span style="color:var(--muted);font-size:11px">of ${d.traders}</span></span></div>
+        <div class="stat"><span class="lbl">${LB_PERIOD === "week" ? "Profit this week" : "Profit"}</span><span class="v ${me[key] >= 0 ? "down" : "up"}">${sgn(me[key])} cr</span></div>
+        <div class="stat"><span class="lbl">Win rate</span><span class="v">${me.win_rate == null ? "—" : me.win_rate + "%"}</span></div>
+        <div class="stat"><span class="lbl">Status</span><span class="v">${me.founding ? fBadge(me.founding) : "trader"}</span></div></div>` : ""}
+      ${d.rows.length ? `<div class="tbl-wrap"><table class="lb"><thead><tr><th>#</th><th>Trader</th><th>Profit (cr)</th><th>Stories</th><th>Win rate</th><th>Calls</th><th class="best">Best call</th></tr></thead>
+        <tbody>${d.rows.map(row).join("")}</tbody></table></div>`
+        : `<div class="empty">${LB_PERIOD === "week" ? "No calls finished this week yet." : "Nobody has traded a story yet — the first 100 traders become founding members."}</div>`}
+    </section>
+    ${!ME ? `<section class="panel">${loginHtml("Log in to see your rank.")}</section>` : ""}`;
+}
+
+// ── MY HISTORY ──
+async function historyPage() {
+  document.title = "My History — Quantara"; navOn("nav-hist");
+  if (!ME) { $("#main").innerHTML = `<section class="panel"><div class="ph"><span class="lbl">My history</span></div>${loginHtml("Log in to see your story trading history.")}</section>`; return; }
+  let d; try { d = await (await fetch("/api/stories/history/" + encodeURIComponent(ME.id))).json(); }
+  catch (e) { $("#main").innerHTML = `<div class="empty">Could not load your history.</div>`; return; }
+  const s = d.summary;
+  const out = c => c.status === "OPEN" ? `open · ${c.held} held` : c.status === "SETTLED" ? `settled at ${(c.final ?? 0).toFixed(1)}` : c.status === "REFUNDED" ? "refunded (merged)" : "closed early";
+  const row = c => `<tr>
+    <td style="text-align:left;color:var(--muted)">${when(c.first_ts)}</td>
+    <td class="name"><a href="/story/${encodeURIComponent(c.sid)}" style="color:inherit;text-decoration:none">${esc(c.title)}</a></td>
+    <td style="color:${c.side === "GROW" ? "var(--red)" : "var(--green)"}">${c.side}</td>
+    <td>${c.bought}${c.sold ? ` <span style="color:var(--dim)">/ −${c.sold}</span>` : ""}</td>
+    <td>${c.avg_price ?? "—"}</td>
+    <td>${c.entry_score == null ? "—" : c.entry_score.toFixed(1)}</td>
+    <td>${Math.round(c.paid).toLocaleString("en")}</td>
+    <td>${Math.round(c.closed_for + c.payout + c.open_value).toLocaleString("en")}</td>
+    <td class="${c.profit >= 0 ? "down" : "up"}">${sgn(c.profit)}</td>
+    <td style="text-align:left;color:var(--muted);font-family:var(--sans);font-size:11px">${out(c)}</td></tr>`;
+  $("#main").innerHTML = `
+    <section class="panel">
+      <div class="ph"><span class="lbl">My history · ${esc(d.name)}</span>${d.founding ? fBadge(d.founding) : ""}</div>
+      <div class="mine">
+        <div class="stat"><span class="lbl">Profit (all calls)</span><span class="v ${s.profit >= 0 ? "down" : "up"}">${sgn(s.profit)} cr</span></div>
+        <div class="stat"><span class="lbl">Stories traded</span><span class="v">${s.stories}</span></div>
+        <div class="stat"><span class="lbl">Win rate</span><span class="v">${s.win_rate == null ? "—" : s.win_rate + "%"} <span style="color:var(--muted);font-size:11px">${s.wins}/${s.finished}</span></span></div>
+        <div class="stat"><span class="lbl">Best call</span><span class="v" style="font-size:12px">${s.best ? `${s.best.side} · ${esc(s.best.title.slice(0, 40))} <span class="down">${sgn(s.best.profit)}</span>` : "—"}</span></div>
+      </div>
+    </section>
+    <section class="panel">
+      <div class="ph"><span class="lbl">All calls</span><span class="tag">${d.calls.length}</span></div>
+      ${d.calls.length ? `<div class="tbl-wrap"><table class="lb" style="min-width:900px"><thead><tr>
+        <th style="text-align:left">Opened</th><th>Story</th><th>Side</th><th>Units</th><th>Avg price</th><th>Score at entry</th><th>Paid</th><th>Got back / worth now</th><th>Profit</th><th style="text-align:left">Result</th></tr></thead>
+        <tbody>${d.calls.map(row).join("")}</tbody></table></div>`
+        : `<div class="empty">No trades yet. <a href="/stories">Pick a listed story</a> and take a GROW or FADE position.</div>`}
+    </section>`;
+}
+
 // ── BOARD ──
 async function board() {
   document.title = "Listed Stories — Quantara";
@@ -286,7 +382,7 @@ async function myStories() {
     <div class="m"><b class="mono" style="color:${p.side === "GROW" ? "var(--red)" : "var(--green)"}">${p.side}</b><span>${p.units} units</span>
     ${p.status === "OPEN" ? `<span>cost ${cr(p.cost)}</span><span>worth ${cr(p.value)}</span>` : `<span>${p.status.toLowerCase()}${p.final != null && p.status === "SETTLED" ? " at " + p.final.toFixed(1) : ""}</span>`}
     <span class="${p.pnl >= 0 ? "down" : "up"}">${sgn(p.pnl)} cr</span></div></div>`;
-  el.innerHTML = `<div class="ph"><span class="lbl">My stories · ${esc(ME.name)}</span><span class="tag">${open.length} open</span></div>
+  el.innerHTML = `<div class="ph"><span class="lbl">My stories · ${esc(ME.name)}</span><span class="tp-row"><span class="tag">${open.length} open</span><a href="/history" class="mono" style="font-size:10px">full history ›</a></span></div>
     <div class="mine">
       <div class="stat"><span class="lbl">Credits</span><span class="v">${cr(d.credits)}</span></div>
       <div class="stat"><span class="lbl">Open positions (if closed now)</span><span class="v">${cr(d.open_value)}</span></div>
@@ -318,16 +414,28 @@ function chart(d) {
   if (d.closes_at) marks += `<line x1="${X(d.closes_at)}" x2="${X(d.closes_at)}" y1="${T}" y2="${H - B}" stroke="var(--muted)" stroke-dasharray="3 3"/>
     <text x="${X(d.closes_at) - 4}" y="${T + 9}" text-anchor="end" font-size="9" fill="var(--muted)" font-family="Space Mono, monospace">${d.status === "CLOSED" ? "closed" : "closes"}</text>`;
   const tl = [t0, (t0 + t1) / 2, t1].map((t, i) => `<text x="${X(t)}" y="${H - 6}" text-anchor="${["start", "middle", "end"][i]}" font-size="9" fill="var(--dim)" font-family="Space Mono, monospace">${esc(when(t))}</text>`).join("");
-  window.__pts = pts; window.__X = X; window.__Y = Y; window.__W = W;
+  const pp = (d.price_points || []).filter(p => p[0] >= t0);
+  let pline = "";
+  if (pp.length) {   // price only changes at trades / readings → step line, carried to the last score point
+    const steps = [];
+    pp.forEach((p, k) => { if (k) steps.push([p[0], pp[k - 1][1]]); steps.push(p); });
+    const tEnd = Math.max(pts[pts.length - 1][0], pp[pp.length - 1][0]);
+    steps.push([tEnd, pp[pp.length - 1][1]]);
+    pline = steps.map(p => `${X(p[0]).toFixed(1)},${Y(p[1]).toFixed(1)}`).join(" ");
+  }
+  window.__pts = pts; window.__pp = pp; window.__X = X; window.__Y = Y; window.__W = W;
   return `<svg id="sc" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Story score over time">
     ${grid}${marks}
     <polygon points="${area}" fill="var(--amber)" opacity=".08"/>
     <polyline points="${line}" fill="none" stroke="var(--amber)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+    ${pline ? `<polyline points="${pline}" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-dasharray="5 3" vector-effect="non-scaling-stroke"/>` : ""}
     <line id="sc-h" y1="${T}" y2="${H - B}" stroke="var(--text)" opacity="0" vector-effect="non-scaling-stroke"/>
     <circle id="sc-d" r="4" fill="var(--amber)" opacity="0"/>
     ${tl}
     <rect x="${L}" y="${T}" width="${W - L - R}" height="${H - T - B}" fill="transparent" id="sc-hit"/>
-  </svg><div class="chart-tip" id="sc-tip">Hover the chart for values</div>`;
+  </svg><div class="chart-tip" id="sc-tip">Hover the chart for values</div>
+  <div class="dc-legend" style="margin-top:4px"><span><i class="dot" style="background:var(--amber)"></i>story score</span>
+    ${pline ? `<span><i class="dot" style="background:var(--accent)"></i>market price (GROW)</span>` : ""}</div>`;
 }
 function hookChart() {
   const svg = document.getElementById("sc"); if (!svg) return;
@@ -339,7 +447,9 @@ function hookChart() {
     const h = document.getElementById("sc-h"), c = document.getElementById("sc-d");
     h.setAttribute("x1", X(pts[i][0])); h.setAttribute("x2", X(pts[i][0])); h.setAttribute("opacity", ".5");
     c.setAttribute("cx", X(pts[i][0])); c.setAttribute("cy", Y(pts[i][1])); c.setAttribute("opacity", "1");
-    document.getElementById("sc-tip").textContent = `▸ score ${pts[i][1].toFixed(1)} · ${when(pts[i][0])}`;
+    const pp = window.__pp || [], t = pts[i][0];
+    let pr = null; pp.forEach(p => { if (p[0] <= t + 60) pr = p[1]; });
+    document.getElementById("sc-tip").textContent = `▸ score ${pts[i][1].toFixed(1)}${pr != null ? ` · price ${pr.toFixed(1)}` : ""} · ${when(t)}`;
   });
   svg.addEventListener("mouseleave", () => {
     document.getElementById("sc-h").setAttribute("opacity", "0");
@@ -477,7 +587,7 @@ function cmHtml(c, isReply) {
     acts.push(c.author_blocked ? `<button onclick="cmAct(${c.id},'unblock')">Unblock author</button>` : `<button class="danger" onclick="cmAct(${c.id},'block')">Block author</button>`);
   }
   return `<div class="cm ${isReply ? "reply" : ""}">
-    <div class="cm-head"><span class="who">${esc(c.name)}</span>${pos}${vd}<span>${ago(c.ts)}</span>
+    <div class="cm-head"><span class="who">${esc(c.name)}</span>${c.founding ? fBadge(c.founding) : ""}${pos}${vd}<span>${ago(c.ts)}</span>
       ${DC.moderator && c.reports ? `<span class="mod">⚑ ${c.reports} report${c.reports > 1 ? "s" : ""}</span>` : ""}</div>
     ${body}
     ${acts.length ? `<div class="cm-act">${acts.join("")}</div>` : ""}
@@ -602,8 +712,9 @@ async function doTrade(side, action, units) {
 }
 
 const m = location.pathname.match(/^\/story\/([^/]+)/);
-if (m) story(decodeURIComponent(m[1])); else board();
-setInterval(() => { if (!document.hidden && !(m && (dcBusy() || REPLY_TO != null))) (m ? story(decodeURIComponent(m[1])) : board()); }, 5 * 60 * 1000);
+const PAGE = m ? "story" : location.pathname.startsWith("/leaderboard") ? "lb" : location.pathname.startsWith("/history") ? "hist" : "board";
+if (m) story(decodeURIComponent(m[1])); else if (PAGE === "lb") leaderboardPage(); else if (PAGE === "hist") historyPage(); else board();
+setInterval(() => { if (!document.hidden && !(m && (dcBusy() || REPLY_TO != null))) (m ? story(decodeURIComponent(m[1])) : PAGE === "lb" ? leaderboardPage() : PAGE === "hist" ? historyPage() : board()); }, 5 * 60 * 1000);
 setInterval(() => { if (!document.hidden && m && MK && document.activeElement?.id !== "tp-u") loadMarket(MK.sid); }, 30 * 1000);
 setInterval(() => { if (!document.hidden && m && DC_SID && !dcBusy() && REPLY_TO == null) loadComments(DC_SID); }, 30 * 1000);
 </script>

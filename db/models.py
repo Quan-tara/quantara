@@ -237,3 +237,13 @@ class StoryCommentBlock(Base):
     user_id = Column(BigInteger, primary_key=True)
     ts      = Column(Float, nullable=False)
     note    = Column(String(200), nullable=True)
+
+
+class StoryPricePoint(Base):
+    """GROW price of a listed story over time (each reading and each trade), for the chart."""
+    __tablename__ = "story_price_points"
+
+    id    = Column(Integer, primary_key=True, autoincrement=True)
+    sid   = Column(String(16), nullable=False, index=True)
+    ts    = Column(Float, nullable=False)
+    price = Column(Float, nullable=False)

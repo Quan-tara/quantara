@@ -1736,6 +1736,30 @@ def api_narrative_story(sid: str):
                             "shared": sorted(shared)[:5], "same_hazard": same_h, "r": round(r, 3)})
         rel.sort(key=lambda x: x["r"], reverse=True)
 
+        # Score breakdown, as of the latest reading
+        try:
+            from engine.narrative_index import story_score_parts, score_if_quiet
+            at = idx_ts or now
+            if n:
+                sn = _json.loads(n.snapshot or "{}")
+                arts_ts = [a["ts"] for a in sn.get("articles", []) if a.get("ts")]
+                src = {"outlets": sn.get("outlets", 0), "regions": sn.get("regions", []),
+                       "severity": sn.get("severity", 0), "ts": sn.get("ts") or at,
+                       "recent_12h": sum(1 for t in arts_ts if t >= at - 12 * 3600)}
+                if live and live.get("severity") is not None:      # in this reading: use its numbers
+                    src.update({k: live[k] for k in ("outlets", "regions", "severity", "recent_12h", "ts") if k in live})
+            else:
+                arts_ts = None
+                src = {k: live.get(k) for k in ("outlets", "regions", "severity", "recent_12h", "ts")}
+            bd = story_score_parts(src, at)
+            bd["as_of"] = at
+            bd["complete"] = src.get("severity") is not None
+            if n and n.status == "LISTED":
+                bd["quiet_at_close"] = score_if_quiet(src, n.closes_at, arts_ts if not (live and live.get("recent_12h") is not None) else None)
+                bd["quiet_in_12h"] = score_if_quiet(src, at + 12 * 3600, arts_ts if not (live and live.get("recent_12h") is not None) else None)
+            d["breakdown"] = bd
+        except Exception as e:
+            print(f"⚠️ breakdown error {sid}: {e}")
         from db.models import StoryPricePoint
         d["price_points"] = [[p.ts, p.price] for p in session.query(StoryPricePoint)
                              .filter(StoryPricePoint.sid == sid).order_by(StoryPricePoint.ts).all()]

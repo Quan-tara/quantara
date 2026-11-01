@@ -151,6 +151,21 @@ main { max-width: 1240px; margin: 0 auto; padding-top: 18px; display: grid; gap:
 .cm-act button:hover { color: var(--accent) }
 .cm-act button.danger:hover { color: var(--red) }
 .mod { font-family: var(--mono); font-size: 9px; color: var(--amber) }
+/* score breakdown */
+.bd { display: grid; gap: 10px; padding: 14px }
+.bd-row { display: grid; grid-template-columns: 92px minmax(0, 1fr) 76px; gap: 10px; align-items: center }
+.bd-name { font-size: 12px; font-weight: 600 }
+.bd-name small { display: block; font-family: var(--mono); font-size: 9px; color: var(--muted); font-weight: 400 }
+.bd-bar { height: 8px; background: var(--s3); border-radius: 4px; overflow: hidden }
+.bd-bar i { display: block; height: 100%; background: var(--amber); border-radius: 4px }
+.bd-pts { font-family: var(--mono); font-size: 12px; text-align: right }
+.bd-pts span { color: var(--muted); font-size: 10px }
+.bd-detail { grid-column: 2 / 4; font-size: 11px; color: var(--muted); margin-top: -6px }
+.bd-sum { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: baseline; padding-top: 10px; border-top: 1px solid var(--border); font-family: var(--mono); font-size: 12px; color: var(--muted) }
+.bd-sum b { color: var(--text) }
+.bd-note { font-size: 12px; color: var(--muted); line-height: 1.55 }
+.bd-note b { color: var(--text) }
+@media (max-width: 500px) { .bd-row { grid-template-columns: 76px minmax(0, 1fr) 64px } }
 .fb { font-family: var(--mono); font-size: 9px; font-weight: 700; color: var(--amber); border: 1px solid rgba(255,179,0,.5); border-radius: 3px; padding: 0 5px; white-space: nowrap }
 .tabs { display: flex; gap: 6px }
 .tabs button { font-family: var(--mono); font-size: 10px; padding: 5px 10px; border-radius: 4px; border: 1px solid var(--border); background: transparent; color: var(--muted); cursor: pointer }
@@ -511,6 +526,7 @@ async function story(sid) {
           ${windowHtml}
           <div class="chart-wrap">${chart(d)}</div>
         </section>
+        ${breakdownHtml(d)}
         ${d.status === "WATCHING" ? "" : `<section class="panel" id="dc"></section>`}
         <section class="panel">
           <div class="ph"><span class="lbl">Coverage</span><span class="tag">${d.articles.length}</span></div>
@@ -625,6 +641,30 @@ async function cmAct(id, action) {
   await loadComments(DC_SID);
 }
 function alertLine(t) { const m = $("#dm-top"); if (m) m.textContent = t; }
+
+// ── SCORE BREAKDOWN ──
+function breakdownHtml(d) {
+  const b = d.breakdown; if (!b) return "";
+  const rows = b.parts.map(p => `<div class="bd-row">
+      <span class="bd-name">${p.label}<small>weight ${p.weight}</small></span>
+      <span class="bd-bar"><i style="width:${(100 * p.share).toFixed(1)}%"></i></span>
+      <span class="bd-pts">${p.points.toFixed(1)} <span>/ ${p.weight}</span></span>
+      <span class="bd-detail">${esc(p.detail)}</span></div>`).join("");
+  const age = b.newest_age_h;
+  const freshTxt = age <= 12
+    ? `Newest article ${age.toFixed(1)}h old — no fade yet. Fading starts in ${(12 - age).toFixed(1)}h if nothing new appears.`
+    : `Newest article ${age.toFixed(1)}h old — the score is fading (about 1.2% of the subtotal per hour, down to 30%).`;
+  const quiet = b.quiet_at_close != null ? `<div class="bd-note">If <b>no new coverage</b> arrives: about <b>${b.quiet_in_12h.toFixed(1)}</b> in 12h and <b>${b.quiet_at_close.toFixed(1)}</b> when the window closes. New articles, outlets or regions push it above that.</div>` : "";
+  return `<section class="panel">
+    <div class="ph"><span class="lbl">What makes up the score</span><span class="mono" style="font-size:10px;color:var(--muted)">as of ${when(b.as_of)}</span></div>
+    <div class="bd">
+      ${rows}
+      <div class="bd-sum"><span>Subtotal <b>${b.subtotal.toFixed(1)}</b></span><span>× freshness <b>${b.freshness.toFixed(2)}</b></span><span>= score <b style="color:${scoreColor(b.score)}">${b.score.toFixed(1)}</b></span></div>
+      <div class="bd-note">${freshTxt}</div>
+      ${quiet}
+      ${b.complete ? "" : `<div class="bd-note">Severity and momentum appear from the next reading (within 15 minutes).</div>`}
+    </div></section>`;
+}
 
 // ── TRADING ──
 let MK = null, UNITS = 10;

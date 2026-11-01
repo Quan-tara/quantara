@@ -1536,6 +1536,42 @@ def api_narrative_analytics(hours: float = 24.0):
         session.close()
 
 
+_FSNI_COMP_CACHE = {}
+
+@app.get("/api/narrative/components_history")
+def api_narrative_components_history(hours: float = 24.0):
+    """Per-component history for the FSNI factor sparklines.
+    Returns {"series": {key: [{"ts", "value"}]}, "latest": {key: {"value", "detail"}}}.
+    Values are the stored 0–100 component scores (normal ≈ 20). Cached 60 s."""
+    import time as _time, json as _json
+    import sqlalchemy as _sa
+    hours = max(1.0, min(float(hours), 168.0))
+    key = round(hours, 1)
+    hit = _FSNI_COMP_CACHE.get(key)
+    if hit and _time.time() - hit[0] < 60:
+        return hit[1]
+    session = SessionLocal()
+    try:
+        rows = session.execute(_sa.text(
+            "SELECT ts, headlines FROM index_ticks WHERE ts >= :since AND headlines LIKE :pat ORDER BY ts ASC"
+        ), {"since": _time.time() - hours * 3600, "pat": '%"raw":%'}).fetchall()
+        series, latest = {}, {}
+        for ts, h in rows:
+            try:
+                comps = (_json.loads(h) or {}).get("components") or {}
+            except Exception:
+                continue
+            for k, c in comps.items():
+                if isinstance(c, dict) and isinstance(c.get("value"), (int, float)):
+                    series.setdefault(k, []).append({"ts": float(ts), "value": float(c["value"])})
+                    latest[k] = {"value": float(c["value"]), "detail": c.get("detail", "")}
+        out = {"hours": hours, "series": series, "latest": latest}
+        _FSNI_COMP_CACHE[key] = (_time.time(), out)
+        return out
+    finally:
+        session.close()
+
+
 @app.get("/api/narrative/history")
 def api_narrative_history(hours: float = 168.0, limit: int = 500):
     """FSNI tick history for the chart. Default: 7 days, newest `limit` readings.

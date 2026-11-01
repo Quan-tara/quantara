@@ -330,6 +330,36 @@ header {
 .btn-yes { background: var(--red); color: #fff }
 .btn-no  { background: var(--s3); color: var(--green); border: 1px solid var(--green) }
 
+/* ── FACTORS (Delivery Pulse format) ── */
+.fx { padding: 8px 12px 0; border-bottom: 1px solid var(--border) }
+.fx-top { display: flex; align-items: center; gap: 8px }
+.fx-anim { width: 48px; height: 36px; flex-shrink: 0; display: flex; align-items: center; justify-content: center }
+.fx-anim svg { overflow: visible }
+.fx-name { flex: 1; font-size: 11px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: help }
+.fx-wt { font-family: var(--mono); font-size: 9px; color: var(--muted); flex-shrink: 0; margin-left: 6px }
+.fx-barrow { display: flex; align-items: center; gap: 4px; margin-bottom: 4px }
+.fx-bar { flex: 1; height: 5px; background: var(--border); border-radius: 3px; overflow: hidden }
+.fx-bar i { display: block; height: 100%; border-radius: 3px; transition: width .8s }
+.fx-val { font-family: var(--mono); font-size: 11px; font-weight: 700; width: 32px; text-align: right; flex-shrink: 0 }
+.fx-status { font-size: 10px; font-weight: 700; letter-spacing: .5px; width: 70px; text-align: right; flex-shrink: 0 }
+.fx-narr { font-size: 10px; color: var(--muted); font-style: italic; padding: 4px 0 2px 56px; line-height: 1.4 }
+.fx-narr.t1 { color: var(--amber) } .fx-narr.t2 { color: #fb923c } .fx-narr.t3 { color: var(--red) }
+.fx-spark { padding: 2px 0 8px 56px }
+.fx-spark-lbl { font-family: var(--mono); font-size: 8px; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 2px; display: flex; justify-content: space-between }
+.fx-spark svg { width: 100%; height: 24px; overflow: visible; display: block; cursor: crosshair }
+.fx-spike { background: rgba(255,179,0,.2); color: var(--amber); font-size: 9px; font-family: var(--mono); padding: 1px 4px; border-radius: 2px; animation: fx-fl 1s infinite; margin-left: 4px }
+@keyframes fx-fl { 0%,100% { opacity: 1 } 50% { opacity: .4 } }
+@keyframes fx-bob { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-2px) } }
+@keyframes fx-blink { 0%,100% { opacity: 1 } 50% { opacity: .15 } }
+@keyframes fx-wave { 0% { opacity: .9; transform: scale(.6) } 100% { opacity: 0; transform: scale(1.3) } }
+@keyframes fx-shake { 0%,100% { transform: translateX(0) } 25% { transform: translateX(-1px) } 75% { transform: translateX(1px) } }
+@keyframes fx-flag { 0%,100% { transform: skewY(0) } 50% { transform: skewY(-8deg) } }
+@keyframes fx-spin { from { transform: translateX(-10px) } to { transform: translateX(10px) } }
+@keyframes fx-pop { 0%,100% { transform: scale(1) } 50% { transform: scale(1.35) } }
+@keyframes fx-sway { 0%,100% { transform: rotate(0) } 50% { transform: rotate(4deg) } }
+@keyframes fx-flip { 0%,80% { transform: rotate(0) } 100% { transform: rotate(180deg) } }
+@keyframes fx-sand { 0% { transform: scaleY(1) } 100% { transform: scaleY(.2) } }
+
 /* ── ANALYTICS ── */
 .an-wrap { padding: 10px 14px 14px }
 .an-row { display: grid; grid-template-columns: 96px 1fr 34px; gap: 8px; align-items: center; font-family: var(--mono); font-size: 10px; margin-bottom: 6px }
@@ -638,7 +668,8 @@ header {
     </div>
 
     <div class="sh" style="position:relative;z-index:1">
-      <span class="sh-title">Components</span>
+      <span class="sh-title">Factors</span>
+      <span class="sh-badge">24h history · normal ≈ 20</span>
     </div>
 
     <div class="components-wrap" id="components-wrap">
@@ -653,9 +684,6 @@ header {
     <div class="an-wrap"><svg class="an-spark" id="an-volspark" viewBox="0 0 300 40" preserveAspectRatio="none"></svg>
       <div class="an-note" id="an-volnote"></div></div>
 
-    <div class="sh"><span class="sh-title">Daily FSNI Average</span><span class="sh-badge">vs 30 payout line</span></div>
-    <div class="an-wrap"><div class="an-days" id="an-daily"></div>
-      <div class="an-note">Covers pay YES when the <strong>average</strong> FSNI over their window is above 30 — this is the daily version of that number. Today is dashed.</div></div>
 
   </div>
 
@@ -1086,24 +1114,194 @@ function chartLeave() {
 
 // ── RENDER COMPONENTS ──
 
+// ── FACTORS (same format as Delivery Pulse) ──
+// Each FSNI component is scored against its own 7-day normal: ≈20 = usual, 60 = twice usual, 100 = 4×.
+const FX_META = {
+  volume:      { status: ["Quiet", "Busy", "Heavy", "Flood"], narr: [
+    "Food-safety news at its usual level. No unusual story count.",
+    "More stories than usual. Coverage picking up.",
+    "Heavy news flow — roughly double the normal story count.",
+    "News flood — food-safety coverage far above normal." ] },
+  severity:    { status: ["Minor", "Notable", "Serious", "Severe"], narr: [
+    "Top stories are routine recalls. No serious harm reported.",
+    "Some stories mention illness or hospitalisation.",
+    "Serious harm in the news — hospitalisations, Class I recalls, children.",
+    "Severe outcomes reported — deaths or a public health emergency." ] },
+  negativity:  { status: ["Neutral", "Concerned", "Alarmed", "Panic"], narr: [
+    "Coverage tone is matter-of-fact.",
+    "Tone turning negative — warnings and risk language rising.",
+    "Alarmed coverage — strong negative language across outlets.",
+    "Panic tone — fear-driven headlines dominate." ] },
+  regulatory:  { status: ["Routine", "Active", "Heavy", "Crisis"], narr: [
+    "FDA recall activity at its normal level.",
+    "Above-normal FDA recall activity.",
+    "Heavy regulatory action — many Class I recalls in 30 days.",
+    "Regulatory crisis mode — recall activity far above normal." ] },
+  sources:     { status: ["Few", "Several", "Many", "Saturated"], narr: [
+    "Usual number of outlets covering food safety.",
+    "More outlets than usual picking up stories.",
+    "Wide pickup — one story is being carried by many outlets.",
+    "Saturation — the story is everywhere." ] },
+  geography:   { status: ["Local", "Regional", "Multi-country", "Global"], narr: [
+    "Coverage from the usual set of countries.",
+    "Coverage spreading to more countries than usual.",
+    "Multi-country coverage — the narrative is crossing borders.",
+    "Global narrative — reported far wider than normal." ] },
+  breadth:     { status: ["Single", "Few", "Several", "Sector-wide"], narr: [
+    "Stories touch the usual mix of food categories.",
+    "More food categories involved than usual.",
+    "Several categories hit — industry-wide language appearing.",
+    "Sector-wide — many categories and 'industry-wide' coverage." ] },
+  persistence: { status: ["Fresh", "Days", "Lingering", "Entrenched"], narr: [
+    "Top stories are new; nothing has been running long.",
+    "Main stories running for longer than usual.",
+    "Lingering narrative — the same stories keep running.",
+    "Entrenched — the narrative has dominated for days." ] },
+};
+const FX_TIER_CLR = ["var(--green)", "var(--amber)", "#fb923c", "var(--red)"];
+const fxTier = v => v < 25 ? 0 : v < 50 ? 1 : v < 75 ? 2 : 3;
+const fxClr = v => FX_TIER_CLR[fxTier(v)];
+
+// Animated icons (48×36), one per factor; speed and intensity grow with the tier
+function fxSVG(key, v) {
+  const t = fxTier(v), c = ["#4ade80", "#facc15", "#fb923c", "#f87171"][t];
+  const sp = [2.4, 1.6, 1.0, 0.5][t];
+  const W = inner => `<svg width="48" height="36" viewBox="0 0 48 36">${inner}</svg>`;
+  switch (key) {
+    case "volume": {                // newspapers stacking up
+      let g = "";
+      for (let i = 0; i <= t; i++) g += `<rect x="${12 + i * 3}" y="${22 - i * 5}" width="22" height="11" rx="1.5" fill="#1c2538" stroke="${c}" stroke-width="1.2"
+        ${i === t ? `style="animation:fx-bob ${sp}s ease-in-out infinite"` : ""}/>
+        <line x1="${15 + i * 3}" y1="${25 - i * 5}" x2="${30 + i * 3}" y2="${25 - i * 5}" stroke="${c}" stroke-width="1" opacity=".7"/>
+        <line x1="${15 + i * 3}" y1="${28 - i * 5}" x2="${26 + i * 3}" y2="${28 - i * 5}" stroke="${c}" stroke-width="1" opacity=".5"/>`;
+      return W(g);
+    }
+    case "severity": {              // siren light
+      const rays = t >= 2 ? [-60, -30, 0, 30, 60].map(a => `<line x1="24" y1="14" x2="${24 + Math.sin(a * Math.PI / 180) * 14}" y2="${14 - Math.cos(a * Math.PI / 180) * 14}" stroke="${c}" stroke-width="1.5" stroke-linecap="round" style="animation:fx-blink ${sp}s infinite"/>`).join("") : "";
+      return W(`${rays}<path d="M16 26 Q16 12 24 12 Q32 12 32 26 Z" fill="${c}" style="animation:fx-blink ${sp}s infinite"/>
+        <rect x="13" y="26" width="22" height="4" rx="1" fill="#475569"/>`);
+    }
+    case "negativity": {            // face changing expression
+      const mouth = ["M18 22 Q24 27 30 22", "M18 24 L30 24", "M18 26 Q24 21 30 26", "M19 27 Q24 18 29 27 Z"][t];
+      return W(`<g style="${t === 3 ? `animation:fx-shake .3s infinite` : ""}">
+        <circle cx="24" cy="18" r="12" fill="none" stroke="${c}" stroke-width="1.6"/>
+        <circle cx="20" cy="15" r="1.4" fill="${c}"/><circle cx="28" cy="15" r="1.4" fill="${c}"/>
+        ${t >= 2 ? `<line x1="17" y1="11" x2="21" y2="12.5" stroke="${c}" stroke-width="1.2"/><line x1="31" y1="11" x2="27" y2="12.5" stroke="${c}" stroke-width="1.2"/>` : ""}
+        <path d="${mouth}" fill="${t === 3 ? c : "none"}" stroke="${c}" stroke-width="1.6" stroke-linecap="round"/></g>`);
+    }
+    case "regulatory": {            // building with flag
+      return W(`<path d="M12 14 L24 7 L36 14 Z" fill="${c}" opacity=".85"/>
+        ${[15, 21, 27, 33].map(x => `<rect x="${x - 1}" y="15" width="2.5" height="11" fill="${c}" opacity=".75"/>`).join("")}
+        <rect x="11" y="26" width="26" height="3" fill="${c}"/>
+        <line x1="24" y1="7" x2="24" y2="1" stroke="#94a3b8" stroke-width="1"/>
+        <path d="M24 1 L31 3 L24 5 Z" fill="${t >= 2 ? "#f87171" : c}" style="transform-origin:24px 3px;animation:fx-flag ${sp}s ease-in-out infinite"/>
+        ${t >= 2 ? `<circle cx="38" cy="8" r="2.5" fill="#f87171" style="animation:fx-blink ${sp}s infinite"/>` : ""}`);
+    }
+    case "sources": {               // antenna broadcasting
+      let waves = "";
+      for (let i = 0; i <= t; i++) waves += `<circle cx="24" cy="12" r="${6 + i * 4}" fill="none" stroke="${c}" stroke-width="1.2"
+        style="transform-origin:24px 12px;animation:fx-wave ${sp * 1.4}s ease-out infinite;animation-delay:${i * sp * .35}s"/>`;
+      return W(`${waves}<line x1="24" y1="12" x2="18" y2="32" stroke="#94a3b8" stroke-width="1.5"/>
+        <line x1="24" y1="12" x2="30" y2="32" stroke="#94a3b8" stroke-width="1.5"/><circle cx="24" cy="12" r="2.5" fill="${c}"/>`);
+    }
+    case "geography": {             // globe with pins
+      const pins = [[18, 13], [30, 15], [22, 23], [32, 22]].slice(0, t + 1).map(([x, y], i) =>
+        `<circle cx="${x}" cy="${y}" r="1.8" fill="${c}" style="transform-origin:${x}px ${y}px;animation:fx-pop ${sp}s ease-in-out infinite;animation-delay:${i * .2}s"/>`).join("");
+      return W(`<defs><clipPath id="fx-globe"><circle cx="24" cy="18" r="11"/></clipPath></defs>
+        <circle cx="24" cy="18" r="11" fill="#0f2a3a" stroke="#38bdf8" stroke-width="1.2"/>
+        <g clip-path="url(#fx-globe)"><g style="animation:fx-spin ${sp * 3}s linear infinite alternate">
+          ${[10, 17, 24, 31, 38].map(x => `<ellipse cx="${x}" cy="18" rx="3" ry="11" fill="none" stroke="#38bdf8" stroke-width=".6" opacity=".6"/>`).join("")}</g>
+          <line x1="13" y1="18" x2="35" y2="18" stroke="#38bdf8" stroke-width=".6" opacity=".6"/></g>${pins}`);
+    }
+    case "breadth": {               // tags fanning out
+      let g = "";
+      for (let i = 0; i <= t; i++) { const r = -18 + i * 12;
+        g += `<g style="transform-origin:14px 18px;transform:rotate(${r}deg)"><g style="transform-origin:14px 18px;animation:fx-sway ${sp}s ease-in-out infinite;animation-delay:${i * .15}s">
+          <path d="M14 14 L32 14 L37 18 L32 22 L14 22 Z" fill="#1c2538" stroke="${c}" stroke-width="1.2"/><circle cx="31" cy="18" r="1.3" fill="${c}"/></g></g>`; }
+      return W(g);
+    }
+    case "persistence": {           // hourglass
+      return W(`<g style="transform-origin:24px 18px;animation:fx-flip ${[8, 6, 4, 2.5][t]}s ease-in-out infinite">
+        <path d="M16 5 L32 5 L24 18 L32 31 L16 31 L24 18 Z" fill="none" stroke="${c}" stroke-width="1.5" stroke-linejoin="round"/>
+        <path d="M18.5 7 L29.5 7 L24 15 Z" fill="${c}" opacity=".85" style="transform-origin:24px 7px;animation:fx-sand ${[8, 6, 4, 2.5][t]}s linear infinite"/>
+        <path d="M24 ${31 - 3 - t * 2.5} L${29 - (3 - t)} 29 L${19 + (3 - t)} 29 Z" fill="${c}" opacity=".85"/></g>`);
+    }
+  }
+  return W("");
+}
+
+let FX_HIST = {};       // key → [{ts, value}]
+async function loadFactorHistory() {
+  try { FX_HIST = (await fetch("/api/narrative/components_history?hours=24").then(r => r.json())).series || {}; } catch (e) {}
+}
+
 function renderComponents(live) {
   const wrap = document.getElementById("components-wrap");
   wrap.innerHTML = COMPONENTS.map(c => {
-    const color = componentColor(c.axis);
-    const comp  = live && live[c.key];
-    const has   = comp && typeof comp.value === "number";
-    const val   = has ? Math.round(comp.value) : null;
-    const tip   = has ? esc(comp.detail || "") : "Waiting for first collector run";
-    return `<div class="comp-row" title="${tip}">
-      <span class="comp-icon">${c.icon}</span>
-      <span class="comp-name">${c.name}</span>
-      <div class="comp-bar-wrap">
-        <div class="comp-bar" style="width:${has ? val : 0}%;background:${color}"></div>
+    const comp = live && live[c.key];
+    const has = comp && typeof comp.value === "number";
+    const v = has ? comp.value : 0, clr = has ? fxClr(v) : "var(--muted)", t = fxTier(v);
+    const meta = FX_META[c.key];
+    const hist = FX_HIST[c.key] || [];
+    const spike = hist.length > 1 && hist[hist.length - 1].value - hist[hist.length - 2].value >= 10 ? '<span class="fx-spike">⚡</span>' : "";
+    return `<div class="fx">
+      <div class="fx-top">
+        <div class="fx-anim">${fxSVG(c.key, has ? v : 0)}</div>
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;margin-bottom:3px">
+            <span class="fx-name" title="${c.axis === "intensity" ? "Intensity" : "Diffusion"} factor · ${has ? esc(comp.detail || "") : "waiting for first collector run"}">${c.name}</span>${spike}
+            <span class="fx-wt">${Math.round(parseFloat(c.weight.slice(1)) * 100)}% weight</span>
+          </div>
+          <div class="fx-barrow">
+            <div class="fx-bar"><i style="width:${has ? Math.min(100, v) : 0}%;background:${clr}"></i></div>
+            <span class="fx-val" style="color:${clr}">${has ? v.toFixed(1) : "—"}</span>
+            <span class="fx-status" style="color:${clr}">${has ? meta.status[t] : "—"}</span>
+          </div>
+        </div>
       </div>
-      <span class="comp-val" style="color:${has && val > 50 ? (c.axis==='intensity'?'var(--amber)':'var(--accent)') : 'var(--muted)'}">${has ? val : "—"}</span>
-      <span class="comp-wt">${c.weight}</span>
+      <div class="fx-narr ${has && t ? "t" + t : ""}">${has ? meta.narr[t] : "Waiting for the first reading."}</div>
+      <div class="fx-spark">
+        <div class="fx-spark-lbl"><span>24h history</span><span id="fxl-${c.key}" style="color:${clr}"></span></div>
+        <svg id="fxs-${c.key}" viewBox="0 0 200 24" preserveAspectRatio="none"></svg>
+      </div>
     </div>`;
   }).join("");
+  COMPONENTS.forEach(c => drawFxSpark(c.key, FX_HIST[c.key] || [], live && live[c.key] ? fxClr(live[c.key].value) : "var(--muted)"));
+}
+
+// Sparkline with the Delivery Pulse hover: label shows "▸ value · time ago"
+function drawFxSpark(key, hist, color) {
+  const svg = document.getElementById("fxs-" + key), lbl = document.getElementById("fxl-" + key);
+  if (!svg) return;
+  if (hist.length < 2) { svg.innerHTML = ""; if (lbl) lbl.textContent = "building…"; return; }
+  const W = 200, H = 24, pad = 2, vals = hist.map(h => h.value);
+  const min = Math.min(...vals), max = Math.max(...vals, min + 1), range = max - min || 1;
+  const t0 = hist[0].ts, t1 = hist[hist.length - 1].ts;
+  const X = ts => pad + (ts - t0) / Math.max(1, t1 - t0) * (W - pad * 2), Y = v => H - pad - (v - min) / range * (H - pad * 2);
+  const pts = hist.map(h => [X(h.ts), Y(h.value)]);
+  const line = pts.map((p, i) => `${i ? "L" : "M"}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(" ");
+  const rangeTxt = `${min.toFixed(1)} – ${max.toFixed(1)}`;
+  svg.innerHTML = `<defs><linearGradient id="fxg-${key}" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="${color}" stop-opacity=".3"/><stop offset="100%" stop-color="${color}" stop-opacity="0"/></linearGradient></defs>
+    <path d="${line} L${pts[pts.length - 1][0].toFixed(1)},${H} L${pts[0][0].toFixed(1)},${H} Z" fill="url(#fxg-${key})"/>
+    <path d="${line}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
+    <circle cx="${pts[pts.length - 1][0].toFixed(1)}" cy="${pts[pts.length - 1][1].toFixed(1)}" r="2.5" fill="${color}"/>
+    <line id="fxh-${key}" x1="0" y1="0" x2="0" y2="${H}" stroke="${color}" stroke-width="1" stroke-dasharray="2 2" opacity="0" vector-effect="non-scaling-stroke"/>
+    <circle id="fxd-${key}" cx="0" cy="0" r="3" fill="${color}" opacity="0"/>`;
+  if (lbl) lbl.textContent = rangeTxt;
+  svg.onmousemove = e => {
+    const bb = svg.getBoundingClientRect(), mx = (e.clientX - bb.left) / bb.width * W;
+    let i = 0; for (let k = 1; k < pts.length; k++) if (Math.abs(pts[k][0] - mx) < Math.abs(pts[i][0] - mx)) i = k;
+    const hl = document.getElementById("fxh-" + key), hd = document.getElementById("fxd-" + key);
+    hl.setAttribute("x1", pts[i][0]); hl.setAttribute("x2", pts[i][0]); hl.setAttribute("opacity", ".7");
+    hd.setAttribute("cx", pts[i][0]); hd.setAttribute("cy", pts[i][1]); hd.setAttribute("opacity", "1");
+    if (lbl) lbl.textContent = `▸ ${hist[i].value.toFixed(1)} · ${ago(hist[i].ts)}`;
+  };
+  svg.onmouseleave = () => {
+    document.getElementById("fxh-" + key).setAttribute("opacity", "0");
+    document.getElementById("fxd-" + key).setAttribute("opacity", "0");
+    if (lbl) lbl.textContent = rangeTxt;
+  };
 }
 
 // ── RENDER HEADLINES ──
@@ -1461,6 +1659,7 @@ async function renderAnalytics() {
 
   const d = a.daily || [], thr = a.threshold || 30;
   const el = document.getElementById("an-daily");
+  if (!el) return;   // daily averages live on the Analysis tab
   if (!d.length) { el.innerHTML = '<div class="an-note">No daily data yet.</div>'; return; }
   const top = Math.max(60, ...d.map(x => x.avg)) * 1.1;
   el.innerHTML = d.map(x => {
@@ -1697,7 +1896,8 @@ async function fetchHistory() {
 async function init() {
   const [indexData, history] = await Promise.all([
     fetchLiveIndex(),
-    fetchHistory()
+    fetchHistory(),
+    loadFactorHistory()
   ]);
 
   renderLive(indexData);
@@ -1711,7 +1911,7 @@ try { if (localStorage.getItem("fsni_tab") === "analysis") switchTab("analysis")
 
 // Refresh index, components, headlines and chart every 60s
 setInterval(async () => {
-  const [data, history] = await Promise.all([fetchLiveIndex(), fetchHistory()]);
+  const [data, history] = await Promise.all([fetchLiveIndex(), fetchHistory(), loadFactorHistory()]);
   renderLive(data);
   renderChart(history);
   renderContracts();

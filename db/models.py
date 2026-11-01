@@ -115,3 +115,36 @@ class IndexTick(Base):
     diffusion_score = Column(Float, nullable=True, default=0.0)
     headlines       = Column(Text, nullable=True)   # JSON list of top article titles
     created_at      = Column(DateTime, default=datetime.utcnow)
+
+
+class Narrative(Base):
+    """A story that crossed the listing threshold. Listed for 72 h, then closed
+    with a final story score (what grow/fade positions will settle on later)."""
+    __tablename__ = "narratives"
+
+    id          = Column(Integer, primary_key=True, autoincrement=True)
+    sid         = Column(String(16), unique=True, nullable=False, index=True)
+    title       = Column(Text, nullable=False)
+    url         = Column(Text, nullable=True)
+    source      = Column(String(200), nullable=True)
+    status      = Column(String(12), nullable=False, default="LISTED")   # LISTED | CLOSED
+    first_seen  = Column(Float, nullable=True)     # unix ts the story was first picked up
+    listed_at   = Column(Float, nullable=False)
+    closes_at   = Column(Float, nullable=False)
+    list_score  = Column(Float, nullable=False)    # score when it was listed
+    last_score  = Column(Float, nullable=True)
+    peak_score  = Column(Float, nullable=True)
+    final_score = Column(Float, nullable=True)     # score at close
+    closed_at   = Column(Float, nullable=True)
+    last_seen   = Column(Float, nullable=True)     # last run the story was still in the news
+    snapshot    = Column(Text, nullable=True)      # JSON: outlets, regions, categories, articles…
+
+
+class NarrativePoint(Base):
+    """Story score over time, for the story page chart."""
+    __tablename__ = "narrative_points"
+
+    id    = Column(Integer, primary_key=True, autoincrement=True)
+    sid   = Column(String(16), nullable=False, index=True)
+    ts    = Column(Float, nullable=False)
+    score = Column(Float, nullable=False)

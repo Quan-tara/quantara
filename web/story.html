@@ -47,6 +47,7 @@ main { max-width: 1240px; margin: 0 auto; padding-top: 18px; display: grid; gap:
 .pill { font-family: var(--mono); font-size: 9px; font-weight: 700; letter-spacing: 1px; padding: 2px 7px; border-radius: 3px; white-space: nowrap }
 .pill.LISTED { background: var(--amber); color: var(--bg) }
 .pill.CLOSED { border: 1px solid var(--dim); color: var(--muted) }
+.pill.MERGED { border: 1px solid var(--muted); color: var(--muted) }
 .pill.WATCHING { border: 1px solid var(--accent); color: var(--accent) }
 .tag { font-family: var(--mono); font-size: 9px; padding: 1px 5px; background: var(--s3); border-radius: 2px; color: var(--muted) }
 
@@ -260,6 +261,7 @@ async function story(sid) {
   const windowHtml = isOpen ? `<div class="window">
       <div class="bar"><i style="width:${(100 * Math.min(1, (d.now - d.listed_at) / full)).toFixed(1)}%"></i></div>
       <div class="window-txt"><span>listed ${when(d.listed_at)}</span><span>closes in ${dur(d.closes_at - d.now)}</span><span>${when(d.closes_at)}</span></div></div>`
+    : d.status === "MERGED" ? `<div class="note">This was the same event as another listed story, headlined differently. It was merged into <a href="/story/${encodeURIComponent(d.merged_into)}">that story</a>, which carries on from here.</div>`
     : isClosed ? `<div class="window"><div class="window-txt"><span>listed ${when(d.listed_at)}</span><span>closed ${when(d.closed_at)}</span></div></div>`
     : `<div class="note">Not listed yet. A story lists at score <b>${d.rules.score}</b> with <b>${d.rules.outlets}+</b> outlets — this one is at <b>${(d.score || 0).toFixed(1)}</b> with <b>${d.outlets}</b> outlet${d.outlets === 1 ? "" : "s"}.</div>`;
   const origin = (d.origin || []);

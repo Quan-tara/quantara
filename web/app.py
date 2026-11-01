@@ -1613,7 +1613,8 @@ def _narr_row(n, with_snap=False):
          "peak_score": n.peak_score, "final_score": n.final_score, "last_seen": n.last_seen,
          "in_news": bool(n.last_seen and n.last_seen >= _time.time() - 45 * 60),
          "outlets": snap.get("outlets", 0), "articles": len(snap.get("articles", [])),
-         "regions": snap.get("regions", []), "categories": snap.get("categories", [])}
+         "regions": snap.get("regions", []), "categories": snap.get("categories", []),
+         "merged_into": snap.get("merged_into")}
     if with_snap:
         d["snapshot"] = snap
     return d
@@ -1639,7 +1640,8 @@ def api_narrative_listed(days: float = 14.0):
     session = SessionLocal()
     try:
         since = _time.time() - days * 86400
-        rows = session.query(Narrative).filter(Narrative.listed_at >= since).all()
+        rows = session.query(Narrative).filter(Narrative.listed_at >= since,
+                                               Narrative.status != "MERGED").all()
         rows.sort(key=lambda n: (n.status != "LISTED", -(n.last_score or 0) if n.status == "LISTED" else -(n.closed_at or 0)))
         sids = [n.sid for n in rows]
         pts = {}
@@ -1708,7 +1710,7 @@ def api_narrative_story(sid: str):
                                    "tokens": set(x.get("tokens", [])), "hazards": set(x.get("hazards", []))}
         import json as _json
         for m in session.query(Narrative).filter(Narrative.listed_at >= now - 30 * 86400).all():
-            if m.sid == sid:
+            if m.sid == sid or m.status == "MERGED":
                 continue
             sn = _json.loads(m.snapshot or "{}")
             cands[m.sid] = {"sid": m.sid, "title": m.title, "score": m.final_score if m.status == "CLOSED" else m.last_score,

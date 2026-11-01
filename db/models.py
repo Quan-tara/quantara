@@ -201,3 +201,39 @@ class StoryTrade(Base):
     credits = Column(Float, nullable=False)           # paid (OPEN) or received (CLOSE)
     score   = Column(Float, nullable=True)            # story score at the time
     ts      = Column(Float, nullable=False)
+
+
+# ── Story comments ──────────────────────────────────────────────────────────
+class StoryComment(Base):
+    """Discussion on a story page. Never an input to the score or the payout."""
+    __tablename__ = "story_comments"
+
+    id        = Column(Integer, primary_key=True, autoincrement=True)
+    sid       = Column(String(16), nullable=False, index=True)
+    user_id   = Column(BigInteger, nullable=False, index=True)
+    parent_id = Column(Integer, nullable=True)          # reply to (one level)
+    body      = Column(Text, nullable=False)
+    verdict   = Column(String(12), nullable=True)       # REAL | EXAGGERATED | HYPE
+    side      = Column(String(4), nullable=True)        # commenter's position when posting
+    units     = Column(Float, nullable=True)
+    ts        = Column(Float, nullable=False)
+    deleted   = Column(Boolean, nullable=False, default=False)
+    reports   = Column(Integer, nullable=False, default=0)
+
+
+class StoryCommentReport(Base):
+    __tablename__ = "story_comment_reports"
+
+    id         = Column(Integer, primary_key=True, autoincrement=True)
+    comment_id = Column(Integer, nullable=False, index=True)
+    user_id    = Column(BigInteger, nullable=False)
+    reason     = Column(String(200), nullable=True)
+    ts         = Column(Float, nullable=False)
+
+
+class StoryCommentBlock(Base):
+    __tablename__ = "story_comment_blocks"
+
+    user_id = Column(BigInteger, primary_key=True)
+    ts      = Column(Float, nullable=False)
+    note    = Column(String(200), nullable=True)

@@ -346,6 +346,35 @@ header {
 .an-line { position: absolute; left: 0; right: 0; border-top: 1px dashed rgba(255,61,90,.7); pointer-events: none }
 .an-line span { position: absolute; right: 0; top: -11px; font-family: var(--mono); font-size: 7px; color: var(--red) }
 
+/* ── TABS + ANALYSIS PAGE ── */
+[hidden] { display: none !important }
+.tabs { position: relative; z-index: 1; display: flex; border-bottom: 1px solid var(--border); background: var(--s1) }
+.tab { flex: 0 0 auto; min-width: 160px; padding: 10px 22px; background: none; border: none; border-bottom: 2px solid transparent;
+  font-family: var(--mono); font-size: 11px; letter-spacing: 2px; color: var(--muted); cursor: pointer }
+.tab.on { color: var(--accent); border-bottom-color: var(--accent); background: rgba(0,200,240,.04) }
+.page-wrap { height: calc(100vh - 53px - 40px) !important }
+.an-page { position: relative; z-index: 1; display: grid; grid-template-columns: minmax(0,1fr) 360px; min-height: calc(100vh - 93px) }
+.an-page[hidden] { display: none }
+.an-main { border-right: 1px solid var(--border); min-width: 0 }
+.an-mono { font-family: var(--mono); font-size: 10px; color: var(--muted); margin-left: 8px }
+.an-sub { font-size: 10px; color: var(--muted) }
+.an-ctrl { display: flex; align-items: center; gap: 2px }
+.an-rng { font-family: var(--mono); font-size: 9px; padding: 2px 6px; border: 1px solid var(--border); border-radius: 3px; cursor: pointer; color: var(--muted) }
+.an-rng.on { color: var(--accent); border-color: var(--accent) }
+.na-chart { padding: 10px 18px 14px } .na-chart svg { width: 100%; height: 140px; display: block } .na-chart.small svg { height: 70px }
+.na-move { display: grid; grid-template-columns: 118px 56px minmax(0,1fr); gap: 10px; padding: 7px 18px; font-size: 12px; border-bottom: 1px solid rgba(42,58,85,.5); align-items: baseline }
+.na-move .t { font-family: var(--mono); font-size: 10px; color: var(--muted); white-space: nowrap }
+.na-move .d { font-family: var(--mono) }
+.na-days { position: relative; display: flex; align-items: flex-end; gap: 4px; height: 130px; padding: 18px 18px 10px }
+.na-days .an-day em { font-size: 9px } .na-days .an-day span { font-size: 8px }
+.na-days .an-line { left: 18px; right: 18px }
+.an-stat { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 11px; padding: 4px 0; border-bottom: 1px solid rgba(42,58,85,.4) }
+.an-stat span:first-child { color: var(--muted); font-family: var(--sans) }
+@media (max-width: 900px) {
+  .an-page { grid-template-columns: 1fr } .an-main { border-right: none }
+  .tab { min-width: 0; flex: 1 } .page-wrap { height: auto !important }
+}
+
 /* ── FSNI TRADING ── */
 .pilot-tag { font-family: var(--mono); font-size: 8px; letter-spacing: 1px; color: var(--amber); border: 1px solid rgba(255,179,0,.4); border-radius: 3px; padding: 1px 5px }
 .acct { padding: 10px 14px; border-bottom: 1px solid var(--border); font-size: 12px; display: flex; flex-direction: column; gap: 8px }
@@ -507,8 +536,14 @@ header {
   </div>
 </header>
 
+<!-- TABS — same pattern as the exchange -->
+<nav class="tabs" role="tablist">
+  <button class="tab on" data-tab="trade" onclick="switchTab('trade')">📈 Trade</button>
+  <button class="tab" data-tab="analysis" onclick="switchTab('analysis')">📊 Analysis</button>
+</nav>
+
 <!-- THREE-COLUMN LAYOUT -->
-<div class="page-wrap">
+<div class="page-wrap" id="tab-trade">
 
   <!-- COL 1: INDEX + COMPONENTS -->
   <div class="col">
@@ -689,6 +724,35 @@ header {
 
   </div>
 
+</div>
+
+<!-- ANALYSIS TAB — full FSNI analytics for users -->
+<div class="an-page" id="tab-analysis" hidden>
+  <div class="an-main">
+    <div class="sh"><span class="sh-title">FSNI History</span>
+      <span class="an-ctrl"><span class="an-rng" data-h="6">6H</span><span class="an-rng on" data-h="24">24H</span><span class="an-rng" data-h="168">7D</span>
+        <span id="na-range" class="an-mono">—</span></span></div>
+    <div class="na-chart"><svg id="na-hist" viewBox="0 0 1000 100" preserveAspectRatio="none"></svg>
+      <div class="an-note">Dashed lines: regime boundaries 15 / 50; red = 30, the payout line.</div></div>
+
+    <div class="sh"><span class="sh-title">Volatility History</span><span id="na-volrng" class="an-mono">—</span></div>
+    <div class="na-chart small"><svg id="na-vol" viewBox="0 0 1000 60" preserveAspectRatio="none"></svg></div>
+
+    <div class="sh"><span class="sh-title">Move Log</span><span class="an-sub">readings where FSNI moved 3+ points, and the story leading at that moment</span></div>
+    <div id="na-moves"></div>
+
+    <div class="sh"><span class="sh-title">Daily FSNI Average</span><span class="an-sub">covers settle on the average — red line = 30</span></div>
+    <div class="na-days" id="na-daily"></div>
+  </div>
+  <div class="an-side">
+    <div class="sh"><span class="sh-title">Distribution</span><span class="an-sub" id="na-dlabel">last 24h</span></div>
+    <div class="an-wrap" id="na-buckets"></div>
+    <div class="sh"><span class="sh-title">Volatility σ</span><span class="an-sig" id="na-sig">—</span></div>
+    <div class="an-wrap"><div class="an-note">How much FSNI moves between readings in the selected window (std dev, index points).
+      A high σ means the narrative is moving fast and cover prices can change quickly.</div></div>
+    <div class="sh"><span class="sh-title">Window Stats</span></div>
+    <div class="an-wrap" id="na-stats"></div>
+  </div>
 </div>
 
 <script>
@@ -1384,6 +1448,89 @@ async function renderAnalytics() {
   }).join("") + `<div class="an-line" style="bottom:${(thr / top * 70 + 13).toFixed(1)}px"><span>${thr}</span></div>`;
 }
 
+// ── TABS ──
+function switchTab(t) {
+  document.querySelectorAll(".tab").forEach(b => b.classList.toggle("on", b.dataset.tab === t));
+  document.getElementById("tab-trade").hidden = t !== "trade";
+  document.getElementById("tab-analysis").hidden = t !== "analysis";
+  try { localStorage.setItem("fsni_tab", t); } catch (e) {}
+  if (t === "analysis") renderAnalysisTab();
+}
+
+// ── ANALYSIS TAB (users) — same data as the MM console ──
+let NA_HOURS = 24;
+async function renderAnalysisTab() {
+  if (document.getElementById("tab-analysis").hidden) return;
+  const [a, h] = await Promise.all([
+    fetch(`/api/narrative/analytics?hours=${NA_HOURS}`).then(r => r.json()).catch(() => null),
+    fetch(`/api/narrative/history?hours=${NA_HOURS}&limit=2000`).then(r => r.json()).catch(() => null)
+  ]);
+  if (!a) return;
+  const lbl = { 6: "last 6h", 24: "last 24h", 168: "last 7d" }[NA_HOURS];
+  document.getElementById("na-dlabel").textContent = lbl;
+  document.getElementById("na-range").textContent = a.count ? `${a.min.toFixed(1)} – ${a.max.toFixed(1)}` : "no data yet";
+
+  // history
+  const tk = (h && h.ticks) || [], svg = document.getElementById("na-hist");
+  if (tk.length > 1) {
+    const t0 = tk[0].ts, t1 = Date.now() / 1000;
+    const X = t => ((t - t0) / Math.max(1, t1 - t0) * 1000).toFixed(1), Y = v => (100 - Math.max(0, Math.min(100, v))).toFixed(2);
+    let d = ""; tk.forEach((t, i) => { const gap = i > 0 && t.ts - tk[i - 1].ts > 2700; d += (i === 0 || gap ? "M" : "L") + X(t.ts) + "," + Y(t.value) + " "; });
+    svg.innerHTML = [15, 30, 50].map(v => `<line x1="0" x2="1000" y1="${100 - v}" y2="${100 - v}" stroke="${v === 30 ? "rgba(255,61,90,.6)" : "#2a3a55"}" stroke-dasharray="4,4" vector-effect="non-scaling-stroke"/>`).join("") +
+      `<path d="${d.replace(/M/g, "L").replace(/^L/, "M")}L${X(tk[tk.length - 1].ts)},100 L0,100 Z" fill="rgba(0,200,240,.12)"/>
+       <path d="${d}" fill="none" stroke="var(--accent)" stroke-width="1.5" vector-effect="non-scaling-stroke"/>`;
+  } else svg.innerHTML = "";
+
+  // volatility history + sigma
+  const vh = a.vol_history || [], vs = document.getElementById("na-vol");
+  if (vh.length > 1) {
+    const mx = Math.max(...vh.map(x => x.sigma), 1), mn = Math.min(...vh.map(x => x.sigma));
+    const pts = vh.map((x, i) => `${(i / (vh.length - 1) * 1000).toFixed(1)},${(58 - x.sigma / mx * 54).toFixed(1)}`);
+    vs.innerHTML = `<path d="M${pts.join(" L")} L1000,60 L0,60 Z" fill="rgba(255,61,90,.14)"/><path d="M${pts.join(" L")}" fill="none" stroke="var(--red)" stroke-width="1.5" vector-effect="non-scaling-stroke"/>`;
+    document.getElementById("na-volrng").textContent = `σ ${mn.toFixed(2)} – ${mx.toFixed(2)}`;
+  } else { vs.innerHTML = ""; document.getElementById("na-volrng").textContent = "—"; }
+  const sig = a.volatility || 0, se = document.getElementById("na-sig");
+  se.textContent = a.count > 1 ? `${sig.toFixed(2)} ${sig < 2 ? "LOW" : sig < 5 ? "MEDIUM" : "HIGH"}` : "—";
+  se.style.color = sig < 2 ? "var(--green)" : sig < 5 ? "var(--amber)" : "var(--red)";
+
+  // distribution
+  const B = [["CALM <15", "calm", "var(--green)"], ["WATCH 15–30", "watch", "var(--amber)"], ["ELEVATED 30–50", "elevated", "#fb923c"], ["CRITICAL 50+", "critical", "var(--red)"]];
+  document.getElementById("na-buckets").innerHTML = a.count ? B.map(([l, k, c]) =>
+    `<div class="an-row"><span style="color:var(--muted)">${l}</span><div class="an-bar"><i style="width:${a.buckets[k]}%;background:${c}"></i></div>
+     <span style="text-align:right;color:${c}">${a.buckets[k]}%</span></div>`).join("") : '<div class="an-note">No readings yet.</div>';
+
+  // stats
+  document.getElementById("na-stats").innerHTML = a.count ? [
+    ["Readings", a.count], ["Current", a.current.toFixed(1)], ["Average", a.mean.toFixed(1)],
+    ["Low – high", `${a.min.toFixed(1)} – ${a.max.toFixed(1)}`],
+    ["Time above 30", `${(a.buckets.elevated + a.buckets.critical)}%`]
+  ].map(([k, v]) => `<div class="an-stat"><span>${k}</span><span>${v}</span></div>`).join("") : "";
+
+  // move log
+  const mv = a.moves || [];
+  document.getElementById("na-moves").innerHTML = mv.length ? mv.map(m => {
+    const t = new Date(m.ts * 1000), c = m.delta > 0 ? "var(--red)" : "var(--green)";
+    const axis = Math.abs(m.d_intensity) >= Math.abs(m.d_diffusion) ? "intensity" : "diffusion";
+    return `<div class="na-move"><span class="t">${t.toLocaleDateString([], { month: "2-digit", day: "2-digit" })} ${t.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+      <span class="d" style="color:${c}">${m.delta > 0 ? "+" : ""}${m.delta.toFixed(1)}</span>
+      <span>→ ${m.value.toFixed(1)} · mostly ${axis}${m.lead ? ` · <span style="color:var(--muted)">${esc(m.lead.title)}${m.lead.outlets > 1 ? ` (+${m.lead.outlets - 1} outlets)` : ""}</span>` : ""}</span></div>`;
+  }).join("") : `<div class="an-note" style="padding:12px 18px">No moves of 3+ points in the ${lbl}.</div>`;
+
+  // daily averages
+  const dd = a.daily || [], thr = a.threshold || 30, de = document.getElementById("na-daily");
+  if (!dd.length) { de.innerHTML = '<div class="an-note">No daily data yet.</div>'; return; }
+  const top = Math.max(60, ...dd.map(x => x.avg)) * 1.1;
+  de.innerHTML = dd.map(x => { const c = x.avg > thr ? "var(--green)" : "var(--red)";
+    return `<div class="an-day" title="${x.date}: avg ${x.avg.toFixed(2)} (${x.n} readings)"><em style="color:${c}">${x.avg.toFixed(1)}</em>
+      <b style="height:${(x.avg / top * 85).toFixed(1)}px;background:${c};opacity:${x.today ? .45 : .85};${x.today ? "outline:1px dashed " + c + ";" : ""}"></b>
+      <span>${x.today ? "now" : x.date.slice(5)}</span></div>`; }).join("") +
+    `<div class="an-line" style="bottom:${(thr / top * 85 + 23).toFixed(1)}px"><span>${thr}</span></div>`;
+}
+document.addEventListener("click", e => {
+  const r = e.target.closest(".an-rng"); if (!r) return;
+  NA_HOURS = +r.dataset.h; document.querySelectorAll(".an-rng").forEach(x => x.classList.toggle("on", x === r)); renderAnalysisTab();
+});
+
 // ── FETCH REAL INDEX FROM API ──
 
 async function fetchLiveIndex() {
@@ -1441,6 +1588,7 @@ async function init() {
 }
 
 init();
+try { if (localStorage.getItem("fsni_tab") === "analysis") switchTab("analysis"); } catch (e) {}
 
 // Refresh index, components, headlines and chart every 60s
 setInterval(async () => {
@@ -1449,5 +1597,6 @@ setInterval(async () => {
   renderChart(history);
   renderContracts();
   renderAnalytics();
+  renderAnalysisTab();
 }, 60000);
 </script>

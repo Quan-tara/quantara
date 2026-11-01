@@ -601,6 +601,47 @@ def story_score(s, now=None):
     return round(100 * (0.45 * reach + 0.15 * geo + 0.20 * sev + 0.20 * mom) * fresh, 1)
 
 
+def story_score_parts(s, now=None):
+    """The story score split into its parts (for the story page). Same formula as story_score."""
+    now = now or time.time()
+    outlets = int(s.get("outlets") or 0)
+    regions = list(s.get("regions") or [])
+    sev = float(s.get("severity") or 0)
+    recent = int(s.get("recent_12h") or 0)
+    reach = min(1.0, math.log2(1 + outlets) / math.log2(41))
+    geo = min(1.0, len(regions) / 4)
+    mom = min(1.0, recent / 8)
+    age_h = max(0.0, (now - float(s.get("ts") or now)) / 3600)
+    fresh = 1.0 if age_h <= 12 else max(0.3, 1 - (age_h - 12) / 86)
+    parts = [
+        {"key": "reach", "label": "Reach", "weight": 45, "share": round(reach, 3),
+         "points": round(45 * reach, 1), "detail": f"{outlets} outlet{'s' if outlets != 1 else ''} — full marks at 40"},
+        {"key": "regions", "label": "Regions", "weight": 15, "share": round(geo, 3),
+         "points": round(15 * geo, 1), "detail": f"{len(regions)} of 4 ({', '.join(regions) or 'none'})"},
+        {"key": "severity", "label": "Severity", "weight": 20, "share": round(sev, 3),
+         "points": round(20 * sev, 1),
+         "detail": ("none mentioned" if sev == 0 else "low" if sev < 0.34 else "medium" if sev < 0.67 else "high")
+                   + " — deaths, hospitalisations, children, Class I, nationwide…"},
+        {"key": "momentum", "label": "Momentum", "weight": 20, "share": round(mom, 3),
+         "points": round(20 * mom, 1), "detail": f"{recent} new article{'s' if recent != 1 else ''} in the last 12 h — full marks at 8"},
+    ]
+    base = sum(p["points"] for p in parts)
+    return {"parts": parts, "subtotal": round(base, 1), "freshness": round(fresh, 3),
+            "newest_age_h": round(age_h, 1), "score": round(base * fresh, 1)}
+
+
+def score_if_quiet(s, at_ts, articles_ts=None):
+    """Score at `at_ts` if no new coverage arrives: momentum drops out as articles age
+    past 12 h, freshness fades. `articles_ts`: article times (else recent_12h is assumed
+    to age out by then)."""
+    q = dict(s)
+    if articles_ts is not None:
+        q["recent_12h"] = sum(1 for t in articles_ts if t >= at_ts - 12 * 3600)
+    elif at_ts - float(s.get("ts") or at_ts) > 12 * 3600:
+        q["recent_12h"] = 0
+    return story_score_parts(q, at_ts)["score"]
+
+
 def _load_story_index(session, before_ts=None):
     """story_index list from the latest FSNI reading (optionally at or before a time)."""
     import sqlalchemy as sa
@@ -685,6 +726,7 @@ def compact_story_index(stories):
              "outlets": s["outlets"], "articles": s["articles"], "regions": s["regions"],
              "categories": s["categories"], "first_seen": s["first_seen"], "ts": s["ts"],
              "url": s["url"], "source": s["source"], "listed": s.get("listed", False),
+             "severity": s["severity"], "recent_12h": s["recent_12h"],
              "closes_at": s.get("closes_at"),
              "tokens": s["tokens"][:40], "hazards": s["hazards"]} for s in top]
 

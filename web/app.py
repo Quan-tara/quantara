@@ -1593,6 +1593,152 @@ def api_narrative_stories():
         session.close()
 
 
+@app.get("/stories")
+def serve_stories():
+    return FileResponse(os.path.join(os.path.dirname(__file__), "story.html"))
+
+
+@app.get("/story/{sid}")
+def serve_story(sid: str):
+    return FileResponse(os.path.join(os.path.dirname(__file__), "story.html"))
+
+
+def _narr_row(n, with_snap=False):
+    import json as _json
+    import time as _time
+    snap = _json.loads(n.snapshot or "{}")
+    d = {"sid": n.sid, "title": n.title, "url": n.url, "source": n.source, "status": n.status,
+         "first_seen": n.first_seen, "listed_at": n.listed_at, "closes_at": n.closes_at,
+         "closed_at": n.closed_at, "list_score": n.list_score, "score": n.last_score,
+         "peak_score": n.peak_score, "final_score": n.final_score, "last_seen": n.last_seen,
+         "in_news": bool(n.last_seen and n.last_seen >= _time.time() - 45 * 60),
+         "outlets": snap.get("outlets", 0), "articles": len(snap.get("articles", [])),
+         "regions": snap.get("regions", []), "categories": snap.get("categories", [])}
+    if with_snap:
+        d["snapshot"] = snap
+    return d
+
+
+def _latest_story_index(session):
+    import json as _json
+    import sqlalchemy as _sa
+    row = session.execute(_sa.text(
+        "SELECT ts, headlines FROM index_ticks WHERE headlines LIKE :pat ORDER BY ts DESC LIMIT 1"
+    ), {"pat": '%"story_index"%'}).fetchone()
+    if not row:
+        return None, []
+    return float(row[0]), (_json.loads(row[1]) or {}).get("story_index") or []
+
+
+@app.get("/api/narrative/listed")
+def api_narrative_listed(days: float = 14.0):
+    """Listed stories (open first, then recently closed) with a small score sparkline each."""
+    import time as _time
+    from db.models import Narrative, NarrativePoint
+    from engine.story_listing import LIST_SCORE, LIST_MIN_OUTLETS, LIST_WINDOW_H
+    session = SessionLocal()
+    try:
+        since = _time.time() - days * 86400
+        rows = session.query(Narrative).filter(Narrative.listed_at >= since).all()
+        rows.sort(key=lambda n: (n.status != "LISTED", -(n.last_score or 0) if n.status == "LISTED" else -(n.closed_at or 0)))
+        sids = [n.sid for n in rows]
+        pts = {}
+        if sids:
+            for p in (session.query(NarrativePoint).filter(NarrativePoint.sid.in_(sids))
+                      .order_by(NarrativePoint.ts).all()):
+                pts.setdefault(p.sid, []).append([p.ts, p.score])
+        out = []
+        for n in rows:
+            d = _narr_row(n)
+            d["spark"] = pts.get(n.sid, [])[-60:]
+            out.append(d)
+        return {"now": _time.time(), "rules": {"score": LIST_SCORE, "outlets": LIST_MIN_OUTLETS,
+                                                "window_h": LIST_WINDOW_H},
+                "stories": out}
+    finally:
+        session.close()
+
+
+@app.get("/api/narrative/story/{sid}")
+def api_narrative_story(sid: str):
+    """One story: score history, articles, how it started, related stories.
+    Works for listed stories and for any story in the latest reading."""
+    import time as _time
+    from db.models import Narrative, NarrativePoint
+    from engine.story_listing import (LIST_SCORE, LIST_MIN_OUTLETS, LIST_WINDOW_H,
+                                      history_from_readings)
+    sid = (sid or "")[:16]
+    session = SessionLocal()
+    try:
+        now = _time.time()
+        n = session.query(Narrative).filter(Narrative.sid == sid).first()
+        idx_ts, idx = _latest_story_index(session)
+        live = next((x for x in idx if x.get("sid") == sid), None)
+        if not n and not live:
+            raise HTTPException(status_code=404, detail="Story not found")
+        if n:
+            d = _narr_row(n, with_snap=True)
+            snap = d.pop("snapshot")
+            pts = [[p.ts, p.score] for p in session.query(NarrativePoint)
+                   .filter(NarrativePoint.sid == sid).order_by(NarrativePoint.ts).all()]
+            articles = snap.get("articles", [])
+            d["outlet_names"] = snap.get("outlet_names", [])
+            tokens, hazards = set(snap.get("tokens", [])), set(snap.get("hazards", []))
+        else:
+            d = {"sid": sid, "title": live["title"], "url": live.get("url"), "source": live.get("source"),
+                 "status": "WATCHING", "first_seen": live.get("first_seen"), "score": live.get("score"),
+                 "delta": live.get("delta"), "outlets": live.get("outlets", 0),
+                 "articles": live.get("articles", 0), "regions": live.get("regions", []),
+                 "categories": live.get("categories", []), "in_news": True,
+                 "needs": {"score": LIST_SCORE, "outlets": LIST_MIN_OUTLETS}}
+            pts = [[t, sc] for t, sc in history_from_readings(session, sid, now - 72 * 3600)]
+            articles = [{"title": live["title"], "source": live.get("source"), "url": live.get("url"),
+                         "ts": live.get("ts"), "region": (live.get("regions") or [""])[0]}]
+            d["outlet_names"] = []
+            tokens, hazards = set(live.get("tokens", [])), set(live.get("hazards", []))
+        if live and n:
+            d["delta"] = live.get("delta")
+
+        # Related: other stories sharing distinctive words or the same hazard
+        cands = {}
+        for x in idx:
+            if x.get("sid") != sid:
+                cands[x["sid"]] = {"sid": x["sid"], "title": x["title"], "score": x.get("score"),
+                                   "status": "LISTED" if x.get("listed") else "WATCHING",
+                                   "tokens": set(x.get("tokens", [])), "hazards": set(x.get("hazards", []))}
+        import json as _json
+        for m in session.query(Narrative).filter(Narrative.listed_at >= now - 30 * 86400).all():
+            if m.sid == sid:
+                continue
+            sn = _json.loads(m.snapshot or "{}")
+            cands[m.sid] = {"sid": m.sid, "title": m.title, "score": m.final_score if m.status == "CLOSED" else m.last_score,
+                            "status": m.status, "tokens": set(sn.get("tokens", [])),
+                            "hazards": set(sn.get("hazards", []))}
+        rel = []
+        for c in cands.values():
+            shared = tokens & c["tokens"]
+            same_h = bool(hazards & c["hazards"])
+            r = len(shared) / max(1, len(tokens | c["tokens"])) + (0.15 if same_h else 0)
+            if (len(shared) >= 1 and r >= 0.12) or same_h:
+                rel.append({"sid": c["sid"], "title": c["title"], "score": c["score"], "status": c["status"],
+                            "shared": sorted(shared)[:5], "same_hazard": same_h, "r": round(r, 3)})
+        rel.sort(key=lambda x: x["r"], reverse=True)
+
+        arts = sorted(articles, key=lambda a: a.get("ts") or 0)
+        d["article_count"] = max(len(articles), d.get("articles") or 0) if isinstance(d.get("articles"), int) else len(articles)
+        d.update({
+            "now": now, "reading_ts": idx_ts, "points": pts,
+            "articles": sorted(articles, key=lambda a: a.get("ts") or 0, reverse=True),
+            "origin": arts[:3],
+            "hazards": sorted(hazards),
+            "related": rel[:6],
+            "rules": {"score": LIST_SCORE, "outlets": LIST_MIN_OUTLETS, "window_h": LIST_WINDOW_H},
+        })
+        return d
+    finally:
+        session.close()
+
+
 @app.get("/api/narrative/history")
 def api_narrative_history(hours: float = 168.0, limit: int = 500):
     """FSNI tick history for the chart. Default: 7 days, newest `limit` readings.

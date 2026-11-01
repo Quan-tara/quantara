@@ -332,6 +332,15 @@ header {
 
 .hl-score { margin-left: auto; font-family: var(--mono); font-size: 10px; color: var(--muted); white-space: nowrap; cursor: help }
 .hl-score b { color: var(--text); font-weight: 700; font-size: 11px; margin-right: 2px }
+.hl-listed { font-family: var(--mono); font-size: 8px; font-weight: 700; letter-spacing: 1px; color: var(--bg); background: var(--amber); border-radius: 3px; padding: 1px 5px; text-decoration: none }
+.hl-closed { font-family: var(--mono); font-size: 8px; letter-spacing: 1px; color: var(--muted); border: 1px solid var(--dim); border-radius: 3px; padding: 0 4px; text-decoration: none }
+.hl-open { font-family: var(--mono); font-size: 9px; color: var(--accent); text-decoration: none; white-space: nowrap }
+.hl-open:hover { text-decoration: underline }
+.hl-filter { display: flex; gap: 4px; margin-left: auto; margin-right: 8px }
+.hl-filter button { font-family: var(--mono); font-size: 9px; letter-spacing: .5px; padding: 2px 7px; border-radius: 3px; border: 1px solid var(--border); background: transparent; color: var(--muted); cursor: pointer }
+.hl-filter button.on { color: var(--text); border-color: var(--accent) }
+.hl-board { display: block; padding: 7px 14px; font-family: var(--mono); font-size: 10px; color: var(--accent); text-decoration: none; border-bottom: 1px solid var(--border) }
+.hl-board:hover { background: var(--s2) }
 .hl-new { font-size: 8px; letter-spacing: 1px; color: var(--accent); border: 1px solid var(--accent); border-radius: 3px; padding: 0 4px }
 /* ── FACTORS (Delivery Pulse format) ── */
 .fx { padding: 8px 12px 0; border-bottom: 1px solid var(--border) }
@@ -721,8 +730,10 @@ header {
 
     <div class="sh">
       <span class="sh-title">Live Headlines</span>
+      <span class="hl-filter"><button id="hlf-all" class="on" onclick="setHlFilter('all')">ALL</button><button id="hlf-listed" onclick="setHlFilter('listed')">LISTED</button></span>
       <span class="sh-badge" id="feed-count">0 stories</span>
     </div>
+    <a class="hl-board" href="/stories">📌 Listed stories — charts &amp; sources ›</a>
 
     <div class="feed-wrap compact" id="feed-wrap">
       <div class="feed-empty">Fetching live narrative signals…</div>
@@ -1310,7 +1321,22 @@ function drawFxSpark(key, hist, color) {
 
 // ── RENDER HEADLINES ──
 
+let HL_FILTER = (() => { try { return localStorage.getItem("fsni_hlf") || "all"; } catch (e) { return "all"; } })();
+let HL_LAST = null;
+function setHlFilter(f) {
+  HL_FILTER = f;
+  try { localStorage.setItem("fsni_hlf", f); } catch (e) {}
+  if (HL_LAST) renderHeadlines(...HL_LAST);
+}
 function renderHeadlines(headlines, meta, emptyMsg) {
+  HL_LAST = [headlines, meta, emptyMsg];
+  document.getElementById("hlf-all").classList.toggle("on", HL_FILTER !== "listed");
+  document.getElementById("hlf-listed").classList.toggle("on", HL_FILTER === "listed");
+  if (HL_FILTER === "listed") {
+    headlines = headlines.filter(h => h && typeof h === "object" && h.listed);
+    emptyMsg = "No story is listed right now. A story lists when its score reaches 30 with 4+ outlets.";
+    meta = null;
+  }
   const wrap = document.getElementById("feed-wrap");
   let count = headlines.length + " stories";
   if (meta && meta.stories_total) {
@@ -1364,8 +1390,14 @@ function renderHeadlines(headlines, meta, emptyMsg) {
       scoreBadge = `<span class="hl-score" title="Story score 0–100: reach, spread, severity, momentum, freshness. Arrow = change over 3h.">
         <b>${h.story_score.toFixed(1)}</b> ${arrow}</span>`;
     }
+    const sid = isObj && h.sid ? encodeURIComponent(h.sid) : null;
+    const listBadge = !sid ? "" : h.listed
+      ? `<a class="hl-listed" href="/story/${sid}" title="Listed story — open its page">LISTED</a>`
+      : h.list_status === "CLOSED" ? `<a class="hl-closed" href="/story/${sid}" title="Was listed; its 72h window has closed">CLOSED</a>` : "";
+    const openLink = sid ? `<a class="hl-open" href="/story/${sid}">story ›</a>` : "";
     return `<div class="headline-item">
       <div class="hl-source">
+        ${listBadge}
         ${esc(source)}
         <span class="hl-tier ${esc(tier)}">${esc(tierLbl)}</span>
         ${geos}
@@ -1373,7 +1405,7 @@ function renderHeadlines(headlines, meta, emptyMsg) {
       </div>
       <div class="hl-title">${titleHtml}</div>
       <div class="hl-meta">
-        <span>${age}${age && spread ? " · " : ""}${spread}</span>
+        <span>${age}${age && spread ? " · " : ""}${spread}${openLink ? " · " + openLink : ""}</span>
         <div class="hl-impact" title="Impact score ${impact}/5">
           ${impactDots}
         </div>

@@ -148,3 +148,56 @@ class NarrativePoint(Base):
     sid   = Column(String(16), nullable=False, index=True)
     ts    = Column(Float, nullable=False)
     score = Column(Float, nullable=False)
+
+
+# ── Story trading (virtual credits) ─────────────────────────────────────────
+class StoryAccount(Base):
+    """Virtual credits for story trading. Separate from the exchange wallet."""
+    __tablename__ = "story_accounts"
+
+    user_id    = Column(BigInteger, primary_key=True)
+    credits    = Column(Float, nullable=False, default=10000.0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class StoryMarket(Base):
+    """One market per listed story. Price = story score + offset; the offset is the
+    crowd's lean, moved only by trades."""
+    __tablename__ = "story_markets"
+
+    sid        = Column(String(16), primary_key=True)
+    crowd_offset = Column(Float, nullable=False, default=0.0)
+    status     = Column(String(12), nullable=False, default="OPEN")   # OPEN | SETTLED | REFUNDED
+    final      = Column(Float, nullable=True)
+    updated_at = Column(Float, nullable=True)
+
+
+class StoryPosition(Base):
+    __tablename__ = "story_positions"
+
+    id         = Column(Integer, primary_key=True, autoincrement=True)
+    user_id    = Column(BigInteger, nullable=False, index=True)
+    sid        = Column(String(16), nullable=False, index=True)
+    side       = Column(String(4), nullable=False)          # GROW | FADE
+    units      = Column(Float, nullable=False, default=0.0)
+    cost       = Column(Float, nullable=False, default=0.0)  # credits paid for the units held
+    realized   = Column(Float, nullable=False, default=0.0)  # profit from units closed early
+    status     = Column(String(10), nullable=False, default="OPEN")  # OPEN | SETTLED | REFUNDED
+    payout     = Column(Float, nullable=True)
+    opened_at  = Column(Float, nullable=True)
+    settled_at = Column(Float, nullable=True)
+
+
+class StoryTrade(Base):
+    __tablename__ = "story_trades"
+
+    id      = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(BigInteger, nullable=False, index=True)
+    sid     = Column(String(16), nullable=False, index=True)
+    side    = Column(String(4), nullable=False)       # GROW | FADE
+    action  = Column(String(5), nullable=False)       # OPEN | CLOSE
+    units   = Column(Float, nullable=False)
+    price   = Column(Float, nullable=False)           # average credits per unit
+    credits = Column(Float, nullable=False)           # paid (OPEN) or received (CLOSE)
+    score   = Column(Float, nullable=True)            # story score at the time
+    ts      = Column(Float, nullable=False)

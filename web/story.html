@@ -173,6 +173,8 @@ main { max-width: 1240px; margin: 0 auto; padding-top: 18px; display: grid; gap:
 .arena { font-family: var(--mono); font-size: 9px; font-weight: 700; letter-spacing: 1px; padding: 2px 7px; border-radius: 3px; white-space: nowrap }
 .arena.brands { background: rgba(179,136,255,.18); color: #c9a8ff; border: 1px solid rgba(179,136,255,.45) }
 .arena.food { background: rgba(0,230,118,.12); color: var(--green); border: 1px solid rgba(0,230,118,.4) }
+.sector { font-family: var(--mono); font-size: 9px; font-weight: 700; letter-spacing: .5px; padding: 2px 7px; border-radius: 3px; background: rgba(0,200,240,.12); color: var(--accent); border: 1px solid rgba(0,200,240,.4); text-transform: uppercase; white-space: nowrap }
+.trend { font-family: var(--mono); font-size: 10px; color: var(--amber) }
 .co { font-size: 12px; color: var(--text); font-weight: 600 }
 .co::before { content: "🏢 "; }
 .house { padding: 10px 14px; font-size: 11px; color: var(--muted); line-height: 1.5; border-bottom: 1px solid var(--border); background: var(--s2) }
@@ -314,11 +316,11 @@ async function historyPage() {
   let d; try { d = await (await fetch("/api/stories/history/" + encodeURIComponent(ME.id))).json(); }
   catch (e) { $("#main").innerHTML = `<div class="empty">Could not load your history.</div>`; return; }
   const s = d.summary;
-  const out = c => c.status === "OPEN" ? `open · ${c.held} held` : c.status === "SETTLED" ? `settled at ${(c.final ?? 0).toFixed(1)}` : c.status === "REFUNDED" ? "refunded (merged)" : "closed early";
+  const out = c => c.status === "OPEN" ? `open · ${c.held} held` : c.status === "SETTLED" ? `settled at ${(c.final ?? 0).toFixed(1)}${c.payout > 0 ? " · won" : " · lost"}` : c.status === "REFUNDED" ? "refunded" : "closed early";
   const row = c => `<tr>
     <td style="text-align:left;color:var(--muted)">${when(c.first_ts)}</td>
     <td class="name"><a href="/story/${encodeURIComponent(c.sid)}" style="color:inherit;text-decoration:none">${esc(c.title)}</a></td>
-    <td style="color:${c.side === "GROW" ? "var(--red)" : "var(--green)"}">${c.side}</td>
+    <td style="color:${c.side === "GROW" ? "var(--red)" : "var(--green)"}">${c.side === "GROW" ? "GROW / BEGINNING" : "FADE / FORGOTTEN"}</td>
     <td>${c.bought}${c.sold ? ` <span style="color:var(--dim)">/ −${c.sold}</span>` : ""}</td>
     <td>${c.avg_price ?? "—"}</td>
     <td>${c.entry_score == null ? "—" : c.entry_score.toFixed(1)}</td>
@@ -345,7 +347,10 @@ async function historyPage() {
     </section>`;
 }
 
-const ARENA_NAME = { brands: "BRANDS", food: "FOOD" };
+const ARENA_NAME = { brands: "BRANDS", food: "FOOD", everyday: "EVERYDAY" };
+const sectorTag = s => s && s !== "other" ? `<span class="sector">${esc(s)}</span>` : "";
+const fmtTraffic = n => n >= 1e6 ? Math.round(n / 1e6) + "M+" : n >= 1e3 ? Math.round(n / 1e3) + "K+" : (n || "") + "";
+const trendTag = t => t && t.term ? `<span class="trend" title="Google trending search">🔥 trending: “${esc(t.term)}”${t.traffic ? " · " + fmtTraffic(t.traffic) + " searches" : ""}</span>` : "";
 const arenaTag = a => `<span class="arena ${esc(a || "food")}">${ARENA_NAME[a || "food"] || esc(a)}</span>`;
 let BOARD_ARENA = (() => { try { return localStorage.getItem("st_arena") || "all"; } catch (e) { return "all"; } })();
 function setArena(a) { BOARD_ARENA = a; try { localStorage.setItem("st_arena", a); } catch (e) {} board(); }
@@ -357,28 +362,34 @@ async function board() {
   let d;
   try { d = await (await fetch("/api/narrative/listed")).json(); }
   catch (e) { $("#main").innerHTML = `<div class="empty">Could not load stories.</div>`; return; }
-  const inArena = s => BOARD_ARENA === "all" || (s.arena || "food") === BOARD_ARENA;
+  const keyOf = s => s.sector || ARENA_NAME[s.arena || "food"] || "other";
+  const inArena = s => BOARD_ARENA === "all" || keyOf(s) === BOARD_ARENA;
   const open = d.stories.filter(s => s.status === "LISTED" && inArena(s));
   const closed = d.stories.filter(s => s.status === "CLOSED" && inArena(s));
   const r = d.rules, ar = d.arenas || {};
-  const cnt = a => d.stories.filter(s => s.status === "LISTED" && (a === "all" || (s.arena || "food") === a)).length;
+  const cnt = a => d.stories.filter(s => s.status === "LISTED" && (a === "all" || keyOf(s) === a)).length;
+  const groups = [...new Set(d.stories.filter(s => s.status === "LISTED").map(keyOf))];
+  if (BOARD_ARENA !== "all" && !groups.includes(BOARD_ARENA)) BOARD_ARENA = "all";
   const card = s => {
     const isOpen = s.status === "LISTED";
     const left = s.closes_at - d.now, full = r.window_h * 3600;
     const v = isOpen ? s.score : s.final_score;
     return `<a class="card" href="/story/${encodeURIComponent(s.sid)}">
-      <div class="card-top"><span class="pill ${s.status}">${s.status}</span>${arenaTag(s.arena)}
+      <div class="card-top"><span class="pill ${s.status}">${s.status}</span>${s.sector ? sectorTag(s.sector) : arenaTag(s.arena)}
         ${(s.regions || []).map(x => `<span class="tag">${esc(x)}</span>`).join("")}
-        ${(s.categories || []).slice(0, 2).map(x => `<span class="tag">${esc(x)}</span>`).join("")}</div>
+        ${(s.categories || []).filter(x => x !== s.sector).slice(0, 2).map(x => `<span class="tag">${esc(x)}</span>`).join("")}</div>
       ${s.company ? `<div class="co">${esc(s.company)}</div>` : ""}
       <div class="card-title">${esc(s.title)}</div>
+      ${trendTag(s.trending)}
       <div class="card-row">
         <div><div class="lbl">${isOpen ? "Score now" : "Final score"}</div>
           <div class="card-score" style="color:${scoreColor(v || 0)}">${(v ?? 0).toFixed(1)}
             <small class="mono" style="color:var(--muted)">listed at ${s.list_score.toFixed(1)}</small></div></div>
         ${spark(s.spark)}
       </div>
-      ${isOpen ? `<div class="card-meta"><span>GROW <b style="color:var(--red)">${s.price.toFixed(1)}</b></span><span>FADE <b style="color:var(--green)">${(100 - s.price).toFixed(1)}</b></span><span>${s.trading_open ? "trading open" : "trading stopped"}</span><span>💬 ${s.comments || 0}</span></div>` : ""}
+      ${isOpen ? `<div class="card-meta">${s.bet && s.bet.kind === "line"
+        ? `<span>JUST THE BEGINNING <b style="color:var(--red)">${Math.round(s.price)}%</b></span><span>FORGOTTEN <b style="color:var(--green)">${100 - Math.round(s.price)}%</b></span>`
+        : `<span>GROW <b style="color:var(--red)">${s.price.toFixed(1)}</b></span><span>FADE <b style="color:var(--green)">${(100 - s.price).toFixed(1)}</b></span>`}<span>${s.trading_open ? "trading open" : "trading stopped"}</span><span>💬 ${s.comments || 0}</span></div>` : ""}
       ${isOpen ? `<div class="bar"><i style="width:${(100 * (1 - left / full)).toFixed(1)}%"></i></div>` : ""}
       <div class="card-meta"><span>${s.outlets} outlets</span>
         <span>${isOpen ? "closes in " + dur(left) : "closed " + ago(s.closed_at)}</span>
@@ -392,14 +403,14 @@ async function board() {
         <span>A story is <b>listed</b> when its score crosses its arena's bar — ${Object.entries(ar).map(([k, v]) => `<b>${esc(v.label)}</b>: score ${v.score} with ${v.outlets}+ outlets${v.daily_cap ? `, max ${v.daily_cap} a day` : ""}`).join(" · ") || `score <b>${r.score}</b> with <b>${r.outlets}+</b> outlets`}.</span>
         <span>It stays listed for <b>${r.window_h}h</b>, then closes on its <b>final score</b>.</span>
         <span>Scores come only from outside news sources — nothing on this site moves them.</span>
-        <span><b>GROW</b> pays the final score per unit, <b>FADE</b> pays 100 − final. Everyone starts with <b>10,000</b> credits.</span>
+        <span>Each story has a <b>line</b>: where it should end if it fades normally. <b>Just the beginning</b> wins if it ends above the line, <b>Forgotten</b> if it fizzles below. The winner gets 100 per unit; prices are the chance in %. Everyone starts with <b>10,000</b> credits.</span>
       </div>
     </section>
     <section class="panel" id="mine"></section>
     <section class="panel">
       <div class="ph"><span class="lbl">Listed now</span>
-        <div class="tabs">${[["all", "ALL"], ["brands", "BRAND SCANDALS"], ["food", "FOOD SAFETY"]].map(([k, l]) =>
-          `<button class="${BOARD_ARENA === k ? "on" : ""}" onclick="setArena('${k}')">${l} · ${cnt(k)}</button>`).join("")}</div></div>
+        <div class="tabs" style="flex-wrap:wrap">${[["all", "ALL"], ...groups.map(g => [g, g.toUpperCase()])].map(([k, l]) =>
+          `<button class="${BOARD_ARENA === k ? "on" : ""}" onclick="setArena('${esc(k)}')">${esc(l)} · ${cnt(k)}</button>`).join("")}</div></div>
       ${open.length ? `<div class="cards">${open.map(card).join("")}</div>`
         : `<div class="empty">No story is listed right now. The highest scores are on the <a href="/narrative">FSNI page</a> — click any headline to follow its score.</div>`}
     </section>
@@ -445,6 +456,8 @@ function chart(d) {
   const thr = d.rules.score;
   let marks = `<line x1="${L}" x2="${W - R}" y1="${Y(thr)}" y2="${Y(thr)}" stroke="var(--amber)" stroke-dasharray="4 4" opacity=".6"/>
     <text x="${W - R}" y="${Y(thr) - 4}" text-anchor="end" font-size="9" fill="var(--amber)" font-family="Space Mono, monospace">listing line ${thr}</text>`;
+  if (d.bet && d.bet.kind === "line") marks += `<line x1="${L}" x2="${W - R}" y1="${Y(d.bet.line)}" y2="${Y(d.bet.line)}" stroke="var(--accent)" stroke-dasharray="6 3" opacity=".8"/>
+    <text x="${L + 4}" y="${Y(d.bet.line) - 4}" font-size="9" fill="var(--accent)" font-family="Space Mono, monospace">line ${d.bet.line.toFixed(1)} — above: just the beginning · below: forgotten</text>`;
   if (d.listed_at) marks += `<line x1="${X(d.listed_at)}" x2="${X(d.listed_at)}" y1="${T}" y2="${H - B}" stroke="var(--amber)" opacity=".8"/>
     <text x="${X(d.listed_at) + 4}" y="${T + 9}" font-size="9" fill="var(--amber)" font-family="Space Mono, monospace">listed</text>`;
   if (d.closes_at) marks += `<line x1="${X(d.closes_at)}" x2="${X(d.closes_at)}" y1="${T}" y2="${H - B}" stroke="var(--muted)" stroke-dasharray="3 3"/>
@@ -471,7 +484,7 @@ function chart(d) {
     <rect x="${L}" y="${T}" width="${W - L - R}" height="${H - T - B}" fill="transparent" id="sc-hit"/>
   </svg><div class="chart-tip" id="sc-tip">Hover the chart for values</div>
   <div class="dc-legend" style="margin-top:4px"><span><i class="dot" style="background:var(--amber)"></i>story score</span>
-    ${pline ? `<span><i class="dot" style="background:var(--accent)"></i>market price (GROW)</span>` : ""}</div>`;
+    ${pline ? `<span><i class="dot" style="background:var(--accent)"></i>${d.bet && d.bet.kind === "line" ? "crowd chance it's just the beginning (%)" : "market price (GROW)"}</span>` : ""}</div>`;
 }
 function hookChart() {
   const svg = document.getElementById("sc"); if (!svg) return;
@@ -524,13 +537,14 @@ async function story(sid) {
   $("#main").innerHTML = `
     <section class="panel">
       <div class="s-head">
-        <div class="s-sub"><span class="pill ${d.status}">${d.status}</span>${arenaTag(d.arena)}
+        <div class="s-sub"><span class="pill ${d.status}">${d.status}</span>${d.sector ? sectorTag(d.sector) : arenaTag(d.arena)}
           ${(d.regions || []).map(x => `<span class="tag">${esc(x)}</span>`).join("")}
-          ${(d.categories || []).map(x => `<span class="tag">${esc(x)}</span>`).join("")}
+          ${(d.categories || []).filter(x => x !== d.sector).map(x => `<span class="tag">${esc(x)}</span>`).join("")}
           ${(d.hazards || []).map(x => `<span class="tag">${esc(x)}</span>`).join("")}
           <span class="mono" style="font-size:10px">id ${esc(d.sid)}</span></div>
         ${d.company ? `<div class="co" style="font-size:14px">${esc(d.company)}</div>` : ""}
         <h1 class="s-title">${esc(d.title)}</h1>
+        ${trendTag(d.trending)}
         <div id="mod-tools"></div>
       </div>
     </section>
@@ -615,7 +629,9 @@ function setVerdict(v) {
   if ($("#ta-top")) { $("#ta-top").value = keep; $("#ta-top").focus(); }
 }
 function cmHtml(c, isReply) {
-  const pos = c.side ? `<span class="pos ${c.side}" title="Holds this position on the story">${c.side} ${c.units ?? ""}</span>` : "";
+  const lineBet = STORY && STORY.bet && STORY.bet.kind === "line";
+  const sname = c.side && lineBet ? (c.side === "GROW" ? "BEGINNING" : "FORGOTTEN") : c.side;
+  const pos = c.side ? `<span class="pos ${c.side}" title="Holds this position on the story">${sname} ${c.units ?? ""}</span>` : "";
   const vd = c.verdict ? `<span class="vd v-${c.verdict}">${VLBL[c.verdict].toUpperCase()}</span>` : "";
   const body = c.body == null
     ? `<div class="cm-body gone">${c.deleted ? "Comment removed." : "Hidden after several reports — waiting for review."}</div>`
@@ -637,7 +653,24 @@ function cmHtml(c, isReply) {
   </div>`;
 }
 let STORY = null, DL_OPEN = false;
+async function renderBehaviour() {
+  if (!DC || !DC.moderator || !STORY || document.getElementById("bh")) return;
+  let d; try { d = await (await fetch("/api/behaviour/" + encodeURIComponent(STORY.sid))).json(); } catch (e) { return; }
+  const side = document.querySelector(".side"); if (!side) return;
+  const c = (d.checks || [])[0];
+  const rows = c && c.result ? Object.entries(c.result.terms).map(([t, v]) => `<div class="kv"><span>“${esc(t)}”</span><b>${v.ratio == null ? "—" : v.ratio + "×"} <span style="color:var(--muted);font-weight:400">(${v.recent ?? "—"} vs ${v.baseline ?? "—"})</span></b></div>`).join("") : "";
+  const sec = document.createElement("section");
+  sec.className = "panel"; sec.id = "bh";
+  sec.innerHTML = `<div class="ph"><span class="lbl">Behaviour check · moderators · test</span><span class="tag">${(d.checks || []).length} checks</span></div>
+    <div class="tp">${!c ? `<div class="note" style="padding:0">Not checked yet — runs once a day per listed story that names a company.</div>`
+      : `<div class="kv"><span>Last check</span><b>${when(c.ts)} · ${esc(c.geo || "")} · ${esc(c.company || "no company")}</b></div>
+         ${c.status !== "OK" ? `<div class="note" style="padding:0">${esc(c.status)}: ${esc(c.error || "")}</div>`
+           : `${rows}<div class="kv"><span>People acting? (≥1.5× normal searches)</span><b class="${c.result.acted ? "up" : "down"}">${c.result.acted ? "YES" : "no"}</b></div>`}`}
+      <div class="bd-note">Searches for boycott / cancel / alternative, last 7 days vs the 8 weeks before (Google Trends). Recorded only — nothing is settled on it yet.</div></div>`;
+  side.appendChild(sec);
+}
 function renderModTools() {
+  renderBehaviour();
   const el = $("#mod-tools"); if (!el) return;
   if (!DC || !DC.moderator || !STORY || STORY.status !== "LISTED") { el.innerHTML = ""; return; }
   el.innerHTML = DL_OPEN
@@ -724,6 +757,14 @@ function preview(side, action, units) {      // same formula as the server
   const mid = up ? p0 + move / 2 : p0 - move / 2;
   return (side === "GROW" ? mid : 100 - mid) * units;
 }
+const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+function isLine() { return MK && MK.bet && MK.bet.kind === "line"; }
+function sideName(side, short) {
+  if (!isLine()) return side;
+  if (side === "GROW") return short ? "BEGINNING" : "JUST THE BEGINNING";
+  const d = DAYS[new Date(MK.bet.closes_at * 1000).getDay()];
+  return short ? "FORGOTTEN" : `FORGOTTEN BY ${d.toUpperCase()}`;
+}
 function renderMarket() {
   const el = $("#mkt"); if (!el || !MK) return;
   const pos = ((MK.me || {}).positions || []).filter(p => p.status === "OPEN");
@@ -733,10 +774,13 @@ function renderMarket() {
   let body;
   if (MK.status !== "OPEN") {
     const mine = (MK.me || {}).positions || [];
-    body = `<div class="note">${MK.status === "SETTLED" ? `Settled at final score <b>${(MK.final ?? 0).toFixed(1)}</b>. GROW paid ${(MK.final ?? 0).toFixed(1)} per unit, FADE ${(100 - (MK.final ?? 0)).toFixed(1)}.`
+    const lineRes = isLine() && MK.final != null ? (MK.final > MK.bet.line
+      ? `It ended at <b>${MK.final.toFixed(1)}</b>, above its line of ${MK.bet.line.toFixed(1)}: <b>JUST THE BEGINNING</b> won and paid 100 per unit.`
+      : `It ended at <b>${MK.final.toFixed(1)}</b>, at or below its line of ${MK.bet.line.toFixed(1)}: <b>FORGOTTEN</b> won and paid 100 per unit.`) : null;
+    body = `<div class="note">${MK.status === "SETTLED" ? (lineRes || `Settled at final score <b>${(MK.final ?? 0).toFixed(1)}</b>. GROW paid ${(MK.final ?? 0).toFixed(1)} per unit, FADE ${(100 - (MK.final ?? 0)).toFixed(1)}.`)
       : STORY && STORY.status === "DELISTED" ? "This story was removed by the moderators. All positions were refunded." : "This story was merged into another listing. All positions were refunded."}</div>
       ${mine.map(p => `<div class="tp" style="padding-top:0"><div class="tp-pos">
-        <div class="kv"><span>${p.side} · ${p.units || ""} ${p.units ? "units" : ""}</span><b>${p.status}</b></div>
+        <div class="kv"><span>${sideName(p.side)} · ${p.units || ""} ${p.units ? "units" : ""}</span><b>${p.status}</b></div>
         <div class="kv"><span>Paid out</span><b>${cr(p.payout)}</b></div>
         <div class="kv"><span>Profit / loss</span><b class="${p.pnl >= 0 ? "down" : "up"}">${sgn(p.pnl)} cr</b></div></div></div>`).join("")}`;
   } else {
@@ -744,25 +788,28 @@ function renderMarket() {
     const gCost = preview("GROW", "OPEN", units), fCost = preview("FADE", "OPEN", units);
     const canG = MK.open && ME && !(held && held.side === "FADE");
     const canF = MK.open && ME && !(held && held.side === "GROW");
+    const L = isLine() ? MK.bet : null;
     body = `<div class="tp">
+      ${L ? `<div class="bd-note" style="font-size:13px">Will people <b>still be talking about this</b> when the window closes ${DAYS[new Date(L.closes_at * 1000).getDay()]} ${when(L.closes_at).split(",").pop()}, or is it <b>already dying</b>?</div>` : ""}
       <div class="tp-prices">
-        <div class="tp-side grow"><span class="lbl"><b>GROW</b> · per unit</span><span class="tp-price">${MK.price.toFixed(1)}</span>
-          <span class="tp-pays">Pays the final score. Wins if the story ends bigger than this.</span></div>
-        <div class="tp-side fade"><span class="lbl"><b>FADE</b> · per unit</span><span class="tp-price">${MK.fade_price.toFixed(1)}</span>
-          <span class="tp-pays">Pays 100 − final score. Wins if the story ends smaller.</span></div>
+        <div class="tp-side grow"><span class="lbl"><b>${sideName("GROW")}</b></span><span class="tp-price">${L ? Math.round(MK.price) + "%" : MK.price.toFixed(1)}</span>
+          <span class="tp-pays">${L ? `Wins if the story ends <b>above ${L.line.toFixed(1)}</b> — more coverage than a normal fade. Pays 100 per unit.` : "Pays the final score. Wins if the story ends bigger than this."}</span></div>
+        <div class="tp-side fade"><span class="lbl"><b>${sideName("FADE")}</b></span><span class="tp-price">${L ? (100 - Math.round(MK.price)) + "%" : MK.fade_price.toFixed(1)}</span>
+          <span class="tp-pays">${L ? `Wins if the story ends <b>at or below ${L.line.toFixed(1)}</b> — it fizzles out. Pays 100 per unit.` : "Pays 100 − final score. Wins if the story ends smaller."}</span></div>
       </div>
-      <div class="tp-cost">Price = score now ${MK.score.toFixed(1)} · ${leanTxt}. Each unit traded moves the price ${MK.impact} points.</div>
+      <div class="tp-cost">${L ? `The line is where the story should end if it fades normally (score now ${MK.score.toFixed(1)}, expected at close ${L.expected.toFixed(1)}). Price = the chance, in % and credits per unit · ${leanTxt}.` : `Price = score now ${MK.score.toFixed(1)} · ${leanTxt}.`} Each unit traded moves the price ${MK.impact} points.</div>
       ${!ME ? "" : MK.open ? `<div class="tp-row">
           <label class="lbl" for="tp-u">Units</label>
           <input id="tp-u" type="number" min="1" max="${MK.max_units}" value="${units}" oninput="UNITS=+this.value;renderCosts()">
-          <button class="btn grow" id="b-g" ${canG ? "" : "disabled"} onclick="doTrade('GROW','OPEN')">GROW</button>
-          <button class="btn fade" id="b-f" ${canF ? "" : "disabled"} onclick="doTrade('FADE','OPEN')">FADE</button>
+          <button class="btn grow" id="b-g" ${canG ? "" : "disabled"} onclick="doTrade('GROW','OPEN')">${sideName("GROW", true)}</button>
+          <button class="btn fade" id="b-f" ${canF ? "" : "disabled"} onclick="doTrade('FADE','OPEN')">${sideName("FADE", true)}</button>
         </div>
-        <div class="tp-cost" id="tp-costs">GROW ${units} costs ${cr(gCost)} · FADE ${units} costs ${cr(fCost)}</div>`
+        <div class="tp-cost" id="tp-costs">${costLine(units)}</div>`
         : `<div class="note" style="padding:0">Trading is closed: ${esc(MK.closed_reason)}. Positions pay out when the window closes.</div>`}
       <div class="tp-msg" id="tp-msg"></div>
       ${held ? `<div class="tp-pos">
-        <div class="kv"><span>Your position</span><b style="color:${held.side === "GROW" ? "var(--red)" : "var(--green)"}">${held.side} · ${held.units} units</b></div>
+        <div class="kv"><span>Your position</span><b style="color:${held.side === "GROW" ? "var(--red)" : "var(--green)"}">${sideName(held.side)} · ${held.units} units</b></div>
+        ${L ? `<div class="kv"><span>Pays if right</span><b>${cr(100 * held.units)}</b></div>` : ""}
         <div class="kv"><span>Average price</span><b>${held.avg?.toFixed(2)}</b></div>
         <div class="kv"><span>Cost · worth if closed now</span><b>${cr(held.cost)} · ${cr(held.value)}</b></div>
         <div class="kv"><span>Profit / loss now</span><b class="${held.pnl >= 0 ? "down" : "up"}">${sgn(held.pnl)} cr</b></div>
@@ -776,11 +823,17 @@ function renderMarket() {
     ${body}
     ${!ME && MK.status === "OPEN" ? loginHtml("Log in with your Quantara account to trade. You start with 10,000 credits.") : ""}
     ${MK.trades.length ? `<div class="ph" style="border-top:1px solid var(--border)"><span class="lbl">Recent trades</span></div>
-      ${MK.trades.slice(0, 10).map(t => `<div class="tr"><span>${esc(t.name)}</span><span><b class="${t.side}">${t.action === "CLOSE" ? "closed " : ""}${t.side}</b> ${t.units} @ ${t.price.toFixed(1)}</span><span>${ago(t.ts)}</span></div>`).join("")}` : ""}`;
+      ${MK.trades.slice(0, 10).map(t => `<div class="tr"><span>${esc(t.name)}</span><span><b class="${t.side}">${t.action === "CLOSE" ? "closed " : ""}${sideName(t.side, true)}</b> ${t.units} @ ${t.price.toFixed(1)}</span><span>${ago(t.ts)}</span></div>`).join("")}` : ""}`;
+}
+function costLine(u) {
+  const g = preview("GROW", "OPEN", u), f = preview("FADE", "OPEN", u);
+  return isLine()
+    ? `${u} × ${sideName("GROW", true)} costs ${cr(g)} → pays ${cr(100 * u)} if right · ${u} × ${sideName("FADE", true)} costs ${cr(f)} → pays ${cr(100 * u)} if right`
+    : `GROW ${u} costs ${cr(g)} · FADE ${u} costs ${cr(f)}`;
 }
 function renderCosts() {
   const u = Math.max(1, Math.min(MK.max_units, UNITS | 0)), el = $("#tp-costs");
-  if (el) el.textContent = `GROW ${u} costs ${cr(preview("GROW", "OPEN", u))} · FADE ${u} costs ${cr(preview("FADE", "OPEN", u))}`;
+  if (el) el.textContent = costLine(u);
 }
 async function doTrade(side, action, units) {
   units = units || Math.max(1, Math.min(MK.max_units, UNITS | 0));
@@ -792,7 +845,7 @@ async function doTrade(side, action, units) {
   const m = $("#tp-msg");
   if (!r.ok) { m.className = "tp-msg err"; m.textContent = d.detail || "Trade failed"; return; }
   m.className = "tp-msg ok";
-  m.textContent = `${action === "CLOSE" ? "Closed" : "Bought"} ${d.units} ${side} at ${d.price.toFixed(2)} — ${action === "CLOSE" ? "received" : "paid"} ${cr(d.credits)}. Price now ${d.new_price.toFixed(1)}.`;
+  m.textContent = `${action === "CLOSE" ? "Closed" : "Bought"} ${d.units} ${sideName(side, true)} at ${d.price.toFixed(2)} — ${action === "CLOSE" ? "received" : "paid"} ${cr(d.credits)}. Price now ${d.new_price.toFixed(1)}.`;
 }
 
 const m = location.pathname.match(/^\/story\/([^/]+)/);

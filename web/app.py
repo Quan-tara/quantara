@@ -1616,7 +1616,8 @@ def _narr_row(n, with_snap=False):
          "outlets": snap.get("outlets", 0), "articles": len(snap.get("articles", [])),
          "regions": snap.get("regions", []), "categories": snap.get("categories", []),
          "merged_into": snap.get("merged_into"),
-         "arena": n.arena or "food", "company": snap.get("company")}
+         "arena": n.arena or "food", "company": snap.get("company"),
+         "sector": snap.get("sector"), "trending": snap.get("trending")}
     if with_snap:
         d["snapshot"] = snap
     return d
@@ -1667,7 +1668,7 @@ def api_narrative_listed(days: float = 14.0):
                 pts.setdefault(p.sid, []).append([p.ts, p.score])
         out = []
         from db.models import StoryMarket
-        from engine.story_market import grow_price, trading_state
+        from engine.story_market import grow_price, trading_state, base_for, bet_of
         mk = {m.sid: m for m in session.query(StoryMarket).filter(StoryMarket.sid.in_(sids or ["-"])).all()}
         import sqlalchemy as _sa
         ccount = dict(session.execute(_sa.text(
@@ -1676,7 +1677,9 @@ def api_narrative_listed(days: float = 14.0):
             d = _narr_row(n)
             d["spark"] = pts.get(n.sid, [])[-60:]
             m = mk.get(n.sid)
-            d["price"] = round(grow_price(n.last_score, m.crowd_offset if m else 0), 2)
+            d["price"] = round(grow_price(base_for(n), m.crowd_offset if m else 0), 2)
+            b_ = bet_of(n)
+            d["bet"] = {"kind": "line", "line": b_["line"]} if b_ else {"kind": "linear"}
             d["trading_open"] = trading_state(n)[0]
             d["comments"] = ccount.get(n.sid, 0)
             out.append(d)
@@ -1722,6 +1725,7 @@ def api_narrative_story(sid: str):
                  "articles": live.get("articles", 0), "regions": live.get("regions", []),
                  "categories": live.get("categories", []), "in_news": True,
                  "arena": live.get("arena", "food"), "company": live.get("company"),
+                 "sector": live.get("sector"), "trending": live.get("trending"),
                  "needs": {"score": rules_for(live.get("arena")).get("score"),
                            "outlets": rules_for(live.get("arena")).get("outlets")}}
             pts = [[t, sc] for t, sc in history_from_readings(session, sid, now - 72 * 3600, live.get("arena", "food"))]
@@ -1782,10 +1786,12 @@ def api_narrative_story(sid: str):
                 arts_ts = None
                 src = {k: live.get(k) for k in ("outlets", "outlets_eff", "regions", "severity", "recent_12h", "ts")}
             bd = story_score_parts(src, at)
-            if (d.get("arena") or "food") != "food":
+            _sev_txt = {"brands": "fraud, criminal charges, fines, resignations, boycotts, bankruptcy…",
+                        "everyday": "millions affected, boycotts, petitions, viral backlash, U-turns…"}
+            if (d.get("arena") or "food") in _sev_txt:
                 for p_ in bd["parts"]:
                     if p_["key"] == "severity":
-                        p_["detail"] = p_["detail"].split(" — ")[0] + " — fraud, criminal charges, fines, resignations, boycotts, bankruptcy…"
+                        p_["detail"] = p_["detail"].split(" — ")[0] + " — " + _sev_txt[d.get("arena")]
             bd["as_of"] = at
             bd["frozen"] = bool(n and n.status != "LISTED")
             bd["complete"] = src.get("severity") is not None
@@ -1815,6 +1821,9 @@ def api_narrative_story(sid: str):
         d["arena_label"] = ARENA_LABELS.get(d.get("arena") or "food", d.get("arena"))
         if n:
             d["delisted"] = _json.loads(n.snapshot or "{}").get("delisted")
+            from engine.story_market import bet_of
+            b_ = bet_of(n)
+            d["bet"] = {"kind": "line", "line": b_["line"]} if b_ else {"kind": "linear"}
         return d
 
 
@@ -1825,6 +1834,48 @@ def api_narrative_story(sid: str):
 
 from pydantic import BaseModel as _BM
 from typing import Optional as _Opt
+
+
+@app.get("/api/behaviour/{sid}")
+def api_behaviour(sid: str):
+    """Behaviour checks recorded for one story (test phase)."""
+    from engine.behaviour import latest_for
+    session = SessionLocal()
+    try:
+        return {"sid": sid, "checks": latest_for(session, sid[:16])}
+    finally:
+        session.close()
+
+
+@app.get("/api/behaviour")
+def api_behaviour_all(days: float = 21.0):
+    """Latest behaviour check per story over the last weeks — for evaluating the test."""
+    import json as _json
+    import time as _time
+    from db.models import BehaviourSignal, Narrative
+    session = SessionLocal()
+    try:
+        since = _time.time() - days * 86400
+        rows = (session.query(BehaviourSignal).filter(BehaviourSignal.ts >= since)
+                .order_by(BehaviourSignal.ts.desc()).all())
+        latest = {}
+        for r in rows:
+            latest.setdefault(r.sid, r)
+        nar = {n.sid: n for n in session.query(Narrative).filter(Narrative.sid.in_(list(latest) or ["-"])).all()}
+        stats = {"OK": 0, "ERROR": 0, "NO_DATA": 0, "acted": 0}
+        out = []
+        for sid, r in latest.items():
+            res = _json.loads(r.result) if r.result else None
+            stats[r.status] = stats.get(r.status, 0) + 1
+            if res and res.get("acted"):
+                stats["acted"] += 1
+            n = nar.get(sid)
+            out.append({"sid": sid, "title": n.title if n else None, "status": r.status, "ts": r.ts,
+                        "geo": r.geo, "company": r.company, "error": r.error, "result": res,
+                        "final_score": n.final_score if n else None})
+        return {"stats": stats, "stories": out}
+    finally:
+        session.close()
 
 
 class DelistRequest(_BM):
@@ -1899,7 +1950,7 @@ def api_story_trade(req: StoryTradeRequest):
 def api_story_account(user_id_str: str):
     """Credits and all story positions (open first) for one user."""
     from db.models import Narrative, StoryPosition, StoryMarket
-    from engine.story_market import account, close_value
+    from engine.story_market import account, close_value, base_for
     uid = parse_user_id(user_id_str)
     session = SessionLocal()
     try:
@@ -1914,7 +1965,7 @@ def api_story_account(user_id_str: str):
             if r.status == "CLOSED" and not r.realized:
                 continue
             n, m = nar.get(r.sid), mk.get(r.sid)
-            value = (close_value(n.last_score if n else 0, m.crowd_offset if m else 0, r.side, r.units)
+            value = (close_value(base_for(n) if n else 0, m.crowd_offset if m else 0, r.side, r.units)
                      if r.status == "OPEN" else (r.payout or 0))
             pnl = value - r.cost + r.realized
             if r.status == "OPEN":

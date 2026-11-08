@@ -38,7 +38,7 @@ WINDOW_HOURS        = 72
 DAILY_UNITS         = 8000      # of the free 10,000 — leaves room for mistakes
 UNITS_PER_CHECK     = 101
 BACKOFF_MIN         = 360
-_state = {"blocked_until": 0.0, "warned": False}
+_state = {"blocked_until": 0.0, "warned": False, "last_error": None}
 
 
 def configured():
@@ -99,6 +99,7 @@ def _check(session, sid, query):
         rec.status, rec.error = "ERROR", str(e)[:300]
         if "403" in str(e) or "429" in str(e) or "quota" in str(e).lower():
             _state["blocked_until"] = time.time() + BACKOFF_MIN * 60
+        _state["last_error"] = rec.error
     session.add(rec)
     session.commit()
     return rec
@@ -111,6 +112,8 @@ def run_youtube_checks():
             _state["warned"] = True
         return
     if time.time() < _state["blocked_until"]:
+        left = int((_state["blocked_until"] - time.time()) / 60)
+        print(f"⏸ youtube paused for {left} more min — last error: {_state['last_error']}")
         return
     from engine.social import query_for
     session = SessionLocal()
@@ -119,6 +122,7 @@ def run_youtube_checks():
         used = _units_today(session)
         room = max(0, (DAILY_UNITS - used) // UNITS_PER_CHECK)
         if not room:
+            print(f"▶️ youtube: daily quota used ({used}/{DAILY_UNITS}) — next checks tomorrow (UTC)")
             return
         last = {}
         for r in session.query(SocialSignal).filter(SocialSignal.source == "youtube",
@@ -155,6 +159,8 @@ def run_youtube_checks():
                 print(f"⏸ YouTube paused {BACKOFF_MIN // 60} h: {rec.error}")
                 break
             time.sleep(0.5)
+        if not done:
+            print(f"▶️ youtube: nothing due this round | quota today ≈{used}/{DAILY_UNITS}")
         if done:
             print(f"▶️ youtube: {len(done)} stories checked — " +
                   ", ".join(f"{(r.query or '—')[:25]}={r.posts}v/{r.reposts}views" if r.status == "OK"
@@ -178,3 +184,15 @@ def video_buzz_for(session, sid, moderator=False, hours=96):
         if moderator and latest.sample:
             out["latest"]["sample"] = json.loads(latest.sample)
     return out
+
+
+def status(session):
+    """For /api/youtube/status — is the recorder working, and what did it last see?"""
+    rows = (session.query(SocialSignal).filter(SocialSignal.source == "youtube")
+            .order_by(SocialSignal.ts.desc()).limit(10).all())
+    return {"configured": configured(), "quota_today": _units_today(session), "daily_limit": DAILY_UNITS,
+            "paused_minutes_left": max(0, int((_state["blocked_until"] - time.time()) / 60)),
+            "last_error": _state["last_error"],
+            "recent": [{"at": datetime.fromtimestamp(r.ts, timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
+                        "query": r.query, "status": r.status, "error": r.error,
+                        "videos": r.posts, "views": r.reposts} for r in rows]}

@@ -561,7 +561,8 @@ def group_stories(articles, same=None):
         cats = set().union(*(x["categories"] for x in m))
         spread = any(x["spread"] for x in m)
         # headline to show: from a real news outlet if possible, the most widely-worded recent one
-        lead = max(m, key=lambda x: (outlet_weight(x["source"]) == 1.0, len(x["tokens"]), x["ts"]))
+        lead = max(m, key=lambda x: (outlet_weight(x["source"]) == 1.0, not x.get("reach"),
+                                     len(x["tokens"]), x["ts"]))
         n_out = len(outlets)
         n_eff = round(sum(outlet_weight(o) for o in outlets), 2)
         score = severity * 0.5 + negativity * 0.2 + min(1.0, math.log2(1 + n_out) / 4) * 0.6

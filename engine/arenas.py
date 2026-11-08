@@ -449,6 +449,17 @@ def collect_arena(name, profile):
         known = set().union(*(a["names"] for a in strict)) if strict else set()
         articles = [a for a in articles if a in strict or (a["names"] & known)]
     stories = ni.group_stories(articles, same=same_brand_story if name in ("brands", "everyday") else None)
+    if name == "everyday":
+        try:
+            from engine.everyday import reach_check
+            extra = reach_check(stories, articles)
+            if extra:
+                for a in extra:
+                    a["names"] = names_in(a["raw_title"])
+                articles = articles + extra
+                stories = ni.group_stories(articles, same=same_brand_story)
+        except Exception as e:
+            print(f"⚠️ [everyday] reach check error: {e}")
     by_title = {}
     for a in articles:
         by_title.setdefault(a.get("raw_title") or a["title"], a)

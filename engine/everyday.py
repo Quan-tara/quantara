@@ -72,6 +72,7 @@ EVERYDAY_WORDS = [
     "ticket", "tickets", "flight", "flights", "store", "stores", "supermarket", "restaurant",
     "delivery", "account", "password", "ads", "advert", "streaming", "phone", "loyalty", "points",
     "refund", "queue", "self-checkout", "self checkout", "tipping", "tip", "baggage", "luggage",
+    "drink", "drinks", "outage", "network", "holiday", "console", "game", "games", "seat", "seats",
     # German
     "abo", "kunden", "fahrgäste", "passagiere", "nutzer", "preis", "preise", "gebühr", "gebühren",
     "filiale", "filialen", "supermarkt", "lieferung", "speisekarte", "rezept", "flug", "flüge",
@@ -374,3 +375,118 @@ def brand_in(titles):
         if b != best and best in b and counts[b] >= counts[best] - 0:
             best = b
     return shown[best]
+
+
+# ─────────────────────────────────────────────
+# REACH CHECK — how widely is a candidate really covered?
+# Our feeds usually catch one or two articles per everyday story. For the strongest
+# candidates each run we do one extra Google News search ("<brand> <topic words>",
+# last 3 days) and add the articles that clearly are the same story: same brand in the
+# headline + at least one of the topic words. Then the story is regrouped and scored.
+# ─────────────────────────────────────────────
+import urllib.parse as _up
+import feedparser as _fp
+
+REACH_TOP       = 8          # candidates checked per run
+REACH_CACHE_MIN = 60         # same search not repeated within this time
+_reach_cache = {}            # query → (ts, items)
+
+_TOPIC_SKIP = set("""
+fans customers users people shoppers passengers subscribers parents buyers owners viewers players
+says said new now today after amid over again still just more first last this that what why how
+when where with from into about their there they them your some many much very really could would
+should will been being have has had were was are its it's year years week weeks month months day days
+""".split())
+# subject words (what the story is about) rank first; reaction words ("furious") say nothing about the subject
+_TOPIC_SUBJECT = {w for w in EVERYDAY_WORDS if " " not in w and len(w) >= 3} - _TOPIC_SKIP
+_TOPIC_REACTION = {w for w in REACTION_WORDS if " " not in w}
+_TOPIC_PRIORITY = _TOPIC_SUBJECT
+
+
+def topic_words(titles, company, n=2):
+    """Words that say what the story is about (besides the brand), e.g. 'baggage fees'."""
+    comp = set(re.findall(r"[a-z0-9]+", (company or "").lower()))
+    counts, first = {}, {}
+    for i, t in enumerate(titles or []):
+        for j, w in enumerate(re.findall(r"[a-z][a-z0-9'-]+", t.lower())):
+            w = w.strip("'-")
+            if w in comp or w in _TOPIC_SKIP or (len(w) < 4 and w not in _TOPIC_SUBJECT):
+                continue
+            if w not in _TOPIC_SUBJECT and (w in A.COMMON_WORDS or w in ni.GENERIC):
+                continue
+            counts[w] = counts.get(w, 0) + 1
+            first.setdefault(w, i * 100 + j)
+    if not counts:
+        return []
+    rank = lambda w: 2 if w in _TOPIC_SUBJECT else (0 if w in _TOPIC_REACTION else 1)
+    ranked = sorted(counts, key=lambda w: (-rank(w), -counts[w], first[w]))
+    return ranked[:n]
+
+
+def _search(query):
+    now = time.time()
+    hit = _reach_cache.get(query)
+    if hit and now - hit[0] < REACH_CACHE_MIN * 60:
+        return hit[1]
+    url = ni._gn(_up.quote_plus(query), "US")
+    items = []
+    try:
+        r = requests.get(url, timeout=ni.FEED_TIMEOUT, headers=ni.UA)
+        if r.status_code == 200:
+            for e in _fp.parse(r.content).entries[:ni.MAX_PER_FEED]:
+                src, href = "", ""
+                if e.get("source") and hasattr(e.source, "get"):
+                    src = (e.source.get("title") or "").strip()
+                    href = e.source.get("href") or e.source.get("url") or ""
+                src = src or "Unknown"
+                title = ni._clean_title(e.get("title", ""), src)
+                if title:
+                    items.append({"title": title, "source": src, "href": href,
+                                  "url": e.get("link", ""), "ts": ni._entry_ts(e) or now})
+    except Exception as ex:
+        print(f"⚠️ reach search failed ({query}): {ex}")
+    _reach_cache[query] = (now, items)
+    if len(_reach_cache) > 500:
+        for k in sorted(_reach_cache, key=lambda k: _reach_cache[k][0])[:250]:
+            _reach_cache.pop(k, None)
+    return items
+
+
+def reach_check(stories, articles, top=REACH_TOP):
+    """Extra articles (same shape as feed articles) for the strongest candidates."""
+    seen = {(a["title"].lower(), a["source"].lower()) for a in articles}
+    cutoff = time.time() - ni.ARTICLE_WINDOW_H * 3600
+    cands = []
+    for s in stories:
+        brand = brand_in(s.get("raw_titles"))
+        if brand:
+            cands.append((ni.story_score(s), s, brand))
+    cands.sort(key=lambda x: x[0], reverse=True)
+    extra, searched = [], 0
+    for _, s, brand in cands[:top]:
+        words = topic_words(s.get("raw_titles"), brand)
+        if not words:
+            continue
+        query = f'"{brand}" ' + " ".join(words)          # the search feed itself limits to recent days
+        searched += 1
+        b_low = brand.lower()
+        for it in _search(query):
+            t, tl = it["title"], it["title"].lower()
+            key = (tl, it["source"].lower())
+            if key in seen or it["ts"] < cutoff:
+                continue
+            if b_low not in tl or not any(w in tl for w in words):
+                continue                                # not clearly the same story
+            if not english_only(t) or DEAL_RX.search(t) or ni._has_any(tl, A.EXCLUDE_TERMS):
+                continue
+            seen.add(key)
+            extra.append({
+                "title": t, "source": it["source"], "url": it["url"], "ts": it["ts"],
+                "region": ni._outlet_region(it["href"], "US"),
+                "tokens": _everyday_tokens(t), "hazards": _everyday_kinds(tl),
+                "categories": _everyday_categories(tl), "severity": _everyday_severity(tl),
+                "negativity": ni._negativity(tl), "spread": ni._has_any(tl, ni.SPREAD_TERMS),
+                "raw_title": t, "reach": True,
+            })
+    print(f"🔭 [everyday] reach check: {searched} searches → {len(extra)} more articles")
+    return extra

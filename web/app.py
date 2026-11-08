@@ -1903,6 +1903,24 @@ def api_social(sid: str, user_id: str = None):
         session.close()
 
 
+@app.get("/api/backtest/run")
+def api_backtest_run():
+    """Start the back-test of past food reputation cases (research only, ~5–10 min)."""
+    from engine.backtest import start
+    return start()
+
+
+@app.get("/api/backtest/results")
+def api_backtest_results(full: int = 0):
+    """Latest back-test results; ?full=1 adds the daily series."""
+    from engine.backtest import results
+    session = SessionLocal()
+    try:
+        return results(session, full=bool(full))
+    finally:
+        session.close()
+
+
 @app.get("/api/youtube/status")
 def api_youtube_status():
     """YouTube recorder health: quota used today, pause, last error, last 10 checks (no key shown)."""

@@ -27,6 +27,7 @@ _MIGRATIONS = [
     "ALTER TABLE contract_series ADD COLUMN IF NOT EXISTS underlying VARCHAR(16) DEFAULT 'DP'",
     "ALTER TABLE contracts ADD COLUMN IF NOT EXISTS underlying VARCHAR(16) DEFAULT 'DP'",
     "ALTER TABLE contracts ADD COLUMN IF NOT EXISTS settlement_rate FLOAT",
+    "ALTER TABLE narratives ADD COLUMN IF NOT EXISTS arena VARCHAR(16) DEFAULT 'food'",
 ]
 for _sql in _MIGRATIONS:
     try:

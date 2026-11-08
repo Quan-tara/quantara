@@ -537,6 +537,12 @@ def outlet_weight(source):
     return LOW_WEIGHT if LOW_WEIGHT_RX.search(source or "") else 1.0
 
 
+def _brand_clash(a, b):
+    """Both name a brand and the brands differ → never the same story."""
+    ba, bb = (a.get("brand") or "").lower(), (b.get("brand") or "").lower()
+    return bool(ba and bb and ba != bb)
+
+
 def group_stories(articles, same=None):
     """Greedy clustering: each article joins the first story it matches.
     `same`: an arena's own matching rule (default: food rule)."""
@@ -544,12 +550,13 @@ def group_stories(articles, same=None):
     stories = []
     for a in sorted(articles, key=lambda x: x["ts"]):      # oldest first
         for s in stories:
-            if any(same(a, m) for m in s["members"]):
+            if any(same(a, m) for m in s["members"]) and not any(_brand_clash(a, m) for m in s["members"]):
                 s["members"].append(a)
                 break
         else:
             stories.append({"members": [a]})
-    stories = _merge_same_event(stories)
+    if not any(a.get("brand") for a in articles):      # brand arenas match by brand instead
+        stories = _merge_same_event(stories)
 
     out = []
     for s in stories:
@@ -752,6 +759,9 @@ def assign_story_ids(stories, session, now=None, arena="food"):
         best, best_j = None, 0.0
         for p in prev_sets:
             if p["sid"] in used or not _same_story_over_time(me, p):
+                continue
+            pc, mc = (p.get("company") or "").lower(), (s.get("company") or "").lower()
+            if pc and mc and pc != mc:                    # a story never changes brand
                 continue
             shared = len(me["tokens"] & p["tokens"])
             # most shared words wins (so when two stories merge, the bigger one keeps its

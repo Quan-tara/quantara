@@ -178,8 +178,16 @@ DEAL_RX = re.compile(r"\$\d[\d,]*\s*-?\s*off|\d+\s*%\s*off|\bdeals?\b|\bdiscount
 _DE_RX = re.compile(r"\b(der|die|das|und|für|über|nicht|mit|wegen|teurer|erwägt|keine)\b|[äöüß]", re.I)
 
 
+# Indian-market stories (rupees, lakh/crore, Indian places) — not our US/UK audience for now
+_IN_RX = re.compile(r"₹|\brs\.?\s?\d|\binr\b|\blakh\b|\bcrore\b|\bindia(n)?\b|\bdiwali\b|\bkarnataka\b|"
+                    r"\bmumbai\b|\bdelhi\b|\bbengaluru\b|\bbangalore\b|\bchennai\b|\bhyderabad\b|"
+                    r"\bkolkata\b|\bpune\b|\bkerala\b|\btamil nadu\b|\bmaharashtra\b", re.I)
+
+
 def english_only(title):
-    return not _DE_RX.search(title or "")
+    """English, and meant for a US/UK/European audience."""
+    t = title or ""
+    return not _DE_RX.search(t) and not _IN_RX.search(t)
 
 
 def _everyday_relevant(text, title):
@@ -204,7 +212,8 @@ def _everyday_kinds(text):
                     "hidden fees", "shrinkflation", "preiserhöhung", "teurer", "gebühr"],
         "change":  ["scrapped", "scraps", "axed", "axes", "discontinued", "discontinues", "no longer",
                     "recipe", "menu", "pulled from", "gestrichen", "eingestellt", "aus für"],
-        "service": ["outage", "down for", "chaos", "meltdown", "delays", "cancelled", "ausfall", "störung"],
+        "service": ["outage", "down for", "chaos", "meltdown", "delays", "cancelled", "crash", "crashes",
+                    "crashed", "not working", "is down", "went down", "ausfall", "störung"],
         "backlash": ["backlash", "boycott", "outrage", "viral", "fury", "furious", "shitstorm", "empörung"],
         "policy":  ["crackdown", "ban", "banned", "bans", "password", "rule", "rules"],
     }.items():

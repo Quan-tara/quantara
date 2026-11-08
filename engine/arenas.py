@@ -365,9 +365,12 @@ def names_in(title):
 def same_brand_story(a, b):
     """Brand stories are about a company: same named company + the same kind of trouble
     (or no kind detected) → same story. Otherwise fall back to the word-overlap rule."""
+    if ni._brand_clash(a, b):                     # different brands are never one story
+        return False
     na, nb = a.get("names") or set(), b.get("names") or set()
     if na & nb:
-        ka, kb = a["hazards"], b["hazards"]
+        # "backlash" is a reaction, not a subject — it never separates two articles
+        ka, kb = set(a["hazards"]) - {"backlash"}, set(b["hazards"]) - {"backlash"}
         if not ka or not kb or (ka & kb):
             return True
     return ni._same_story(a, b)
@@ -443,6 +446,10 @@ def collect_arena(name, profile):
         return None
     for a in articles:
         a["names"] = names_in(a.get("raw_title") or a["title"])
+    if name == "everyday":
+        from engine.everyday import brand_in
+        for a in articles:
+            a["brand"] = brand_in([a.get("raw_title") or a["title"]])
     if name == "brands":
         # headlines without a company word stay only if a clear company story names the same company
         strict = [a for a in articles if _strict((a.get("raw_title") or a["title"]).lower())]
@@ -454,8 +461,10 @@ def collect_arena(name, profile):
             from engine.everyday import reach_check
             extra = reach_check(stories, articles)
             if extra:
+                from engine.everyday import brand_in
                 for a in extra:
                     a["names"] = names_in(a["raw_title"])
+                    a["brand"] = brand_in([a["raw_title"]])
                 articles = articles + extra
                 stories = ni.group_stories(articles, same=same_brand_story)
         except Exception as e:

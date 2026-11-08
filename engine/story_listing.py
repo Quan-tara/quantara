@@ -158,7 +158,8 @@ def listed_for_matching(session, arena="food"):
     for n in _arena_filter(session.query(Narrative).filter(Narrative.status.in_(["LISTED", "DELISTED"])), arena).all():
         snap = json.loads(n.snapshot or "{}")
         out.append({"sid": n.sid, "first_seen": n.first_seen, "score": n.last_score,
-                    "tokens": snap.get("tokens", []), "hazards": snap.get("hazards", [])})
+                    "tokens": snap.get("tokens", []), "hazards": snap.get("hazards", []),
+                    "company": snap.get("company")})
     return out
 
 
@@ -183,7 +184,9 @@ def update_listings(stories, session, now=None, arena="food"):
             continue
         snap = json.loads(n.snapshot or "{}")
         tk, hz = set(snap.get("tokens", [])), set(snap.get("hazards", []))
+        mine = (snap.get("company") or "").lower()
         into = next((s for s in listed_live if s["sid"] != n.sid
+                     and not (mine and (s.get("company") or "").lower() and mine != (s.get("company") or "").lower())
                      and same_event(tk, hz, set(s["tokens"]), set(s["hazards"]))), None)
         if into:
             snap["merged_into"] = into["sid"]

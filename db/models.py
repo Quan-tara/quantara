@@ -276,3 +276,21 @@ class BehaviourSignal(Base):
     result  = Column(Text, nullable=True)      # JSON: per term {ratio, recent, baseline}, verdict
     series  = Column(Text, nullable=True)      # JSON: daily values per term (for charts later)
     error   = Column(String(300), nullable=True)
+
+
+class SocialSignal(Base):
+    """Social buzz for a story (test): how many recent posts mention it, and how they spread."""
+    __tablename__ = "social_signals"
+
+    id      = Column(Integer, primary_key=True, autoincrement=True)
+    sid     = Column(String(16), nullable=False, index=True)
+    ts      = Column(Float, nullable=False, index=True)
+    source  = Column(String(16), nullable=False, default="bluesky")
+    query   = Column(String(200), nullable=True)
+    posts   = Column(Integer, nullable=True)       # posts in the last 24 h
+    likes   = Column(Integer, nullable=True)
+    reposts = Column(Integer, nullable=True)
+    replies = Column(Integer, nullable=True)
+    status  = Column(String(12), nullable=False, default="OK")   # OK | ERROR
+    error   = Column(String(300), nullable=True)
+    sample  = Column(Text, nullable=True)         # JSON: most-liked posts (moderators only)

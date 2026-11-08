@@ -332,7 +332,9 @@ def results(session, full=False):
     last = session.query(BacktestResult).order_by(BacktestResult.run_ts.desc()).first()
     if not last:
         return {"progress": progress(), "cases": [], "message": "no run yet — open /api/backtest/run"}
-    rows = (session.query(BacktestResult).filter(BacktestResult.run_ts == last.run_ts)
+    # match the run by a small time window, not exact equality (the database can round a stored float)
+    rows = (session.query(BacktestResult).filter(BacktestResult.run_ts >= last.run_ts - 5,
+                                                 BacktestResult.run_ts <= last.run_ts + 5)
             .order_by(BacktestResult.id).all())
     cases = []
     for r in rows:

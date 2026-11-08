@@ -1635,8 +1635,8 @@ def _latest_story_index(session):
         ts = float(row[0])
         out += [{**x, "arena": x.get("arena") or "food"} for x in (_json.loads(row[1]) or {}).get("story_index") or []]
     try:
-        from engine.arenas import ARENAS
-        for name in ARENAS:
+        from engine.arenas import all_arenas
+        for name in all_arenas():
             r = session.execute(_sa.text(
                 "SELECT ts, story_index FROM arena_readings WHERE arena = :a ORDER BY ts DESC LIMIT 1"
             ), {"a": name}).fetchone()
@@ -1834,6 +1834,47 @@ def api_narrative_story(sid: str):
 
 from pydantic import BaseModel as _BM
 from typing import Optional as _Opt
+
+
+@app.get("/api/stories/candidates")
+def api_story_candidates(user_id: str, arena: str = "everyday", limit: int = 25):
+    """Moderators: the strongest stories of the latest reading that are NOT listed — to see
+    what the filter finds and tune the listing bar with real examples."""
+    import json as _json
+    import sqlalchemy as _sa
+    from engine.story_comments import is_moderator
+    from engine.story_listing import rules_for
+    if not is_moderator(parse_user_id(user_id)):
+        raise HTTPException(status_code=403, detail="Moderators only")
+    session = SessionLocal()
+    try:
+        r = session.execute(_sa.text(
+            "SELECT ts, story_index, meta FROM arena_readings WHERE arena = :a ORDER BY ts DESC LIMIT 1"
+        ), {"a": arena[:16]}).fetchone()
+        if not r:
+            return {"arena": arena, "ts": None, "rules": rules_for(arena), "stories": []}
+        idx = _json.loads(r[1]) or []
+        rows = [x for x in idx if not x.get("listed")]
+        rows.sort(key=lambda x: x.get("score") or 0, reverse=True)
+        rules = rules_for(arena)
+        out = []
+        for x in rows[:max(1, min(limit, 60))]:
+            eff = x.get("outlets_eff") if x.get("outlets_eff") is not None else x.get("outlets", 0)
+            why = []
+            if (x.get("score") or 0) < rules["score"]:
+                why.append(f"score {x.get('score', 0):.1f} < {rules['score']:g}")
+            if eff < rules["outlets"]:
+                why.append(f"{eff:g} outlets < {rules['outlets']}")
+            if x.get("list_status"):
+                why.append(f"was {x['list_status'].lower()}")
+            out.append({"sid": x.get("sid"), "title": x.get("title"), "score": x.get("score"),
+                        "outlets": x.get("outlets"), "company": x.get("company"), "sector": x.get("sector"),
+                        "trending": x.get("trending"), "regions": x.get("regions"),
+                        "why_not": "; ".join(why) or "cap reached or listed earlier"})
+        return {"arena": arena, "ts": float(r[0]), "rules": rules, "meta": _json.loads(r[2] or "{}"),
+                "stories": out}
+    finally:
+        session.close()
 
 
 @app.get("/api/behaviour/{sid}")

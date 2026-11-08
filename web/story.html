@@ -407,6 +407,7 @@ async function board() {
       </div>
     </section>
     <section class="panel" id="mine"></section>
+    <section class="panel" id="cands" hidden></section>
     <section class="panel">
       <div class="ph"><span class="lbl">Listed now</span>
         <div class="tabs" style="flex-wrap:wrap">${[["all", "ALL"], ...groups.map(g => [g, g.toUpperCase()])].map(([k, l]) =>
@@ -419,6 +420,21 @@ async function board() {
       ${closed.length ? `<div class="cards">${closed.map(card).join("")}</div>` : `<div class="empty">No closed stories yet.</div>`}
     </section>`;
   myStories();
+  candidates();
+}
+let CANDS_OPEN = false;
+async function candidates() {
+  const el = $("#cands"); if (!el || !ME) return;
+  const r = await fetch("/api/stories/candidates?user_id=" + encodeURIComponent(ME.id)).catch(() => null);
+  if (!r || !r.ok) return;                       // not a moderator → stays hidden
+  const d = await r.json();
+  el.hidden = false;
+  el.innerHTML = `<div class="ph"><span class="lbl">Candidates · not listed · moderators</span>
+      <button class="btn ghost" onclick="CANDS_OPEN=!CANDS_OPEN;candidates()">${CANDS_OPEN ? "HIDE" : `SHOW ${d.stories.length}`}</button></div>
+    ${!CANDS_OPEN ? `<div class="note">What the everyday filter found in its latest reading (${d.ts ? when(d.ts) : "none yet"}) but didn't list. Bar: score ${d.rules.score} with ${d.rules.outlets}+ outlets${d.rules.daily_cap ? `, max ${d.rules.daily_cap} a day` : ""}.</div>`
+      : d.stories.length ? `<div class="list">${d.stories.map(c => `<div class="li"><a href="/story/${encodeURIComponent(c.sid)}">${esc(c.title)}</a>
+          <div class="m"><b class="mono">${(c.score ?? 0).toFixed(1)}</b><span>${c.outlets} outlet${c.outlets === 1 ? "" : "s"}</span>${sectorTag(c.sector)}${c.company ? `<span>🏢 ${esc(c.company)}</span>` : ""}${trendTag(c.trending)}<span style="color:var(--dim)">${esc(c.why_not)}</span></div></div>`).join("")}</div>`
+      : `<div class="empty">Nothing found in the latest reading.</div>`}`;
 }
 async function myStories() {
   const el = $("#mine"); if (!el) return;

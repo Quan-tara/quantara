@@ -179,6 +179,8 @@ main { max-width: 1240px; margin: 0 auto; padding-top: 18px; display: grid; gap:
 .co::before { content: "🏢 "; }
 .house { padding: 10px 14px; font-size: 11px; color: var(--muted); line-height: 1.5; border-bottom: 1px solid var(--border); background: var(--s2) }
 .house b { color: var(--text) }
+.buzz-bars { display: flex; align-items: flex-end; gap: 2px; height: 28px }
+.buzz-bars i { flex: 1; background: var(--accent); opacity: .7; border-radius: 1px; min-width: 3px }
 .fb { font-family: var(--mono); font-size: 9px; font-weight: 700; color: var(--amber); border: 1px solid rgba(255,179,0,.5); border-radius: 3px; padding: 0 5px; white-space: nowrap }
 .tabs { display: flex; gap: 6px }
 .tabs button { font-family: var(--mono); font-size: 10px; padding: 5px 10px; border-radius: 4px; border: 1px solid var(--border); background: transparent; color: var(--muted); cursor: pointer }
@@ -347,7 +349,7 @@ async function historyPage() {
     </section>`;
 }
 
-const ARENA_NAME = { brands: "BRANDS", food: "FOOD", everyday: "EVERYDAY" };
+const ARENA_NAME = { brands: "BRANDS", food: "FOOD SAFETY", everyday: "FOOD & DRINK" };
 const sectorTag = s => s && s !== "other" ? `<span class="sector">${esc(s)}</span>` : "";
 const fmtTraffic = n => n >= 1e6 ? Math.round(n / 1e6) + "M+" : n >= 1e3 ? Math.round(n / 1e3) + "K+" : (n || "") + "";
 const trendTag = t => t && t.term ? `<span class="trend" title="Google trending search">🔥 trending: “${esc(t.term)}”${t.traffic ? " · " + fmtTraffic(t.traffic) + " searches" : ""}</span>` : "";
@@ -433,7 +435,7 @@ async function candidates() {
       <button class="btn ghost" onclick="CANDS_OPEN=!CANDS_OPEN;candidates()">${CANDS_OPEN ? "HIDE" : `SHOW ${d.stories.length}`}</button></div>
     ${!CANDS_OPEN ? `<div class="note">What the everyday filter found in its latest reading (${d.ts ? when(d.ts) : "none yet"}) but didn't list. Bar: score ${d.rules.score} with ${d.rules.outlets}+ outlets${d.rules.daily_cap ? `, max ${d.rules.daily_cap} a day` : ""}.</div>`
       : d.stories.length ? `<div class="list">${d.stories.map(c => `<div class="li"><a href="/story/${encodeURIComponent(c.sid)}">${esc(c.title)}</a>
-          <div class="m"><b class="mono">${(c.score ?? 0).toFixed(1)}</b><span>${c.outlets} outlet${c.outlets === 1 ? "" : "s"}</span>${sectorTag(c.sector)}${c.company ? `<span>🏢 ${esc(c.company)}</span>` : ""}${trendTag(c.trending)}<span style="color:var(--dim)">${esc(c.why_not)}</span></div></div>`).join("")}</div>`
+          <div class="m"><b class="mono">${(c.score ?? 0).toFixed(1)}</b><span>${c.outlets} outlet${c.outlets === 1 ? "" : "s"}</span>${sectorTag(c.sector)}${c.company ? `<span>🏢 ${esc(c.company)}</span>` : ""}${trendTag(c.trending)}${c.buzz != null ? `<span title="Bluesky posts in the last 24h">🦋 ${c.buzz}</span>` : ""}<span style="color:var(--dim)">${esc(c.why_not)}</span></div></div>`).join("")}</div>`
       : `<div class="empty">Nothing found in the latest reading.</div>`}`;
 }
 async function myStories() {
@@ -607,6 +609,7 @@ async function story(sid) {
   hookChart();
   STORY = d;
   if (d.status !== "WATCHING") { loadMarket(d.sid); loadComments(d.sid); }
+  loadBuzz(d.sid);
 }
 
 // ── DISCUSSION ──
@@ -757,6 +760,35 @@ function breakdownHtml(d) {
       ${quiet}
       ${b.complete ? "" : `<div class="bd-note">Severity and momentum appear from the next reading (within 15 minutes).</div>`}
     </div></section>`;
+}
+
+// ── SOCIAL BUZZ (Bluesky, test) ──
+async function loadBuzz(sid) {
+  const q = ME ? "?user_id=" + encodeURIComponent(ME.id) : "";
+  let b; try { b = await (await fetch("/api/social/" + encodeURIComponent(sid) + q)).json(); } catch (e) { return; }
+  if (!b || !b.configured || !b.latest) return;
+  const side = document.querySelector(".side"); if (!side || document.getElementById("buzz")) return;
+  const L = b.latest, ser = b.series || [];
+  const mx = Math.max(1, ...ser.map(p => p[1] || 0));
+  const bars = ser.slice(-24).map(p => `<i title="${p[1]} posts · ${esc(when(p[0]))}" style="height:${Math.max(2, 26 * (p[1] || 0) / mx)}px"></i>`).join("");
+  const sec = document.createElement("section");
+  sec.className = "panel"; sec.id = "buzz";
+  sec.innerHTML = `<div class="ph"><span class="lbl">Social buzz · Bluesky · test</span><span class="tag">last 24h</span></div>
+    <div class="tp">${L.status !== "OK" ? `<div class="note" style="padding:0">Not available right now${L.error ? ` (${esc(L.error.slice(0, 80))})` : ""}.</div>` : `
+      <div class="mine" style="padding:0">
+        <div class="stat"><span class="lbl">Posts</span><span class="v">${L.posts}</span></div>
+        <div class="stat"><span class="lbl">Likes</span><span class="v">${L.likes}</span></div>
+        <div class="stat"><span class="lbl">Reposts</span><span class="v">${L.reposts}</span></div>
+        <div class="stat"><span class="lbl">Replies</span><span class="v">${L.replies}</span></div>
+      </div>
+      ${ser.length > 1 ? `<div class="buzz-bars">${bars}</div>` : ""}
+      <div class="bd-note">Posts mentioning “${esc(L.query || "")}”, checked ${esc(when(L.ts))}. Shown for testing — it doesn't affect the score.</div>
+      ${(L.sample || []).length ? `<div class="lbl" style="margin-top:4px">Most-liked posts · moderators</div>
+        ${L.sample.map(p => `<div class="li" style="padding:6px 0"><span style="font-size:12px">${esc(p.text)}</span>
+          <div class="m"><span>♥ ${p.likes}</span><span>↻ ${p.reposts}</span>${p.url ? `<a href="${esc(p.url)}" target="_blank" rel="noopener" style="font-size:10px">open</a>` : ""}</div></div>`).join("")}` : ""}`}
+    </div>`;
+  const mkt = document.getElementById("mkt");
+  if (mkt && mkt.nextSibling) side.insertBefore(sec, mkt.nextSibling); else side.appendChild(sec);
 }
 
 // ── TRADING ──

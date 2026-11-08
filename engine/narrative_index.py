@@ -436,7 +436,11 @@ def pull_rss_articles(profile=None):
                     src_href = e.source.get("href") or e.source.get("url") or ""
                 src = src or feed_name or "Unknown"
                 if "reddit.com/r/" in feed_url:              # "Reddit r/fastfood" instead of "top scoring links"
-                    src = "Reddit r/" + feed_url.split("reddit.com/r/")[1].split("/")[0]
+                    sub = ((e.get("tags") or [{}])[0].get("term") or "") if e.get("tags") else ""
+                    if not sub:
+                        m_ = re.search(r"reddit\.com/r/([^/]+)/", e.get("link", "") or "")
+                        sub = m_.group(1) if m_ else feed_url.split("reddit.com/r/")[1].split("/")[0].split("+")[0]
+                    src = "Reddit r/" + sub
                 title = _clean_title(e.get("title", ""), src)
                 if not title:
                     continue

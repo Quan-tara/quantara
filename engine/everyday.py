@@ -259,10 +259,15 @@ def blocked_title(text, title):
     return ni._has_any(text, A.HARD_POLITICS) or ni._has_any(text, A.SENSITIVE_TERMS)
 
 
+# Tagalog (Filipino) headlines and Philippine TV/showbiz pages
+_TL_RX = re.compile(r"\b(ng|mga|ang|sa|nang|kay|po|naman|lang|hindi)\b|\bGMA (?:Entertainment|News|Network)\b|"
+                    r"\bABS-CBN\b|\bBubble Gang\b", re.I)
+
+
 def english_only(title):
     """English, and meant for a US/UK/European audience."""
     t = title or ""
-    return not _DE_RX.search(t) and not _IN_RX.search(t)
+    return not _DE_RX.search(t) and not _IN_RX.search(t) and not _TL_RX.search(t)
 
 
 # fan-favourite / praise stories ("the Costco deli find fans want all to themselves") are not drama
@@ -330,6 +335,9 @@ def _gn(q, region):
     return (ni._gn(q, region), "EU" if region in ("DE", "AT", "IE") else region)
 
 
+REDDIT_SUBS = ["fastfood", "mildlyinfuriating", "shrinkflation", "Costco", "traderjoes", "starbucks",
+               "McDonalds", "Chipotle", "tacobell", "CasualUK"]
+
 EVERYDAY_FEEDS = [
     _gn("fast+food+customers+furious+OR+backlash+OR+outrage", "US"),
     _gn("%22menu+change%22+OR+%22recipe+change%22+OR+discontinued+fans+food+OR+drink", "US"),
@@ -352,9 +360,9 @@ EVERYDAY_FEEDS = [
     _gn("site:dailydot.com+OR+site:today.com+OR+site:delish.com+food+OR+restaurant+fans+OR+customers+OR+tiktok", "US"),
     _gn("site:thetakeout.com+OR+site:mashed.com+OR+site:allrecipes.com+discontinued+OR+backlash+OR+furious", "US"),
     # Reddit — where people actually complain (today's top posts; free RSS)
-] + [(f"https://www.reddit.com/r/{sub}/top/.rss?t=day", "US") for sub in (
-    "fastfood", "mildlyinfuriating", "shrinkflation", "Costco", "traderjoes", "starbucks",
-    "McDonalds", "Chipotle", "tacobell", "CasualUK")]
+    # all subreddits in ONE request — Reddit answers 429 to ten quick requests from one server
+    ("https://www.reddit.com/r/" + "+".join(REDDIT_SUBS) + "/top/.rss?t=day&limit=100", "US"),
+]
 
 EVERYDAY_PROFILE = {
     "name": "everyday",

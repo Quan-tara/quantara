@@ -150,7 +150,13 @@ def run_behaviour_checks():
         listed = session.query(Narrative).filter(Narrative.status == "LISTED").all()
         recent = {r.sid: r.ts for r in session.query(BehaviourSignal)
                   .filter(BehaviourSignal.ts >= now - CHECK_EVERY_H * 3600).all()}
-        due = [n for n in listed if n.sid not in recent][:MAX_PER_RUN]
+        def _company(n):
+            try:
+                return (json.loads(n.snapshot or "{}").get("company") or "").strip()
+            except Exception:
+                return ""
+        # only stories that name a company can be checked — the others don't use up the slots
+        due = [n for n in listed if n.sid not in recent and _company(n)][:MAX_PER_RUN]
         for i, n in enumerate(due):
             rec = check_story(n, session)
             session.commit()

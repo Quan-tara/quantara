@@ -88,6 +88,9 @@ JARGON_WORDS = [
     # German
     "quartal", "umsatz", "gewinn", "aktionäre", "übernahme", "gericht", "urteil", "klage",
     "rückruf", "lebensmittelwarnung",
+    # executive / investor talk — not what ordinary people argue about
+    "cfo", "chief financial officer", "valuation", "funding round", "investor", "strategy",
+    "interview", "keynote", "earnings call", "roadmap", "fiscal", "ipo",
 ]
 
 SECTORS = {
@@ -145,8 +148,8 @@ def relatability(text, trending=False):
     reaction = _count(text, REACTION_WORDS)
     jargon = _count(text, JARGON_WORDS)
     anchor = brand or everyday >= 2
-    if trending:
-        ok = anchor and jargon <= 1 and (reaction >= 1 or brand)
+    if trending:      # popularity alone is not enough — there must be a reaction too
+        ok = anchor and reaction >= 1 and (jargon == 0 or (jargon == 1 and reaction >= 2))
     else:
         ok = anchor and reaction >= 1 and (jargon == 0 or (jargon == 1 and reaction >= 2))
     return ok, {"brand": brand, "everyday": everyday, "reaction": reaction, "jargon": jargon}
@@ -156,6 +159,8 @@ def _everyday_relevant(text, title):
     if ni._has_any(text, A.EXCLUDE_TERMS):
         return False
     if A.ROUNDUP_RX.search(title or ""):
+        return False
+    if ni._has_any(text, A.HARD_POLITICS):
         return False
     if ni._has_any(text, A.POLITICS_TERMS) and not (ni._has_any(text, CONSUMER_BRANDS)
                                                     or ni._has_any(text, A.STRONG_CORPORATE)):
@@ -301,6 +306,8 @@ def pull_trending(seen=None):
                 seen.add(key)
                 text = (title + " " + term).lower()
                 if ni._has_any(text, A.EXCLUDE_TERMS) or A.ROUNDUP_RX.search(title):
+                    continue
+                if ni._has_any(text, A.HARD_POLITICS):
                     continue
                 if ni._has_any(text, A.POLITICS_TERMS) and not ni._has_any(text, CONSUMER_BRANDS):
                     continue

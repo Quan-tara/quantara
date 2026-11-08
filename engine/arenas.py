@@ -83,8 +83,17 @@ POLITICS_TERMS = [
     "congress", "congressman", "lawmakers", "election", "elections", "campaign", "party leader",
     "government", "mayor", "governor", "opposition", "coalition", "cabinet", "white house",
     "kremlin", "downing street", "impeach", "referendum",
+    "midterm", "midterms", "voter", "voters", "vote", "votes", "voting", "ballot", "polls",
+    "democrat", "democrats", "republican", "republicans", "gop", "trump", "biden", "harris",
+    "vance", "starmer", "tories", "labour party", "reform uk", "merz", "scholz",
     "bundestag", "bundesregierung", "kanzler", "ministerin", "regierung", "partei", "wahlkampf",
-    "koalition", "bürgermeister", "landtag",
+    "koalition", "bürgermeister", "landtag", "wahl", "wähler", "umfrage", "afd", "cdu", "spd",
+]
+# clearly political: no brand can make these a consumer story
+HARD_POLITICS = [
+    "midterm", "midterms", "voter", "voters", "election", "elections", "ballot", "campaign",
+    "democrats", "republicans", "gop", "congress", "senate", "parliament", "lawmakers",
+    "wahlkampf", "wahl", "wähler", "bundestag", "landtag",
 ]
 STRONG_CORPORATE = [
     "inc", "corp", "corporation", "plc", "ltd", "llc", "ag", "gmbh", "company", "companies", "firm",
@@ -112,7 +121,19 @@ bavaria bayern hessen sachsen nrw manchester birmingham liverpool leeds glasgow 
 redditch silicon valley wall street europe asia africa americas
 """.split())
 _ROAD_RX = re.compile(r"^(?:[a-z]{1,2}-?\d{1,4}|\d+)$", re.I)     # M56, A9, I-95, B12, 2026
-_LEAD_STRIP = {"the", "a", "an", "and", "of", "for", "to", "in", "on", "at", "by", "with", "from", "as",
+# everyday headline words that are never (part of the edge of) a company name
+COMMON_WORDS = set("""
+is are was were be been am do does did has have had will would can could should may might must
+here there this that these those what why how when where which you your we our they their it its
+all any every more most less new top best worst big biggest small after before over under still
+just now today tonight right left down up out off back again also only even very really much
+gets get got makes make made says said report reports reported users user customers customer
+app apps website websites site outage outages update updates live news video watch price prices
+fans people everyone nobody adds adding launches launch announces unveils reveals confirms
+including includes plus one two three four five six seven eight nine ten first last next week
+month year day days hours minutes free deal deals sale shop shopping online service services
+""".split())
+_LEAD_STRIP = COMMON_WORDS | {"the", "a", "an", "and", "of", "for", "to", "in", "on", "at", "by", "with", "from", "as",
                "breaking", "exclusive", "watch", "video", "live", "update", "opinion", "analysis",
                "report", "new", "latest", "how", "why", "what", "when", "where", "after", "amid", "over"}
 
@@ -306,14 +327,16 @@ def _clean_name(raw):
     """Trim a capitalised run to a plausible company name, or None."""
     name = re.sub(r"['’]s$", "", raw.strip(" .-")).strip(" .'-")
     parts = [p for p in name.split() if not p.lower().endswith("-based")]
-    while parts and parts[0].lower().strip(".,:'") in _LEAD_STRIP:          # only small words at the front
+    while parts and parts[0].lower().strip(".,:'?!") in _LEAD_STRIP:        # small/common words at the front
         parts.pop(0)
-    while parts and parts[-1].lower().strip(".,:'") in _STRIP:              # generic words at the end
+    while parts and parts[-1].lower().strip(".,:'?!") in (_STRIP | COMMON_WORDS):   # generic words at the end
         parts.pop()
     parts = [p for p in parts if not _ROAD_RX.match(p.strip(".,:'"))] if len(parts) == 1 else parts
     if not parts:
         return None
     key = " ".join(parts).lower()
+    if all(p.lower().strip(".,:'?!") in (COMMON_WORDS | _NOT_NAMES) for p in parts):   # "Users Report App"
+        return None
     if len(parts) == 1 and (key in _NOT_NAMES or key in _NAME_OK or key in PLACES or _ROAD_RX.match(key)):
         return None
     if key in BRAND_GENERIC or key in PLACES or len(key) < 2:
@@ -456,8 +479,15 @@ def collect_arena(name, profile):
         session.close()
 
 
+def all_arenas():
+    """ARENAS with the everyday arena loaded (it imports this module, so it registers late)."""
+    if "everyday" not in ARENAS:
+        _register_everyday()
+    return ARENAS
+
+
 def collect_all_arenas():
-    for name, profile in ARENAS.items():
+    for name, profile in list(all_arenas().items()):
         try:
             if name in MAINTENANCE_ONLY:
                 maintain_arena(name)
@@ -476,6 +506,8 @@ def _register_everyday():
     try:
         from engine.everyday import EVERYDAY_PROFILE
         ARENAS["everyday"] = EVERYDAY_PROFILE
+    except ImportError:
+        pass          # module still loading (circular import) — all_arenas() retries later
     except Exception as e:
         print(f"⚠️ everyday arena not loaded: {e}")
 

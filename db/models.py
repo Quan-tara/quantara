@@ -138,6 +138,7 @@ class Narrative(Base):
     closed_at   = Column(Float, nullable=True)
     last_seen   = Column(Float, nullable=True)     # last run the story was still in the news
     snapshot    = Column(Text, nullable=True)      # JSON: outlets, regions, categories, articles…
+    arena       = Column(String(16), nullable=True, default="food", index=True)   # food | brands | …
 
 
 class NarrativePoint(Base):
@@ -247,3 +248,15 @@ class StoryPricePoint(Base):
     sid   = Column(String(16), nullable=False, index=True)
     ts    = Column(Float, nullable=False)
     price = Column(Float, nullable=False)
+
+
+class ArenaReading(Base):
+    """Per-run story list for arenas other than food (food keeps using index_ticks, so the
+    FSNI and its history are untouched). Used to keep story ids stable and for score history."""
+    __tablename__ = "arena_readings"
+
+    id          = Column(Integer, primary_key=True, autoincrement=True)
+    arena       = Column(String(16), nullable=False, index=True)
+    ts          = Column(Float, nullable=False, index=True)
+    story_index = Column(Text, nullable=False)     # JSON list, same shape as FSNI story_index
+    meta        = Column(Text, nullable=True)      # JSON: feeds ok, articles, stories…

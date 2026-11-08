@@ -14,6 +14,7 @@ Login: a free Bluesky account with an APP PASSWORD, read from the environment:
 """
 
 import json
+import re
 import os
 import time
 from datetime import datetime, timezone, timedelta
@@ -26,7 +27,7 @@ from db.models import Narrative, SocialSignal
 PDS = "https://bsky.social/xrpc"
 LISTED_EVERY_MIN    = 30
 CANDIDATE_EVERY_MIN = 60
-CANDIDATES_PER_RUN  = 5
+CANDIDATES_PER_RUN  = 8
 MAX_SEARCHES_RUN    = 12
 PAGES               = 3        # up to 300 posts per search
 BACKOFF_MIN         = 30
@@ -49,8 +50,14 @@ def _login(force=False):
     return _state["jwt"]
 
 
-def search(query, hours=24):
-    """Posts in the last `hours` matching the query → summary dict."""
+def _matches(text, words):
+    t = (text or "").lower().replace("’", "'")
+    return any(re.search(r"\b" + re.escape(w), t) for w in words)
+
+
+def search(query, hours=24, must=None):
+    """Posts in the last `hours` matching the query → summary dict.
+    must = story words: only posts that also contain one of them are counted."""
     since = (datetime.now(timezone.utc) - timedelta(hours=hours)).strftime("%Y-%m-%dT%H:%M:%SZ")
     posts, cursor = [], None
     for page in range(PAGES):
@@ -70,6 +77,9 @@ def search(query, hours=24):
         cursor = d.get("cursor")
         if not cursor or len(d.get("posts", [])) < 100:
             break
+    brand_total = len(posts)
+    if must:
+        posts = [p for p in posts if _matches((p.get("record") or {}).get("text"), must)]
     likes = sum(p.get("likeCount") or 0 for p in posts)
     reposts = sum((p.get("repostCount") or 0) + (p.get("quoteCount") or 0) for p in posts)
     replies = sum(p.get("replyCount") or 0 for p in posts)
@@ -82,32 +92,41 @@ def search(query, hours=24):
                        "likes": p.get("likeCount") or 0, "reposts": p.get("repostCount") or 0,
                        "url": f"https://bsky.app/profile/{handle}/post/{rkey}" if handle and rkey else None,
                        "at": p.get("indexedAt")})
-    return {"posts": len(posts), "likes": likes, "reposts": reposts, "replies": replies, "sample": sample}
+    return {"posts": len(posts), "likes": likes, "reposts": reposts, "replies": replies, "sample": sample,
+            "brand_total": brand_total,
+            "texts": [((p.get("record") or {}).get("text") or "")[:300] for p in posts],
+            "top_post": sample[0] if sample else None}
 
 
-def query_for(title_list, company):
-    """Bluesky search for a story — only when it is clearly about a company:
-    '"<Company>" <topic word>'. Stories without a company, with a place as 'company',
-    or in another language are skipped: two loose headline words find unrelated posts."""
-    from engine.everyday import topic_words, english_only
+def story_terms(title_list, company):
+    """(company, story words) for a story that is clearly about a company, else None.
+    Stories without a company, with a place as 'company', or in another language are skipped."""
+    from engine.everyday import topic_words, english_only, BUZZ_GENERIC
     from engine.arenas import PLACES
     if not company or company.lower() in PLACES:
         return None
     titles = [t for t in (title_list or []) if english_only(t)]
     if not titles:
         return None
-    words = topic_words(titles, company, n=1)
-    return f'"{company}" {words[0]}' if words else f'"{company}"'
+    words = topic_words(titles, company, n=3, exclude=BUZZ_GENERIC)
+    return (company, words) if words else None
+
+
+def query_for(title_list, company):
+    """Readable label of the search: '"McDonald's" + welsh/town/backlash'."""
+    t = story_terms(title_list, company)
+    return f'"{t[0]}" + ' + "/".join(t[1]) if t else None
 
 
 def _check(session, sid, titles, company):
     q = query_for(titles, company)
+    terms = story_terms(titles, company)
     rec = SocialSignal(sid=sid, ts=time.time(), source="bluesky", query=q)
-    if not q:
+    if not terms:
         rec.status, rec.error = "ERROR", "no search words for this story"
     else:
         try:
-            res = search(q)
+            res = search(f'"{terms[0]}"', must=terms[1])
             rec.posts, rec.likes, rec.reposts, rec.replies = res["posts"], res["likes"], res["reposts"], res["replies"]
             rec.sample = json.dumps(res["sample"])
         except Exception as e:

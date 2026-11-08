@@ -486,6 +486,17 @@ def collect_arena(name, profile):
                 stories = ni.group_stories(articles, same=same_brand_story)
         except Exception as e:
             print(f"⚠️ [everyday] reach check error: {e}")
+        try:
+            from engine.everyday import discovery_news, brand_in
+            found = discovery_news(articles)
+            if found:
+                for a in found:
+                    a["names"] = names_in(a["raw_title"])
+                    a["brand"] = brand_in([a["raw_title"]])
+                articles = articles + found
+                stories = ni.group_stories(articles, same=same_brand_story)
+        except Exception as e:
+            print(f"⚠️ [everyday] discovery news error: {e}")
     by_title = {}
     for a in articles:
         by_title.setdefault(a.get("raw_title") or a["title"], a)
@@ -548,6 +559,11 @@ def collect_all_arenas():
         run_social_checks()
     except Exception as e:
         print(f"❌ social buzz recorder error: {e}")
+    try:
+        from engine.discovery import run_discovery
+        run_discovery()
+    except Exception as e:
+        print(f"❌ discovery error: {e}")
     try:
         from engine.youtube import run_youtube_checks
         run_youtube_checks()

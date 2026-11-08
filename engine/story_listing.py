@@ -81,7 +81,7 @@ def _score_from_snapshot(snap, now):
 ARENA_RULES = {
     "food":     {"score": LIST_SCORE, "outlets": LIST_MIN_OUTLETS, "daily_cap": None, "listing": False},
     "brands":   {"score": 40.0, "outlets": 6, "daily_cap": 5, "listing": False},
-    "everyday": {"score": 30.0, "outlets": 4, "daily_cap": 5, "listing": True},
+    "everyday": {"score": 30.0, "outlets": 4, "daily_cap": 5, "listing": True, "min_talk": 5},
 }
 
 
@@ -163,6 +163,38 @@ def listed_for_matching(session, arena="food"):
     return out
 
 
+TALK_MIN_VIDEOS = 3
+
+
+def talk_level(session, sid, company=None):
+    """Are people actually talking about this story? (posts, videos, rising) from the latest
+    social checks: Bluesky posts about it (24 h), YouTube videos about it (3 days), and whether
+    the brand is spiking on Bluesky right now."""
+    from db.models import SocialSignal
+    posts = videos = None
+    for r in (session.query(SocialSignal).filter(SocialSignal.sid == sid, SocialSignal.status == "OK",
+                                                 SocialSignal.ts >= time.time() - 6 * 3600)
+              .order_by(SocialSignal.ts).all()):
+        if r.source == "youtube":
+            videos = r.posts
+        else:
+            posts = r.posts
+    rising = False
+    if company:
+        try:
+            from engine.discovery import rising as _rising
+            c = company.lower().replace("’", "'")
+            rising = any(x["brand"] == c or x["brand"] in c for x in _rising(session))
+        except Exception:
+            pass
+    return posts, videos, rising
+
+
+def talked_about(session, sid, company, min_talk):
+    posts, videos, rising = talk_level(session, sid, company)
+    return rising or (posts or 0) >= min_talk or (videos or 0) >= TALK_MIN_VIDEOS
+
+
 def update_listings(stories, session, now=None, arena="food"):
     """Call once per collector run of an arena, after assign_story_ids. Marks stories with
     listed / closes_at and keeps the narratives tables up to date. Only touches that arena."""
@@ -228,13 +260,18 @@ def update_listings(stories, session, now=None, arena="food"):
     if not rules.get("listing", True):
         room = 0
     elif rules["daily_cap"]:
-        today = _arena_filter(session.query(Narrative).filter(Narrative.listed_at >= now - 86400), arena).count()
+        # delisted stories (removed by a moderator) don't use up the day's places
+        today = _arena_filter(session.query(Narrative).filter(Narrative.listed_at >= now - 86400,
+                                                              Narrative.status != "DELISTED"), arena).count()
         room = max(0, rules["daily_cap"] - today)
     for s in sorted(stories, key=lambda x: x["story_score"], reverse=True):
         if s["sid"] in known:
             continue
         eff = s.get("outlets_eff", s["outlets"])
         if s["story_score"] < rules["score"] or eff < rules["outlets"]:
+            continue
+        # nobody talking about it → not listed, however many news sites wrote it up
+        if rules.get("min_talk") and not talked_about(session, s["sid"], s.get("company"), rules["min_talk"]):
             continue
         if room is not None:
             if room <= 0:

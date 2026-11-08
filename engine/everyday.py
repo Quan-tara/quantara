@@ -89,6 +89,11 @@ REACTION_WORDS = [
     "pulled from", "sold out", "outage", "down for", "chaos", "meltdown", "fans react", "people are",
     "internet", "tiktok", "trend", "trending", "banned", "bans", "ban on", "no longer", "slashes",
     "rip-off", "rip off", "ripoff", "scam", "not happy", "disappointed",
+    # how people complain on Reddit / social media
+    "disgusting", "gross", "overpriced", "ridiculous", "insane", "absurd", "unacceptable", "terrible",
+    "awful", "trash", "garbage", "ruined", "ruin", "downgrade", "downgraded", "cheaped out", "skimping",
+    "skimpy", "stingy", "smaller", "shrunk", "shrinking", "tiny portion", "half the size", "not worth",
+    "highway robbery", "robbery", "bring back", "used to be", "what happened to", "worst",
     # German
     "empörung", "ärger", "verärgert", "sauer", "wütend", "wut", "shitstorm", "kritik", "boykott",
     "preiserhöhung", "teurer", "abzocke", "gestrichen", "eingestellt", "aus für", "chaos", "ausfall",
@@ -327,7 +332,18 @@ EVERYDAY_FEEDS = [
     _gn("fast+food+OR+restaurant+customers+slammed+OR+backlash", "UK"),
     ("https://www.theguardian.com/food/rss", "UK"),
     ("https://www.eater.com/rss/index.xml", "US"),
-]
+    # sites that write up viral food drama ("fans furious", "TikToker exposes", "customers slam")
+    ("https://www.thetakeout.com/feed/", "US"),
+    ("https://www.mashed.com/feed/", "US"),
+    ("https://www.tastingtable.com/feed/", "US"),
+    ("https://www.eatthis.com/feed/", "US"),
+    ("https://www.dailydot.com/feed/", "US"),
+    _gn("site:dailydot.com+OR+site:today.com+OR+site:delish.com+food+OR+restaurant+fans+OR+customers+OR+tiktok", "US"),
+    _gn("site:thetakeout.com+OR+site:mashed.com+OR+site:allrecipes.com+discontinued+OR+backlash+OR+furious", "US"),
+    # Reddit — where people actually complain (today's top posts; free RSS)
+] + [(f"https://www.reddit.com/r/{sub}/top/.rss?t=day", "US") for sub in (
+    "fastfood", "mildlyinfuriating", "shrinkflation", "Costco", "traderjoes", "starbucks",
+    "McDonalds", "Chipotle", "tacobell", "CasualUK")]
 
 EVERYDAY_PROFILE = {
     "name": "everyday",
@@ -480,14 +496,31 @@ _TOPIC_REACTION = {w for w in REACTION_WORDS if " " not in w}
 _TOPIC_PRIORITY = _TOPIC_SUBJECT
 
 
-def topic_words(titles, company, n=2):
+# too general to tell one story about a brand from another ("McDonald's restaurant")
+BUZZ_GENERIC = set("""
+restaurant restaurants store stores shop shops chain chains location locations outlet outlets branch
+branches brand brands company firm customer customers fan fans product products item items
+move moves moving moved plan plans planned planning make makes making made major big huge biggest
+latest report reports reported launch launches launched announce announces announced change changes
+changing changed going goes come comes coming take takes taking get gets getting want wants
+""".split())
+
+
+def _norm_word(w):
+    w = w.replace("’", "'").strip("'-")
+    return re.sub(r"'s$", "", w).replace("'", "")
+
+
+def topic_words(titles, company, n=2, exclude=()):
     """Words that say what the story is about (besides the brand), e.g. 'baggage fees'."""
-    comp = set(re.findall(r"[a-z0-9]+", (company or "").lower()))
+    comp_raw = (company or "").lower().replace("’", "'")
+    comp = set(re.findall(r"[a-z0-9]+", comp_raw)) | {_norm_word(x) for x in comp_raw.split()} \
+        | {_norm_word(comp_raw).replace(" ", "")}
     counts, first = {}, {}
     for i, t in enumerate(titles or []):
-        for j, w in enumerate(re.findall(r"[a-z][a-z0-9'-]+", t.lower())):
-            w = w.strip("'-")
-            if w in comp or w in _TOPIC_SKIP or (len(w) < 4 and w not in _TOPIC_SUBJECT):
+        for j, w in enumerate(re.findall(r"[a-z][a-z0-9'’-]+", t.lower())):
+            w = _norm_word(w)
+            if not w or w in comp or w in _TOPIC_SKIP or w in exclude or (len(w) < 4 and w not in _TOPIC_SUBJECT):
                 continue
             if w not in _TOPIC_SUBJECT and (w in A.COMMON_WORDS or w in ni.GENERIC):
                 continue
@@ -527,6 +560,51 @@ def _search(query):
         for k in sorted(_reach_cache, key=lambda k: _reach_cache[k][0])[:250]:
             _reach_cache.pop(k, None)
     return items
+
+
+DISCOVERY_SEARCHES = 3
+
+
+def discovery_news(articles):
+    """Brands rising on Bluesky → one Google News search each ("<brand> <words people use>").
+    Matching headlines join the arena like any other article, so a story found on social media
+    can be listed as soon as the news covers it."""
+    from db.database import SessionLocal
+    from engine.discovery import rising
+    session = SessionLocal()
+    try:
+        hot = rising(session)
+    finally:
+        session.close()
+    seen = {(a["title"].lower(), a["source"].lower()) for a in articles}
+    cutoff = time.time() - ni.ARTICLE_WINDOW_H * 3600
+    extra, searched = [], []
+    for r in hot[:DISCOVERY_SEARCHES]:
+        brand, words = r["brand"], r["words"][:2]
+        query = f'"{brand}" ' + " ".join(words)
+        searched.append(query)
+        b_low = brand.lower()
+        for it in _search(query):
+            t, tl = it["title"], it["title"].lower().replace("’", "'")
+            key = (it["title"].lower(), it["source"].lower())
+            if key in seen or it["ts"] < cutoff or b_low not in tl:
+                continue
+            if words and not any(w in tl for w in words):
+                continue
+            if not english_only(t) or blocked_title(tl, t) or ni._has_any(tl, A.EXCLUDE_TERMS):
+                continue
+            seen.add(key)
+            extra.append({
+                "title": t, "source": it["source"], "url": it["url"], "ts": it["ts"],
+                "region": ni._outlet_region(it["href"], "US"),
+                "tokens": _everyday_tokens(t), "hazards": _everyday_kinds(tl),
+                "categories": _everyday_categories(tl), "severity": _everyday_severity(tl),
+                "negativity": ni._negativity(tl), "spread": ni._has_any(tl, ni.SPREAD_TERMS),
+                "raw_title": t, "reach": True, "discovered": True,
+            })
+    if searched:
+        print(f"🔎 [everyday] discovery news: {len(searched)} rising brands searched → {len(extra)} articles")
+    return extra
 
 
 def reach_check(stories, articles, top=REACH_TOP):

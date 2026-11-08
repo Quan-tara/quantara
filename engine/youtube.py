@@ -58,8 +58,9 @@ def _get(path, params):
     return r.json()
 
 
-def search(query):
-    """Videos from the last WINDOW_HOURS matching the query → summary dict."""
+def search(query, must=None):
+    """Videos from the last WINDOW_HOURS matching the query → summary dict.
+    must = story words: only videos whose title or description contains one are counted."""
     after = (datetime.now(timezone.utc) - timedelta(hours=WINDOW_HOURS)).strftime("%Y-%m-%dT%H:%M:%SZ")
     d = _get("search", {"part": "id", "q": query, "type": "video", "maxResults": 50,
                         "publishedAfter": after, "relevanceLanguage": "en", "order": "relevance"})
@@ -68,6 +69,10 @@ def search(query):
     if ids:
         v = _get("videos", {"part": "snippet,statistics", "id": ",".join(ids)})
         vids = v.get("items", [])
+    if must:
+        from engine.social import _matches
+        vids = [x for x in vids if _matches(((x.get("snippet") or {}).get("title") or "") + " " +
+                                            ((x.get("snippet") or {}).get("description") or ""), must)]
     num = lambda x, k: int((x.get("statistics") or {}).get(k) or 0)
     views = sum(num(x, "viewCount") for x in vids)
     likes = sum(num(x, "likeCount") for x in vids)
@@ -89,10 +94,11 @@ def _units_today(session):
     return n * UNITS_PER_CHECK
 
 
-def _check(session, sid, query):
+def _check(session, sid, query, terms):
     rec = SocialSignal(sid=sid, ts=time.time(), source="youtube", query=query)
     try:
-        res = search(query)
+        company, words = terms
+        res = search(f'"{company}" {words[0]}', must=words)
         rec.posts, rec.reposts, rec.likes, rec.replies = res["videos"], res["views"], res["likes"], res["comments"]
         rec.sample = json.dumps(res["sample"])
     except Exception as e:
@@ -115,7 +121,7 @@ def run_youtube_checks():
         left = int((_state["blocked_until"] - time.time()) / 60)
         print(f"⏸ youtube paused for {left} more min — last error: {_state['last_error']}")
         return
-    from engine.social import query_for
+    from engine.social import query_for, story_terms
     session = SessionLocal()
     try:
         now = time.time()
@@ -149,11 +155,11 @@ def run_youtube_checks():
                 k += 1
                 if now - last.get(x["sid"], 0) >= CANDIDATE_EVERY_MIN * 60:
                     jobs.append((x["sid"], [x["title"]], x.get("company")))
-        jobs = [(sid, query_for(t, c)) for sid, t, c in jobs]
-        jobs = [j for j in jobs if j[1]][:min(MAX_SEARCHES_RUN, room)]
+        jobs = [(sid, query_for(t, c), story_terms(t, c)) for sid, t, c in jobs]
+        jobs = [j for j in jobs if j[2]][:min(MAX_SEARCHES_RUN, room)]
         done = []
-        for sid, q in jobs:
-            rec = _check(session, sid, q)
+        for sid, q, terms in jobs:
+            rec = _check(session, sid, q, terms)
             done.append(rec)
             if rec.status == "ERROR" and time.time() < _state["blocked_until"]:
                 print(f"⏸ YouTube paused {BACKOFF_MIN // 60} h: {rec.error}")

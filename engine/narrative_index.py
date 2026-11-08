@@ -435,6 +435,8 @@ def pull_rss_articles(profile=None):
                     src = (e.source.get("title") or "").strip()
                     src_href = e.source.get("href") or e.source.get("url") or ""
                 src = src or feed_name or "Unknown"
+                if "reddit.com/r/" in feed_url:              # "Reddit r/fastfood" instead of "top scoring links"
+                    src = "Reddit r/" + feed_url.split("reddit.com/r/")[1].split("/")[0]
                 title = _clean_title(e.get("title", ""), src)
                 if not title:
                     continue
@@ -533,8 +535,15 @@ LOW_WEIGHT_RX = re.compile(r"marler|food poison journal|\blaw\b|law firm|law gro
 LOW_WEIGHT = 0.25
 
 
+REDDIT_WEIGHT = 0.5          # a subreddit counts as half a news outlet
+
+
 def outlet_weight(source):
-    return LOW_WEIGHT if LOW_WEIGHT_RX.search(source or "") else 1.0
+    if LOW_WEIGHT_RX.search(source or ""):
+        return LOW_WEIGHT
+    if "reddit" in (source or "").lower():
+        return REDDIT_WEIGHT
+    return 1.0
 
 
 def _brand_clash(a, b):

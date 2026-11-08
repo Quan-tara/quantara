@@ -1876,6 +1876,12 @@ def api_story_candidates(user_id: str, arena: str = "everyday", limit: int = 25)
                 why.append(f"{eff:g} outlets < {rules['outlets']}")
             if x.get("list_status"):
                 why.append(f"was {x['list_status'].lower()}")
+            if rules.get("min_talk"):
+                from engine.story_listing import talk_level, TALK_MIN_VIDEOS
+                p_, v_, up_ = talk_level(session, x.get("sid"), x.get("company"))
+                if not up_ and (p_ or 0) < rules["min_talk"] and (v_ or 0) < TALK_MIN_VIDEOS:
+                    why.append("not checked on social media yet" if p_ is None and v_ is None
+                               else f"little talk: {p_ or 0} posts, {v_ or 0} videos")
             out.append({"sid": x.get("sid"), "title": x.get("title"), "score": x.get("score"),
                         "buzz": buzz.get(x.get("sid")), "views": vids.get(x.get("sid")),
                         "outlets": x.get("outlets"), "company": x.get("company"), "sector": x.get("sector"),
@@ -1899,6 +1905,17 @@ def api_social(sid: str, user_id: str = None):
         out = buzz_for(session, sid[:16], moderator=mod)
         out["youtube"] = video_buzz_for(session, sid[:16], moderator=mod)
         return out
+    finally:
+        session.close()
+
+
+@app.get("/api/discovery")
+def api_discovery():
+    """Food brands rising on Bluesky right now (story discovery)."""
+    from engine.discovery import overview
+    session = SessionLocal()
+    try:
+        return overview(session)
     finally:
         session.close()
 

@@ -436,7 +436,19 @@ async function candidates() {
     ${!CANDS_OPEN ? `<div class="note">What the everyday filter found in its latest reading (${d.ts ? when(d.ts) : "none yet"}) but didn't list. Bar: score ${d.rules.score} with ${d.rules.outlets}+ outlets${d.rules.daily_cap ? `, max ${d.rules.daily_cap} a day` : ""}.</div>`
       : d.stories.length ? `<div class="list">${d.stories.map(c => `<div class="li"><a href="/story/${encodeURIComponent(c.sid)}">${esc(c.title)}</a>
           <div class="m"><b class="mono">${(c.score ?? 0).toFixed(1)}</b><span>${c.outlets} outlet${c.outlets === 1 ? "" : "s"}</span>${sectorTag(c.sector)}${c.company ? `<span>🏢 ${esc(c.company)}</span>` : ""}${trendTag(c.trending)}${c.buzz != null ? `<span title="Bluesky posts in the last 24h">🦋 ${c.buzz}</span>` : ""}${c.views != null ? `<span title="YouTube views, videos from the last 3 days">▶ ${fmtViews(c.views)}</span>` : ""}<span style="color:var(--dim)">${esc(c.why_not)}</span></div></div>`).join("")}</div>`
-      : `<div class="empty">Nothing found in the latest reading.</div>`}`;
+      : `<div class="empty">Nothing found in the latest reading.</div>`}
+    <div id="rising"></div>`;
+  risingPanel();
+}
+async function risingPanel() {
+  const el = document.getElementById("rising"); if (!el) return;
+  let d; try { d = await (await fetch("/api/discovery")).json(); } catch (e) { return; }
+  const row = r => `<div class="li"><span><b>${esc(r.brand)}</b>${r.words.length ? ` · ${esc(r.words.join(", "))}` : ""}</span>
+      <div class="m"><b class="mono">${r.posts} posts / 3h</b><span>${r.x}× normal</span><span>${esc(when(r.ts))}</span></div>
+      ${r.top_post ? `<div style="font-size:12px;color:var(--dim)">“${esc((r.top_post.text || "").slice(0, 160))}”${r.top_post.url ? ` <a href="${esc(r.top_post.url)}" target="_blank" rel="noopener" style="font-size:10px">open</a>` : ""}</div>` : ""}</div>`;
+  el.innerHTML = `<div class="ph" style="margin-top:8px"><span class="lbl">Rising on Bluesky · last 6h</span><span class="tag">${d.warmed_up}/${d.brands} brands warmed up</span></div>
+    ${d.rising.length ? `<div class="list">${d.rising.map(row).join("")}</div>`
+      : `<div class="note">Nothing spiking right now. A brand needs about 6 checks (≈ 8 hours) before a spike can be called.${d.busiest_now.length ? ` Busiest now: ${d.busiest_now.slice(0, 6).map(b => `${esc(b.brand)} ${b.posts_3h}`).join(" · ")}.` : ""}</div>`}`;
 }
 async function myStories() {
   const el = $("#mine"); if (!el) return;

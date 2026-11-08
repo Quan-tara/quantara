@@ -109,39 +109,73 @@ JARGON_WORDS = [
     "interview", "keynote", "earnings call", "roadmap", "fiscal", "ipo",
 ]
 
+# ─────────────────────────────────────────────
+# FOOD & DRINK focus — the game lists only food stories (same industry as the FSNI)
+# ─────────────────────────────────────────────
+FOOD_BRANDS = [
+    "mcdonald's", "mcdonalds", "burger king", "kfc", "starbucks", "subway", "domino's", "dominos",
+    "pizza hut", "taco bell", "chipotle", "wendy's", "greggs", "pret", "costa", "coca-cola", "coke",
+    "pepsi", "red bull", "cadbury", "nestle", "nestlé", "haribo", "milka", "dunkin", "krispy kreme",
+    "tim hortons", "nando's", "wetherspoons", "five guys", "chick-fil-a", "popeyes", "papa john's",
+    "shake shack", "panera", "heinz", "kellogg's", "kellanova", "mars", "hershey", "oreo", "doritos",
+    "pringles", "monster energy", "prime hydration", "bud light", "anheuser-busch", "deliveroo",
+    "uber eats", "doordash", "instacart", "just eat", "whole foods", "trader joe's", "kraft", "mondelez",
+    "danone", "unilever", "ben & jerry's", "walkers", "lay's", "cheetos", "skittles", "m&m's", "twix",
+    "snickers", "kitkat", "nutella", "ferrero", "lindt", "guinness", "heineken", "budweiser", "corona",
+    "stella artois", "innocent", "oatly", "beyond meat", "impossible foods", "hellofresh", "gail's",
+    "itsu", "wagamama", "leon", "pizza express", "frankie & benny's", "harvester", "toby carvery",
+    "olive garden", "applebee's", "ihop", "denny's", "sonic", "arby's", "jack in the box", "white castle",
+    "in-n-out", "raising cane's", "dairy queen", "baskin-robbins", "cinnabon", "auntie anne's",
+]
+GROCERS = ["walmart", "target", "costco", "aldi", "lidl", "tesco", "sainsbury's", "asda", "morrisons",
+           "waitrose", "m&s", "marks & spencer", "kroger", "safeway", "whole foods", "trader joe's",
+           "co-op", "iceland", "ocado", "publix", "h-e-b", "wegmans", "albertsons"]
+FOOD_WORDS = [
+    "food", "foods", "menu", "recipe", "restaurant", "restaurants", "fast food", "fast-food", "takeaway",
+    "takeout", "diners", "chef", "snack", "snacks", "drink", "drinks", "soda", "beer", "coffee", "tea",
+    "chocolate", "candy", "sweets", "crisps", "chips", "burger", "burgers", "pizza", "fries", "sandwich",
+    "sandwiches", "chicken nuggets", "nuggets", "cereal", "breakfast", "lunch", "dinner", "meal",
+    "meals", "groceries", "grocery", "food prices", "flavour", "flavor", "ingredient", "ingredients",
+    "vegan", "plant-based", "ultra-processed", "seed oils", "sugar", "calories", "protein", "milk",
+    "cheese", "eggs", "bread", "butter", "meat", "steak", "dessert", "ice cream", "doughnut", "donut",
+    "latte", "frappuccino", "milkshake", "happy meal", "school lunch", "school meals", "drive-thru",
+    "drive-through", "portion", "portions", "tipping", "brunch", "bakery", "pub", "bar",
+]
+# words that make a food-safety story a debate, not a notice
+DEBATE_WORDS = [
+    "blame", "blames", "blamed", "denies", "denied", "deny", "defends", "defended", "responds", "slammed",
+    "furious", "fury", "outrage", "backlash", "boycott", "cover-up", "covered up", "knew", "families sue",
+    "sues", "sued", "petition", "apologises", "apologizes", "apology", "under fire", "questions over",
+    "calls for", "demand answers", "anger", "angry", "devastated", "speaks out", "accused", "accuses",
+    "fight back", "fighting back", "destroyed", "unfair", "scapegoat", "reopens", "reopening",
+]
+RECALL_NOTICE_RX = re.compile(
+    r"recalls?\b.*\b(due to|because of|over potential|for possible|over possible)|\bfda\b|\busda\b|\bfsis\b|"
+    r"voluntary recall|lot code|best before|use by|\bundeclared\b|\bdo not eat\b", re.I)
+
 SECTORS = {
-    "streaming & subscriptions": ["netflix", "spotify", "disney+", "disney plus", "prime video", "youtube",
-                                  "hbo", "streaming", "subscription", "subscribers", "paramount", "peacock",
-                                  "dazn", "crunchyroll", "apple tv", "abo"],
-    "airlines & travel":         ["airline", "flight", "flights", "passengers", "ryanair", "easyjet", "lufthansa",
-                                  "british airways", "united airlines", "delta", "american airlines", "southwest",
-                                  "wizz air", "eurowings", "condor", "airport", "baggage", "luggage", "hotel",
-                                  "airbnb", "booking.com", "deutsche bahn", "train", "rail", "fahrgäste",
-                                  "passagiere", "flug", "flüge", "bahn"],
-    "food & drink":              ["mcdonald", "burger king", "kfc", "starbucks", "subway", "domino", "pizza hut",
-                                  "taco bell", "chipotle", "wendy's", "greggs", "pret", "costa", "coca-cola",
-                                  "coke", "pepsi", "red bull", "cadbury", "nestle", "nestlé", "haribo", "milka",
-                                  "menu", "recipe", "restaurant", "diners", "flavour", "flavor", "chocolate",
-                                  "snack", "drink", "coffee", "speisekarte", "rezept"],
-    "supermarkets & retail":     ["walmart", "target", "costco", "aldi", "lidl", "tesco", "sainsbury", "asda",
-                                  "morrisons", "rewe", "edeka", "kaufland", "dm", "ikea", "primark", "supermarket",
-                                  "shoppers", "store", "stores", "self-checkout", "self checkout", "boots",
-                                  "superdrug", "supermarkt", "filiale"],
-    "tech & apps":               ["apple", "iphone", "samsung", "google", "gmail", "android", "instagram",
-                                  "whatsapp", "facebook", "tiktok", "snapchat", "microsoft", "windows", "chatgpt",
-                                  "openai", "app", "update", "playstation", "xbox", "nintendo", "steam", "duolingo",
-                                  "tinder", "amazon", "ebay"],
-    "telecom & internet":        ["vodafone", "telekom", "o2", "verizon", "at&t", "t-mobile", "sky", "broadband",
-                                  "mobile network", "outage"],
-    "banking & payments":        ["paypal", "klarna", "revolut", "n26", "bank", "banks", "card", "payments"],
-    "delivery & ride-hailing":   ["uber", "lyft", "deliveroo", "uber eats", "lieferando", "doordash", "instacart",
-                                  "dhl", "royal mail", "delivery", "lieferung", "parcel"],
-    "fashion & beauty":          ["h&m", "zara", "nike", "adidas", "puma", "shein", "temu", "zalando", "gymshark",
-                                  "sephora", "ulta", "lush", "fashion", "clothing", "beauty", "makeup"],
-    "cars & mobility":           ["tesla", "volkswagen", "vw", "bmw", "car", "cars", "drivers", "ev", "charging"],
-    "entertainment & tickets":   ["ticketmaster", "tickets", "concert", "tour", "festival", "lego", "barbie",
-                                  "mattel", "game", "gaming"],
+    "fast food & restaurants": ["mcdonald", "burger king", "kfc", "starbucks", "subway", "domino", "pizza hut",
+                                "taco bell", "chipotle", "wendy's", "greggs", "pret", "costa", "dunkin", "nando",
+                                "wetherspoons", "five guys", "chick-fil-a", "popeyes", "papa john", "shake shack",
+                                "panera", "wagamama", "olive garden", "restaurant", "restaurants", "fast food",
+                                "fast-food", "menu", "diners", "drive-thru", "drive-through", "takeaway", "takeout",
+                                "chef", "tipping", "deliveroo", "uber eats", "doordash", "just eat", "happy meal"],
+    "snacks & drinks":         ["coca-cola", "coke", "pepsi", "red bull", "cadbury", "haribo", "milka", "mars",
+                                "hershey", "oreo", "doritos", "pringles", "monster energy", "prime hydration",
+                                "bud light", "beer", "soda", "snack", "snacks", "drink", "drinks", "chocolate",
+                                "candy", "sweets", "crisps", "chips", "walkers", "kitkat", "nutella", "coffee",
+                                "latte", "energy drink", "oatly", "innocent"],
+    "groceries & prices":      ["supermarket", "supermarkets", "grocery", "groceries", "food prices", "shoppers",
+                                "shrinkflation", "walmart", "costco", "aldi", "lidl", "tesco", "sainsbury", "asda",
+                                "morrisons", "waitrose", "kroger", "whole foods", "trader joe's", "price hike",
+                                "price rise", "prices"],
+    "food safety":             ["outbreak", "recall", "listeria", "salmonella", "e. coli", "e.coli", "contaminat",
+                                "food poisoning", "sickened", "hospitalised", "hospitalized", "norovirus"],
+    "diets & food trends":     ["vegan", "plant-based", "ultra-processed", "seed oils", "sugar", "calories",
+                                "protein", "diet", "trend", "tiktok", "viral", "recipe", "influencer", "keto",
+                                "ozempic", "school lunch", "school meals"],
 }
+
 
 def _count(text, words):
     return sum(1 for w in words if ni._has_any(text, [w]))
@@ -157,18 +191,35 @@ def sector_of(text):
     return best
 
 
-def relatability(text, trending=False):
-    """(qualifies?, details) — the relatable-story rule."""
-    brand = ni._has_any(text, CONSUMER_BRANDS) or ni._has_any(text, A._KNOWN_LIST)
-    everyday = _count(text, EVERYDAY_WORDS)
+_SAFETY_JARGON = {"recalls", "contamination", "listeria", "salmonella", "e. coli", "undeclared", "fda",
+                  "usda", "fsis", "voluntary recall", "lot code", "best before"}
+_JARGON_GENERAL = [w for w in JARGON_WORDS if w not in _SAFETY_JARGON]
+
+
+def food_anchor(text):
+    """Is the story about food & drink?"""
+    if ni._has_any(text, FOOD_BRANDS):
+        return True
+    food = _count(text, FOOD_WORDS)
+    if ni._has_any(text, GROCERS):
+        return food >= 1                        # a supermarket story only when it's about food
+    return food >= 1
+
+
+def relatability(text, trending=False, title=""):
+    """(qualifies?, details) — the relatable food-story rule.
+    • about food & drink, with a human reaction, little business/legal jargon
+    • food-safety stories only when there is a debate (blame, denial, outrage…), never a recall notice"""
+    anchor = food_anchor(text)
     reaction = _count(text, REACTION_WORDS)
-    jargon = _count(text, JARGON_WORDS)
-    anchor = brand or everyday >= 2
-    if trending:      # popularity alone is not enough — there must be a reaction too
-        ok = anchor and reaction >= 1 and (jargon == 0 or (jargon == 1 and reaction >= 2))
+    jargon = _count(text, _JARGON_GENERAL)
+    safety = ni._has_any(text, ni.HAZARD_TERMS)
+    if safety:                                  # a food-safety hazard is a food story by itself
+        debate = _count(text, DEBATE_WORDS)
+        ok = debate >= 1 and not RECALL_NOTICE_RX.search(title or text) and jargon <= 1
     else:
         ok = anchor and reaction >= 1 and (jargon == 0 or (jargon == 1 and reaction >= 2))
-    return ok, {"brand": brand, "everyday": everyday, "reaction": reaction, "jargon": jargon}
+    return ok, {"food": anchor, "reaction": reaction, "jargon": jargon, "safety": safety}
 
 
 # shopping deals and coupon posts are not controversies
@@ -199,10 +250,10 @@ def _everyday_relevant(text, title):
         return False
     if ni._has_any(text, A.HARD_POLITICS):
         return False
-    if ni._has_any(text, A.POLITICS_TERMS) and not (ni._has_any(text, CONSUMER_BRANDS)
+    if ni._has_any(text, A.POLITICS_TERMS) and not (ni._has_any(text, FOOD_BRANDS)
                                                     or ni._has_any(text, A.STRONG_CORPORATE)):
         return False
-    return relatability(text)[0]
+    return relatability(text, title=title)[0]
 
 
 def _everyday_kinds(text):
@@ -227,6 +278,7 @@ def _everyday_categories(text):
 
 
 def _everyday_severity(text):
+    harm = ni._severity(text) if ni._has_any(text, ni.HAZARD_TERMS) else 0.0
     pts = 0
     for k, w in {"millions": 2, "million": 1, "nationwide": 1, "worldwide": 1, "every": 1, "all customers": 2,
                  "boycott": 2, "viral": 1, "outage": 1, "petition": 1, "thousands": 1, "u-turn": 1,
@@ -234,7 +286,7 @@ def _everyday_severity(text):
                  "millionen": 2}.items():
         if k in text:
             pts += w
-    return min(1.0, pts / 5.0)
+    return max(harm, min(1.0, pts / 5.0))
 
 
 def _everyday_tokens(title):
@@ -246,18 +298,18 @@ def _gn(q, region):
 
 
 EVERYDAY_FEEDS = [
-    _gn("customers+furious+OR+backlash+OR+outrage+brand", "US"),
-    _gn("%22price+hike%22+OR+%22raises+prices%22+subscription+OR+streaming", "US"),
-    _gn("fans+angry+OR+%22fans+furious%22+discontinued+OR+%22menu%22+OR+%22recipe%22", "US"),
-    _gn("passengers+furious+OR+%22baggage+fees%22+OR+%22flights+cancelled%22+airline", "US"),
-    _gn("shrinkflation+OR+%22hidden+fees%22+OR+tipping+customers", "US"),
-    _gn("outage+users+OR+%22app+down%22+OR+%22not+working%22", "US"),
-    _gn("boycott+brand+OR+%22goes+viral%22+customers", "US"),
-    _gn("shoppers+furious+OR+customers+fuming+OR+%22price+rise%22", "UK"),
-    _gn("passengers+OR+customers+%22slammed%22+OR+%22backlash%22", "UK"),
-    ("https://www.theguardian.com/money/rss", "UK"),
-    ("https://feeds.bbci.co.uk/news/business/rss.xml", "UK"),
-    ("https://feeds.bbci.co.uk/news/technology/rss.xml", "UK"),
+    _gn("fast+food+customers+furious+OR+backlash+OR+outrage", "US"),
+    _gn("%22menu+change%22+OR+%22recipe+change%22+OR+discontinued+fans+food+OR+drink", "US"),
+    _gn("restaurant+chain+backlash+OR+boycott+OR+%22customers+slam%22", "US"),
+    _gn("snack+OR+chocolate+OR+soda+discontinued+fans+OR+petition", "US"),
+    _gn("grocery+prices+shoppers+furious+OR+shrinkflation+food", "US"),
+    _gn("viral+food+OR+tiktok+food+backlash+OR+divided", "US"),
+    _gn("%22ultra-processed%22+OR+%22seed+oils%22+OR+%22school+lunch%22+backlash+OR+debate", "US"),
+    _gn("food+outbreak+blame+OR+denies+OR+%22families+sue%22+OR+reopens", "US"),
+    _gn("supermarket+food+prices+shoppers+fuming+OR+furious", "UK"),
+    _gn("fast+food+OR+restaurant+customers+slammed+OR+backlash", "UK"),
+    ("https://www.theguardian.com/food/rss", "UK"),
+    ("https://www.eater.com/rss/index.xml", "US"),
 ]
 
 EVERYDAY_PROFILE = {
@@ -346,9 +398,9 @@ def pull_trending(seen=None):
                     continue
                 if ni._has_any(text, A.HARD_POLITICS):
                     continue
-                if ni._has_any(text, A.POLITICS_TERMS) and not ni._has_any(text, CONSUMER_BRANDS):
+                if ni._has_any(text, A.POLITICS_TERMS) and not ni._has_any(text, FOOD_BRANDS):
                     continue
-                if not relatability(text, trending=True)[0]:
+                if not relatability(text, trending=True, title=title)[0]:
                     continue
                 url = d.get("news_item_url", "")
                 out.append({
@@ -367,9 +419,10 @@ def brand_in(titles):
     """The consumer brand the headlines are about: most mentioned, earliest first.
     Returned in the spelling the headline uses ("McDonald's", "PlayStation")."""
     counts, first, shown = {}, {}, {}
+    all_brands = list(dict.fromkeys(FOOD_BRANDS + GROCERS + CONSUMER_BRANDS))
     for i, t in enumerate(titles or []):
         low = t.lower()
-        for b in CONSUMER_BRANDS:
+        for b in all_brands:
             m = re.search(r"(?<![\w])" + re.escape(b) + r"(?![\w])", low)
             if not m:
                 continue
@@ -407,7 +460,7 @@ when where with from into about their there they them your some many much very r
 should will been being have has had were was are its it's year years week weeks month months day days
 """.split())
 # subject words (what the story is about) rank first; reaction words ("furious") say nothing about the subject
-_TOPIC_SUBJECT = {w for w in EVERYDAY_WORDS if " " not in w and len(w) >= 3} - _TOPIC_SKIP
+_TOPIC_SUBJECT = {w for w in EVERYDAY_WORDS + FOOD_WORDS if " " not in w and len(w) >= 3} - _TOPIC_SKIP - {"food", "foods"}
 _TOPIC_REACTION = {w for w in REACTION_WORDS if " " not in w}
 _TOPIC_PRIORITY = _TOPIC_SUBJECT
 

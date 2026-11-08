@@ -311,7 +311,7 @@ BRAND_PROFILE = {
 }
 
 ARENAS = {"brands": BRAND_PROFILE}          # "everyday" is added at the bottom (engine/everyday.py)
-ARENA_LABELS = {"food": "Food safety", "brands": "Brand scandals", "everyday": "Everyday"}
+ARENA_LABELS = {"food": "Food safety", "brands": "Brand scandals", "everyday": "Food & drink"}
 # arenas that only keep their already-listed stories up to date (no news pulled, nothing new listed)
 MAINTENANCE_ONLY = {"brands"}
 
@@ -477,8 +477,9 @@ def collect_arena(name, profile):
         s["company"] = extract_company(s.get("raw_titles"))
         if name == "everyday":
             from engine.everyday import sector_of, brand_in
-            # a known consumer brand in the headlines always wins over the guessed name
-            s["company"] = brand_in(s.get("raw_titles")) or s["company"]
+            # a known brand in the headlines always wins; a name guessed from a single
+            # headline ("Farm", "Parents"…) is too unreliable to keep
+            s["company"] = brand_in(s.get("raw_titles")) or (s["company"] if len(s.get("raw_titles") or []) >= 2 else None)
             s["sector"] = sector_of(" ".join(s.get("raw_titles") or []).lower())
             tr = [by_title[t] for t in s.get("raw_titles") or [] if t in by_title and by_title[t].get("trend")]
             if tr:
@@ -525,6 +526,11 @@ def collect_all_arenas():
         run_behaviour_checks()
     except Exception as e:
         print(f"❌ behaviour recorder error: {e}")
+    try:
+        from engine.social import run_social_checks
+        run_social_checks()
+    except Exception as e:
+        print(f"❌ social buzz recorder error: {e}")
 
 
 def _register_everyday():

@@ -1657,7 +1657,7 @@ def api_narrative_listed(days: float = 14.0):
     try:
         since = _time.time() - days * 86400
         rows = session.query(Narrative).filter(Narrative.listed_at >= since,
-                                               Narrative.status != "MERGED").all()
+                                               Narrative.status.notin_(["MERGED", "DELISTED"])).all()
         rows.sort(key=lambda n: (n.status != "LISTED", -(n.last_score or 0) if n.status == "LISTED" else -(n.closed_at or 0)))
         sids = [n.sid for n in rows]
         pts = {}
@@ -1741,7 +1741,7 @@ def api_narrative_story(sid: str):
                                    "tokens": set(x.get("tokens", [])), "hazards": set(x.get("hazards", []))}
         import json as _json
         for m in session.query(Narrative).filter(Narrative.listed_at >= now - 30 * 86400).all():
-            if m.sid == sid or m.status == "MERGED":
+            if m.sid == sid or m.status in ("MERGED", "DELISTED"):
                 continue
             sn = _json.loads(m.snapshot or "{}")
             cands[m.sid] = {"sid": m.sid, "title": m.title, "score": m.final_score if m.status == "CLOSED" else m.last_score,
@@ -1764,25 +1764,37 @@ def api_narrative_story(sid: str):
             if n:
                 sn = _json.loads(n.snapshot or "{}")
                 arts_ts = [a["ts"] for a in sn.get("articles", []) if a.get("ts")]
-                src = {"outlets": sn.get("outlets", 0), "regions": sn.get("regions", []),
-                       "severity": sn.get("severity", 0), "ts": sn.get("ts") or at,
-                       "recent_12h": sum(1 for t in arts_ts if t >= at - 12 * 3600)}
-                if live and live.get("severity") is not None:      # in this reading: use its numbers
-                    src.update({k: live[k] for k in ("outlets", "regions", "severity", "recent_12h", "ts") if k in live})
+                si = sn.get("score_inputs")
+                if si:                                  # exactly what the last score was computed from
+                    src = {k: v for k, v in si.items() if k != "at"}
+                    at = si.get("at") or at
+                    if n.status != "LISTED":            # closed: frozen at its last reading
+                        arts_ts = None
+                elif n.status != "LISTED":
+                    raise LookupError("no stored inputs for a story closed before this update")
+                else:
+                    src = {"outlets": sn.get("outlets", 0), "regions": sn.get("regions", []),
+                           "severity": sn.get("severity", 0), "ts": sn.get("ts") or at,
+                           "recent_12h": sum(1 for t in arts_ts if t >= at - 12 * 3600)}
+                    if live and live.get("severity") is not None:      # in this reading: use its numbers
+                        src.update({k: live[k] for k in ("outlets", "outlets_eff", "regions", "severity", "recent_12h", "ts") if k in live})
             else:
                 arts_ts = None
-                src = {k: live.get(k) for k in ("outlets", "regions", "severity", "recent_12h", "ts")}
+                src = {k: live.get(k) for k in ("outlets", "outlets_eff", "regions", "severity", "recent_12h", "ts")}
             bd = story_score_parts(src, at)
             if (d.get("arena") or "food") != "food":
                 for p_ in bd["parts"]:
                     if p_["key"] == "severity":
                         p_["detail"] = p_["detail"].split(" — ")[0] + " — fraud, criminal charges, fines, resignations, boycotts, bankruptcy…"
             bd["as_of"] = at
+            bd["frozen"] = bool(n and n.status != "LISTED")
             bd["complete"] = src.get("severity") is not None
             if n and n.status == "LISTED":
                 bd["quiet_at_close"] = score_if_quiet(src, n.closes_at, arts_ts if not (live and live.get("recent_12h") is not None) else None)
                 bd["quiet_in_12h"] = score_if_quiet(src, at + 12 * 3600, arts_ts if not (live and live.get("recent_12h") is not None) else None)
             d["breakdown"] = bd
+        except LookupError:
+            d["breakdown"] = None
         except Exception as e:
             print(f"⚠️ breakdown error {sid}: {e}")
         from db.models import StoryPricePoint
@@ -1801,9 +1813,36 @@ def api_narrative_story(sid: str):
         })
         from engine.arenas import ARENA_LABELS
         d["arena_label"] = ARENA_LABELS.get(d.get("arena") or "food", d.get("arena"))
+        if n:
+            d["delisted"] = _json.loads(n.snapshot or "{}").get("delisted")
         return d
+
+
+
     finally:
         session.close()
+
+
+from pydantic import BaseModel as _BM
+from typing import Optional as _Opt
+
+
+class DelistRequest(_BM):
+    user_id: str
+    reason: _Opt[str] = None
+
+
+@app.post("/api/narrative/story/{sid}/delist")
+def api_story_delist(sid: str, req: DelistRequest):
+    """Moderators remove a listed story; all positions on it are refunded."""
+    from engine.story_listing import delist
+    try:
+        delist(sid[:16], parse_user_id(req.user_id), req.reason)
+        return {"status": "ok"}
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except (LookupError, ValueError) as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 # =========================================================

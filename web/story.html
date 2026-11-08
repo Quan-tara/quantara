@@ -48,6 +48,10 @@ main { max-width: 1240px; margin: 0 auto; padding-top: 18px; display: grid; gap:
 .pill.LISTED { background: var(--amber); color: var(--bg) }
 .pill.CLOSED { border: 1px solid var(--dim); color: var(--muted) }
 .pill.MERGED { border: 1px solid var(--muted); color: var(--muted) }
+.pill.DELISTED { border: 1px solid var(--red); color: var(--red) }
+.dl { display: flex; gap: 8px; align-items: center; flex-wrap: wrap }
+.dl input { flex: 1 1 200px; min-width: 0; padding: 7px 8px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 4px; font-size: 12px }
+.btn.danger { background: transparent; border-color: var(--red); color: var(--red) }
 .pill.WATCHING { border: 1px solid var(--accent); color: var(--accent) }
 .tag { font-family: var(--mono); font-size: 9px; padding: 1px 5px; background: var(--s3); border-radius: 2px; color: var(--muted) }
 
@@ -509,6 +513,7 @@ async function story(sid) {
   const windowHtml = isOpen ? `<div class="window">
       <div class="bar"><i style="width:${(100 * Math.min(1, (d.now - d.listed_at) / full)).toFixed(1)}%"></i></div>
       <div class="window-txt"><span>listed ${when(d.listed_at)}</span><span>closes in ${dur(d.closes_at - d.now)}</span><span>${when(d.closes_at)}</span></div></div>`
+    : d.status === "DELISTED" ? `<div class="note">Removed by the moderators${d.delisted && d.delisted.reason ? ` — ${esc(d.delisted.reason)}` : ""}. All positions on it were refunded.</div>`
     : d.status === "MERGED" ? `<div class="note">This was the same event as another listed story, headlined differently. It was merged into <a href="/story/${encodeURIComponent(d.merged_into)}">that story</a>, which carries on from here.</div>`
     : isClosed ? `<div class="window"><div class="window-txt"><span>listed ${when(d.listed_at)}</span><span>closed ${when(d.closed_at)}</span></div></div>`
     : `<div class="note">Not listed yet. A story lists at score <b>${d.rules.score}</b> with <b>${d.rules.outlets}+</b> outlets — this one is at <b>${(d.score || 0).toFixed(1)}</b> with <b>${d.outlets}</b> outlet${d.outlets === 1 ? "" : "s"}.</div>`;
@@ -526,6 +531,7 @@ async function story(sid) {
           <span class="mono" style="font-size:10px">id ${esc(d.sid)}</span></div>
         ${d.company ? `<div class="co" style="font-size:14px">${esc(d.company)}</div>` : ""}
         <h1 class="s-title">${esc(d.title)}</h1>
+        <div id="mod-tools"></div>
       </div>
     </section>
     <div class="grid2">
@@ -545,7 +551,7 @@ async function story(sid) {
           <div class="chart-wrap">${chart(d)}</div>
         </section>
         ${breakdownHtml(d)}
-        ${d.status === "WATCHING" ? "" : `<section class="panel" id="dc"></section>`}
+        ${d.status === "WATCHING" || d.status === "DELISTED" ? "" : `<section class="panel" id="dc"></section>`}
         <section class="panel">
           <div class="ph"><span class="lbl">Coverage</span><span class="tag">${d.articles.length}</span></div>
           <div class="list">${d.articles.map(art).join("") || `<div class="empty">No articles stored.</div>`}</div>
@@ -569,6 +575,7 @@ async function story(sid) {
       </div>
     </div>`;
   hookChart();
+  STORY = d;
   if (d.status !== "WATCHING") { loadMarket(d.sid); loadComments(d.sid); }
 }
 
@@ -629,7 +636,25 @@ function cmHtml(c, isReply) {
     ${!isReply && REPLY_TO === c.id ? composer(c.id) : ""}
   </div>`;
 }
+let STORY = null, DL_OPEN = false;
+function renderModTools() {
+  const el = $("#mod-tools"); if (!el) return;
+  if (!DC || !DC.moderator || !STORY || STORY.status !== "LISTED") { el.innerHTML = ""; return; }
+  el.innerHTML = DL_OPEN
+    ? `<div class="dl"><input id="dl-r" maxlength="200" placeholder="Reason (shown on the page), e.g. politics, not a company story">
+        <button class="btn danger" onclick="doDelist()">DELIST &amp; REFUND</button><button class="btn ghost" onclick="DL_OPEN=false;renderModTools()">CANCEL</button>
+        <span class="tp-msg err" id="dl-msg"></span></div>`
+    : `<button class="btn ghost" style="justify-self:start" onclick="DL_OPEN=true;renderModTools();$('#dl-r').focus()">🚫 Delist story (moderator)</button>`;
+}
+async function doDelist() {
+  const r = await fetch(`/api/narrative/story/${encodeURIComponent(STORY.sid)}/delist`, { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user_id: ME.id, reason: $("#dl-r").value }) });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) { $("#dl-msg").textContent = d.detail || "Could not delist"; return; }
+  DL_OPEN = false; story(STORY.sid);
+}
 function renderComments() {
+  renderModTools();
   const el = $("#dc"); if (!el || !DC) return;
   const t = DC.tally, n = t.REAL + t.EXAGGERATED + t.HYPE;
   const read = n ? `<div class="dc-read">
@@ -670,12 +695,12 @@ function breakdownHtml(d) {
       <span class="bd-pts">${p.points.toFixed(1)} <span>/ ${p.weight}</span></span>
       <span class="bd-detail">${esc(p.detail)}</span></div>`).join("");
   const age = b.newest_age_h;
-  const freshTxt = age <= 12
+  const freshTxt = b.frozen ? `At the last reading the newest article was ${age.toFixed(1)}h old (freshness ×${b.freshness.toFixed(2)}).` : age <= 12
     ? `Newest article ${age.toFixed(1)}h old — no fade yet. Fading starts in ${(12 - age).toFixed(1)}h if nothing new appears.`
     : `Newest article ${age.toFixed(1)}h old — the score is fading (about 1.2% of the subtotal per hour, down to 30%).`;
   const quiet = b.quiet_at_close != null ? `<div class="bd-note">If <b>no new coverage</b> arrives: about <b>${b.quiet_in_12h.toFixed(1)}</b> in 12h and <b>${b.quiet_at_close.toFixed(1)}</b> when the window closes. New articles, outlets or regions push it above that.</div>` : "";
   return `<section class="panel">
-    <div class="ph"><span class="lbl">What makes up the score</span><span class="mono" style="font-size:10px;color:var(--muted)">as of ${when(b.as_of)}</span></div>
+    <div class="ph"><span class="lbl">What makes up the score</span><span class="mono" style="font-size:10px;color:var(--muted)">${b.frozen ? "frozen at its last reading · " : "as of "}${when(b.as_of)}</span></div>
     <div class="bd">
       ${rows}
       <div class="bd-sum"><span>Subtotal <b>${b.subtotal.toFixed(1)}</b></span><span>× freshness <b>${b.freshness.toFixed(2)}</b></span><span>= score <b style="color:${scoreColor(b.score)}">${b.score.toFixed(1)}</b></span></div>
@@ -709,7 +734,7 @@ function renderMarket() {
   if (MK.status !== "OPEN") {
     const mine = (MK.me || {}).positions || [];
     body = `<div class="note">${MK.status === "SETTLED" ? `Settled at final score <b>${(MK.final ?? 0).toFixed(1)}</b>. GROW paid ${(MK.final ?? 0).toFixed(1)} per unit, FADE ${(100 - (MK.final ?? 0)).toFixed(1)}.`
-      : "This story was merged into another listing. All positions were refunded."}</div>
+      : STORY && STORY.status === "DELISTED" ? "This story was removed by the moderators. All positions were refunded." : "This story was merged into another listing. All positions were refunded."}</div>
       ${mine.map(p => `<div class="tp" style="padding-top:0"><div class="tp-pos">
         <div class="kv"><span>${p.side} · ${p.units || ""} ${p.units ? "units" : ""}</span><b>${p.status}</b></div>
         <div class="kv"><span>Paid out</span><b>${cr(p.payout)}</b></div>

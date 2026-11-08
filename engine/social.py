@@ -131,7 +131,7 @@ def run_social_checks():
     try:
         now = time.time()
         last = {}
-        for r in session.query(SocialSignal).filter(SocialSignal.ts >= now - 3 * 3600).all():
+        for r in session.query(SocialSignal).filter(SocialSignal.source == "bluesky", SocialSignal.ts >= now - 3 * 3600).all():
             last[r.sid] = max(last.get(r.sid, 0), r.ts)
         jobs = []
         for n in session.query(Narrative).filter(Narrative.status == "LISTED").all():
@@ -159,7 +159,7 @@ def run_social_checks():
                 break
             time.sleep(1)
         if done:
-            ok = session.query(SocialSignal).filter(SocialSignal.ts >= now).all()
+            ok = session.query(SocialSignal).filter(SocialSignal.source == "bluesky", SocialSignal.ts >= now).all()
             print(f"🦋 bluesky: {done} stories checked — " +
                   ", ".join(f"{(r.query or '—')[:25]}={r.posts if r.status == 'OK' else 'ERR'}" for r in ok[:6]))
     finally:
@@ -167,7 +167,8 @@ def run_social_checks():
 
 
 def buzz_for(session, sid, moderator=False, hours=48):
-    rows = (session.query(SocialSignal).filter(SocialSignal.sid == sid, SocialSignal.ts >= time.time() - hours * 3600)
+    rows = (session.query(SocialSignal).filter(SocialSignal.sid == sid, SocialSignal.source == "bluesky",
+                                               SocialSignal.ts >= time.time() - hours * 3600)
             .order_by(SocialSignal.ts).all())
     ok = [r for r in rows if r.status == "OK"]
     latest = rows[-1] if rows else None

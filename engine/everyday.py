@@ -436,7 +436,7 @@ def brand_in(titles):
     counts, first, shown = {}, {}, {}
     all_brands = list(dict.fromkeys(FOOD_BRANDS + GROCERS + CONSUMER_BRANDS))
     for i, t in enumerate(titles or []):
-        low = t.lower()
+        low = t.lower().replace("’", "'").replace("‘", "'")      # "Wendy’s" → "wendy's" (same length)
         for b in all_brands:
             m = re.search(r"(?<![\w])" + re.escape(b) + r"(?![\w])", low)
             if not m:

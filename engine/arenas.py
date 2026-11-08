@@ -548,6 +548,11 @@ def collect_all_arenas():
         run_social_checks()
     except Exception as e:
         print(f"❌ social buzz recorder error: {e}")
+    try:
+        from engine.youtube import run_youtube_checks
+        run_youtube_checks()
+    except Exception as e:
+        print(f"❌ youtube recorder error: {e}")
 
 
 def _register_everyday():

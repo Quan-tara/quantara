@@ -1,0 +1,358 @@
+"""
+Arenas — story collectors beyond food
+=====================================
+Same engine as the food collector (grouping, story score, stable ids, listing, trading,
+comments). Each arena only brings its own feeds and word lists.
+
+  food    — engine/narrative_index.py (feeds the FSNI; unchanged)
+  brands  — corporate and brand scandals: lawsuits, regulators, fraud, data breaches,
+            boycotts, leadership crises, layoffs, product failures. English + German.
+
+Brand arena rules
+  • relevant  = a scandal word AND a company word (so politics/sports/crime don't qualify)
+  • excluded  = violent crime, private-life gossip, deaths of individuals; and food-safety
+                articles (those belong to the food arena)
+  • companies and public roles only — stories about private people are filtered out
+
+Nothing here touches the FSNI. Brand readings are stored in arena_readings.
+"""
+
+import json
+import re
+import time
+from collections import Counter
+
+from engine import narrative_index as ni
+
+# ─────────────────────────────────────────────
+# BRAND SCANDALS — vocabulary
+# ─────────────────────────────────────────────
+
+SCANDAL_TERMS = [
+    "scandal", "lawsuit", "sued", "sues", "class action", "boycott", "backlash", "outrage",
+    "fraud", "probe", "investigation", "investigated", "fined", "penalty", "settlement",
+    "data breach", "breach", "hackers", "hacked", "hack", "cyberattack", "leak", "leaked", "recall", "resigns",
+    "resignation", "ousted", "steps down", "layoffs", "lays off", "job cuts", "strike",
+    "walkout", "bankruptcy", "insolvency", "accused", "allegations", "alleged", "misconduct",
+    "cover-up", "whistleblower", "antitrust", "banned", "controversy", "apologizes",
+    "apologises", "apology", "crisis", "outage", "shares plunge", "shares tumble",
+    "stock plunges", "under fire", "faces criticism",
+    # German
+    "skandal", "klage", "verklagt", "sammelklage", "boykott", "shitstorm", "empörung",
+    "betrug", "ermittlungen", "ermittelt", "bußgeld", "strafe", "datenleck", "hackerangriff",
+    "cyberangriff", "rückruf", "rücktritt", "tritt zurück", "stellenabbau", "entlassungen",
+    "streik", "insolvenz", "pleite", "vorwürfe", "vorwurf", "krise", "panne", "ausfall",
+    "kartellamt", "razzia",
+]
+
+CORPORATE_TERMS = [
+    "company", "companies", "firm", "brand", "corporation", "corp", "inc", "ltd", "plc",
+    "maker", "manufacturer", "retailer", "airline", "bank", "carmaker", "automaker", "chain",
+    "startup", "giant", "ceo", "chief executive", "executive", "shareholders", "shares",
+    "stock", "investors", "customers", "users", "regulator", "regulators", "sec", "ftc",
+    "fca", "ofcom", "european commission", "watchdog", "employees", "workers", "staff",
+    # German
+    "unternehmen", "konzern", "firma", "marke", "hersteller", "händler", "kette",
+    "fluggesellschaft", "autobauer", "vorstand", "konzernchef", "aktie", "aktionäre",
+    "anleger", "kunden", "nutzer", "behörde", "bafin", "mitarbeiter", "beschäftigte",
+    "ag", "gmbh",
+]
+
+EXCLUDE_TERMS = [
+    # violent crime / personal tragedy / private life — not what this arena is about
+    "murder", "murdered", "rape", "raped", "stabbing", "stabbed", "shooting", "shot dead",
+    "homicide", "sexual assault", "child abuse", "molest", "kidnapping", "kidnapped",
+    "suicide", "overdose", "divorce", "dating", "girlfriend", "boyfriend", "wedding",
+    "pregnant", "affair", "custody battle", "funeral", "obituary", "dies at",
+    # German
+    "mord", "ermordet", "vergewaltigung", "messerangriff", "missbrauch", "entführung",
+    "suizid", "scheidung", "hochzeit", "schwanger", "affäre", "beerdigung", "nachruf",
+]
+
+BRAND_SEVERITY = {
+    "fraud": 3, "criminal": 2, "charged": 2, "indicted": 3, "arrested": 2, "raid": 2,
+    "fined": 2, "billion": 1, "million": 1, "class action": 2, "lawsuit": 1, "probe": 1,
+    "investigation": 1, "resigns": 2, "ousted": 2, "steps down": 2, "boycott": 2,
+    "data breach": 2, "hacked": 1, "layoffs": 1, "job cuts": 1, "bankruptcy": 3,
+    "insolvency": 3, "shares plunge": 2, "shares tumble": 2, "stock plunges": 2,
+    "recall": 1, "deaths": 3, "killed": 3, "injured": 2, "nationwide": 1, "worldwide": 1,
+    "global": 1, "whistleblower": 1, "cover-up": 2,
+    # German
+    "betrug": 3, "anklage": 2, "razzia": 2, "festgenommen": 2, "bußgeld": 2, "milliarden": 1,
+    "sammelklage": 2, "klage": 1, "ermittlungen": 1, "rücktritt": 2, "boykott": 2,
+    "datenleck": 2, "stellenabbau": 1, "entlassungen": 1, "insolvenz": 3, "pleite": 3,
+    "rückruf": 1, "tote": 3, "verletzte": 2, "bundesweit": 1, "weltweit": 1,
+}
+
+BRAND_KINDS = {
+    "legal":      ["lawsuit", "sued", "sues", "class action", "court", "klage", "verklagt", "sammelklage", "gericht"],
+    "regulator":  ["fined", "penalty", "probe", "regulator", "antitrust", "watchdog", "sec", "ftc",
+                   "bußgeld", "kartellamt", "bafin", "behörde"],
+    "fraud":      ["fraud", "accounting", "embezzle", "bribery", "corruption", "betrug", "bestechung", "korruption"],
+    "breach":     ["data breach", "breach", "hackers", "hacked", "hack", "cyberattack", "leak", "leaked", "ransomware",
+                   "datenleck", "hackerangriff", "cyberangriff"],
+    "boycott":    ["boycott", "backlash", "outrage", "shitstorm", "boykott", "empörung"],
+    "leadership": ["resigns", "resignation", "ousted", "steps down", "fired ceo", "rücktritt", "tritt zurück"],
+    "labor":      ["layoffs", "lays off", "job cuts", "strike", "walkout", "stellenabbau", "entlassungen", "streik"],
+    "product":    ["recall", "defect", "faulty", "rückruf", "panne", "mangel"],
+    "finance":    ["bankruptcy", "insolvency", "shares plunge", "shares tumble", "stock plunges", "insolvenz", "pleite"],
+    "outage":     ["outage", "down for", "ausfall", "störung"],
+}
+
+BRAND_CATEGORIES = {
+    "tech":          ["apple", "google", "alphabet", "meta", "facebook", "instagram", "microsoft", "amazon",
+                      "openai", "tiktok", "software", "app", "platform", "social media", "chip", "ai",
+                      "artificial intelligence", "samsung", "nvidia", "sap"],
+    "auto":          ["car", "cars", "carmaker", "automaker", "vehicle", "vehicles", "volkswagen", "vw", "bmw",
+                      "mercedes", "porsche", "audi", "tesla", "toyota", "ford", "stellantis", "autobauer"],
+    "finance":       ["bank", "banks", "crypto", "insurer", "insurance", "fintech", "payments", "deutsche bank",
+                      "ubs", "commerzbank", "wirecard", "versicherer"],
+    "retail":        ["retailer", "store", "stores", "supermarket", "walmart", "target", "ikea", "aldi", "lidl",
+                      "rewe", "edeka", "zalando", "händler"],
+    "food & drink":  ["restaurant", "mcdonald", "starbucks", "coca-cola", "pepsi", "nestle", "nestlé", "burger",
+                      "beverage", "brewer", "danone", "unilever"],
+    "pharma":        ["drug", "drugs", "pharma", "vaccine", "medication", "pfizer", "bayer", "novartis", "roche",
+                      "moderna", "medical device", "medikament"],
+    "energy":        ["oil", "gas", "energy", "utility", "shell", "bp", "exxon", "chevron", "eon", "rwe", "uniper"],
+    "travel":        ["airline", "airport", "flight", "flights", "lufthansa", "ryanair", "easyjet", "boeing",
+                      "airbus", "hotel", "deutsche bahn", "bahn", "cruise"],
+    "media":         ["netflix", "disney", "streaming", "broadcaster", "telecom", "telekom", "vodafone",
+                      "spotify", "warner"],
+    "fashion":       ["fashion", "clothing", "cosmetics", "beauty", "adidas", "nike", "puma", "shein", "h&m",
+                      "zara", "primark"],
+}
+
+# words that never identify WHICH story it is (so grouping keys on company names)
+BRAND_GENERIC = ni.GENERIC | set("""
+scandal scandals lawsuit lawsuits sued sues class action boycott boycotts backlash outrage fraud
+probe investigation investigated fined fine fines penalty settlement data breach hacked hack
+cyberattack leak leaked recall resigns resignation ousted steps step down layoffs lays job cuts
+strike walkout bankruptcy insolvency accused allegations alleged misconduct cover whistleblower
+antitrust banned controversy apologizes apologises apology crisis outage shares plunge tumble
+stock plunges fire under faces criticism company firm brand corp inc ltd plc maker giant ceo chief
+executive shareholders investors customers users regulator regulators watchdog employees workers
+staff billion million amid after over says report reports new
+skandal klage verklagt sammelklage boykott shitstorm empörung betrug ermittlungen ermittelt bußgeld
+strafe datenleck hackerangriff cyberangriff rücktritt stellenabbau entlassungen streik insolvenz
+pleite vorwürfe vorwurf krise panne ausfall kartellamt razzia unternehmen konzern firma hersteller
+händler kette vorstand konzernchef aktie aktionäre anleger kunden nutzer behörde mitarbeiter
+milliarden millionen wegen nach gegen
+""".split())
+
+# Title-case headline words that are not company names
+_NOT_NAMES = set("""
+the a an and or of for to in on at by with from as is are was were be been it its this that these
+those after amid over under into up out off new old more most says said say report reports how why
+what who when where will would could should may might can could not no yes first last top big small
+million billion thousand hundred year years month week day days today news update latest live
+monday tuesday wednesday thursday friday saturday sunday january february march april may june july
+august september october november december us usa uk eu europe european america american british
+german germany world global national federal state states city chief ceo boss head group inc corp
+ltd plc ag gmbh co company firm brand customers users investors workers staff employees shares stock
+market markets price prices deal deals plan plans case cases court judge lawsuit probe recall fine
+fined fines data breach hack strike boycott scandal crisis outage faces face hit hits sues sued
+der die das und mit von für bei nach gegen wegen über auf neue neuer chef konzern kunden aktie
+""".split())
+
+KNOWN_BRANDS = {w for kws in BRAND_CATEGORIES.values() for w in kws if len(w) > 2 and w[0].isalpha()} - {
+    "car", "cars", "bank", "banks", "store", "stores", "drug", "drugs", "oil", "gas", "app", "chip", "hotel",
+    "flight", "flights", "airline", "airport", "fashion", "clothing", "beauty", "cosmetics", "energy",
+    "utility", "vehicle", "vehicles", "retailer", "supermarket", "restaurant", "burger", "beverage",
+    "brewer", "insurer", "insurance", "fintech", "payments", "platform", "software", "streaming",
+    "broadcaster", "telecom", "pharma", "vaccine", "medication", "crypto", "carmaker", "automaker",
+    "social media", "artificial intelligence", "medical device", "cruise", "autobauer", "händler",
+    "versicherer", "medikament", "bahn"}
+
+_KNOWN_LIST = sorted(KNOWN_BRANDS)
+# words that may be part of a name ("American Express", "German Telekom") — kept inside names
+_NAME_OK = {"american", "british", "german", "european", "national", "federal", "world", "global",
+            "united", "general", "first", "new"}
+_STRIP = _NOT_NAMES - _NAME_OK
+_ALL = SCANDAL_TERMS + CORPORATE_TERMS + EXCLUDE_TERMS + list(BRAND_SEVERITY) + \
+    [w for v in BRAND_KINDS.values() for w in v] + [w for v in BRAND_CATEGORIES.values() for w in v]
+_SEV_RX = {k: re.compile(r"\b" + re.escape(k) + r"\b") for k in BRAND_SEVERITY}
+
+
+def _brand_relevant(text, title):
+    if ni._has_any(text, EXCLUDE_TERMS):
+        return False
+    if ni.FOOD_PROFILE["relevant"](text, title):       # food safety → food arena
+        return False
+    return ni._has_any(text, SCANDAL_TERMS) and (ni._has_any(text, CORPORATE_TERMS)
+                                                 or ni._has_any(text, _KNOWN_LIST))
+
+
+def _brand_severity(text):
+    pts = sum(w for k, w in BRAND_SEVERITY.items() if _SEV_RX[k].search(text))
+    return min(1.0, pts / 6.0)
+
+
+def _brand_kinds(text):
+    return {k for k, kws in BRAND_KINDS.items() if ni._has_any(text, kws)}
+
+
+def _brand_categories(text):
+    return {c for c, kws in BRAND_CATEGORIES.items() if ni._has_any(text, kws)}
+
+
+def _brand_tokens(title):
+    return ni._story_tokens(title, BRAND_GENERIC)
+
+
+def _gn_q(q, region):
+    return (ni._gn(q, region), "EU" if region in ("DE", "AT", "IE") else region)
+
+
+BRAND_FEEDS = [
+    _gn_q("company+scandal+OR+%22under+fire%22", "US"),
+    _gn_q("%22class+action%22+OR+lawsuit+company", "US"),
+    _gn_q("boycott+brand+OR+backlash+company", "US"),
+    _gn_q("%22data+breach%22+customers", "US"),
+    _gn_q("CEO+resigns+OR+ousted+OR+%22steps+down%22", "US"),
+    _gn_q("fined+regulator+company+OR+antitrust", "US"),
+    _gn_q("company+scandal+OR+fined+OR+boycott", "UK"),
+    _gn_q("Skandal+Konzern+OR+Unternehmen", "DE"),
+    _gn_q("Klage+OR+Sammelklage+Konzern", "DE"),
+    _gn_q("Boykott+OR+Shitstorm+Marke", "DE"),
+    _gn_q("Datenleck+OR+Hackerangriff+Kunden", "DE"),
+    _gn_q("R%C3%BCcktritt+Konzernchef+OR+Vorstand", "DE"),
+]
+
+BRAND_PROFILE = {
+    "name": "brands",
+    "feeds": BRAND_FEEDS,
+    "relevant": _brand_relevant,
+    "tokens": _brand_tokens,
+    "kinds": _brand_kinds,
+    "categories": _brand_categories,
+    "severity": _brand_severity,
+}
+
+ARENAS = {"brands": BRAND_PROFILE}
+ARENA_LABELS = {"food": "Food safety", "brands": "Brand scandals"}
+
+
+# ─────────────────────────────────────────────
+# COMPANY NAME — which company is the story about
+# ─────────────────────────────────────────────
+
+_CAP_RX = re.compile(r"[A-ZÄÖÜ][\w&'.\-]*(?:\s+(?:&\s+)?[A-ZÄÖÜ][\w&'.\-]*){0,2}")
+
+
+def names_in(title):
+    """Candidate company names in one headline (lower-case keys)."""
+    out = set()
+    for m in _CAP_RX.finditer(title or ""):
+        name = re.sub(r"['’]s$", "", m.group(0).strip(" .-")).strip(" .'-")
+        parts = name.split()
+        while parts and parts[0].lower().strip(".,:'") in _STRIP:
+            parts.pop(0)
+        while parts and parts[-1].lower().strip(".,:'") in _STRIP:
+            parts.pop()
+        if not parts or (len(parts) == 1 and parts[0].lower() in _NAME_OK):
+            continue
+        key = " ".join(parts).lower()
+        if key in _NOT_NAMES or key in BRAND_GENERIC or len(key) < 2:
+            continue
+        out.add(key)
+        if len(parts) > 1:                       # "Volkswagen Owners" also counts as "volkswagen"
+            for p in parts:
+                if p.lower() in KNOWN_BRANDS:
+                    out.add(p.lower())
+    return out
+
+
+def same_brand_story(a, b):
+    """Brand stories are about a company: same named company + the same kind of trouble
+    (or no kind detected) → same story. Otherwise fall back to the word-overlap rule."""
+    na, nb = a.get("names") or set(), b.get("names") or set()
+    if na & nb:
+        ka, kb = a["hazards"], b["hazards"]
+        if not ka or not kb or (ka & kb):
+            return True
+    return ni._same_story(a, b)
+
+
+def extract_company(titles):
+    """Most likely company name across a story's headlines (or None).
+    Counts capitalised names that recur across headlines; names written capitalised in
+    a sentence-case headline (a strong proper-noun signal) and known brands get a bonus."""
+    score, shown = Counter(), {}
+    for t in titles or []:
+        words = t.split()
+        lower_share = sum(1 for w in words if w[:1].islower()) / max(1, len(words))
+        sentence_case = lower_share >= 0.35
+        seen = set()
+        for m in _CAP_RX.finditer(t):
+            name = re.sub(r"['’]s$", "", m.group(0).strip(" .-")).strip(" .'-")
+            parts = name.split()
+            while parts and parts[0].lower().strip(".,:'") in _STRIP:      # trim generic words at the edges
+                parts.pop(0)
+            while parts and parts[-1].lower().strip(".,:'") in _STRIP:
+                parts.pop()
+            if not parts or (len(parts) == 1 and parts[0].lower() in _NAME_OK):
+                continue
+            name = " ".join(parts)
+            key = name.lower()
+            if key in _NOT_NAMES or key in BRAND_GENERIC or len(key) < 2:
+                continue
+            if key in seen:
+                continue
+            seen.add(key)
+            w = 2.0 if sentence_case and m.start() > 0 else 1.0
+            if key in KNOWN_BRANDS or any(p.lower() in KNOWN_BRANDS for p in parts):
+                w += 1.5
+            score[key] += w
+            shown.setdefault(key, name)
+    if not score:
+        return None
+    key, best = score.most_common(1)[0]
+    if best < 2.0 and len(titles or []) > 1:
+        return None
+    return shown[key]
+
+
+# ─────────────────────────────────────────────
+# COLLECT
+# ─────────────────────────────────────────────
+
+def collect_arena(name, profile):
+    from db.database import SessionLocal
+    from db.models import ArenaReading
+    from engine.story_listing import update_listings
+    articles, stats = ni.pull_rss_articles(profile)
+    if stats.get("feeds_ok", 0) == 0:
+        print(f"⏭️ [{name}] no feeds reachable — reading skipped")
+        return None
+    for a in articles:
+        a["names"] = names_in(a.get("raw_title") or a["title"])
+    stories = ni.group_stories(articles, same=same_brand_story if name == "brands" else None)
+    for s in stories:
+        s["arena"] = name
+        s["company"] = extract_company(s.get("raw_titles"))
+    session = SessionLocal()
+    try:
+        ni.assign_story_ids(stories, session, arena=name)
+        try:
+            update_listings(stories, session, arena=name)
+        except Exception as e:
+            print(f"⚠️ [{name}] listing error: {e}")
+        idx = ni.compact_story_index(stories)
+        session.add(ArenaReading(arena=name, ts=time.time(), story_index=json.dumps(idx),
+                                 meta=json.dumps({**stats, "stories": len(stories)})))
+        session.commit()
+        top = sorted(stories, key=lambda x: x["story_score"], reverse=True)[:3]
+        print(f"🏷️ [{name}] {len(articles)} articles → {len(stories)} stories")
+        for s in top:
+            print(f"   • {s['story_score']:.1f} [{s['outlets']} outlets] {s.get('company') or '—'} · {s['title'][:70]}")
+        return stories
+    finally:
+        session.close()
+
+
+def collect_all_arenas():
+    for name, profile in ARENAS.items():
+        try:
+            collect_arena(name, profile)
+        except Exception as e:
+            print(f"❌ [{name}] arena collector error: {e}")

@@ -269,12 +269,13 @@ def _clean_title(title, source):
     return title
 
 
-def _story_tokens(title):
+def _story_tokens(title, generic=None):
     words = re.findall(r"[a-z0-9äöüß]+", title.lower())
     out = set()
+    gen = GENERIC if generic is None else generic
     for w in words:
         w = SYNONYMS.get(w, w)
-        if w in GENERIC or len(w) < 3 or w.isdigit():
+        if w in gen or len(w) < 3 or w.isdigit():
             continue
         if len(w) > 4 and w.endswith("s"):
             w = w[:-1]
@@ -388,14 +389,29 @@ def _entry_ts(entry):
 # RSS PULL
 # ─────────────────────────────────────────────
 
-def pull_rss_articles():
-    """Returns (relevant_articles, stats)."""
+FOOD_PROFILE = {
+    "name": "food",
+    "feeds": RSS_FEEDS,
+    "relevant": lambda text, title: _has_any(text, HAZARD_TERMS) or (
+        _has_any(text, EVENT_TERMS) and _has_any(text, FOOD_TERMS)),
+    "tokens": _story_tokens,
+    "kinds": _hazards,
+    "categories": _categories,
+    "severity": _severity,
+}
+
+
+def pull_rss_articles(profile=None):
+    """Returns (relevant_articles, stats). `profile`: an arena's feeds and word lists
+    (engine/arenas.py); default = food, which feeds the FSNI."""
+    pr = profile or FOOD_PROFILE
+    feeds = pr["feeds"]
     now = time.time()
     cutoff = now - ARTICLE_WINDOW_H * 3600
     articles, seen_titles = [], set()
     total, ok_feeds = 0, 0
 
-    for feed_url, region in RSS_FEEDS:
+    for feed_url, region in feeds:
         short = feed_url.split("?")[0][:70]
         try:
             resp = requests.get(feed_url, timeout=FEED_TIMEOUT, headers=UA)
@@ -431,9 +447,7 @@ def pull_rss_articles():
 
                 summary = re.sub(r"<[^>]+>", " ", e.get("summary", "") or "")
                 text = (title + " " + summary).lower()
-                relevant = _has_any(text, HAZARD_TERMS) or (
-                    _has_any(text, EVENT_TERMS) and _has_any(text, FOOD_TERMS))
-                if not relevant:
+                if not pr["relevant"](text, title.lower()):
                     continue
 
                 articles.append({
@@ -442,20 +456,21 @@ def pull_rss_articles():
                     "url":        e.get("link", ""),
                     "ts":         ts or now,
                     "region":     _outlet_region(src_href, region),
-                    "tokens":     _story_tokens(title),
-                    "hazards":    _hazards(text),
-                    "categories": _categories(text),
-                    "severity":   _severity(text),
+                    "tokens":     pr["tokens"](title),
+                    "hazards":    pr["kinds"](text),
+                    "categories": pr["categories"](text),
+                    "severity":   pr["severity"](text),
                     "negativity": _negativity(text),
                     "spread":     _has_any(text, SPREAD_TERMS),
+                    "raw_title":  title,
                 })
         except requests.exceptions.Timeout:
             print(f"⚠️ Feed timeout: {short}")
         except Exception as ex:
             print(f"⚠️ Feed error {short}: {ex}")
 
-    print(f"📰 {ok_feeds}/{len(RSS_FEEDS)} feeds OK | {len(articles)} relevant / {total} total articles")
-    return articles, {"feeds_ok": ok_feeds, "feeds_total": len(RSS_FEEDS),
+    print(f"📰 [{pr['name']}] {ok_feeds}/{len(feeds)} feeds OK | {len(articles)} relevant / {total} total articles")
+    return articles, {"feeds_ok": ok_feeds, "feeds_total": len(feeds),
                       "articles_total": total, "articles_relevant": len(articles)}
 
 
@@ -509,12 +524,14 @@ def _merge_same_event(stories):
     return stories
 
 
-def group_stories(articles):
-    """Greedy clustering: each article joins the first story it matches."""
+def group_stories(articles, same=None):
+    """Greedy clustering: each article joins the first story it matches.
+    `same`: an arena's own matching rule (default: food rule)."""
+    same = same or _same_story
     stories = []
     for a in sorted(articles, key=lambda x: x["ts"]):      # oldest first
         for s in stories:
-            if any(_same_story(a, m) for m in s["members"]):
+            if any(same(a, m) for m in s["members"]):
                 s["members"].append(a)
                 break
         else:
@@ -564,6 +581,7 @@ def group_stories(articles):
             "tier":       tier,
             "tier_label": tier_label,
             "all_outlets": outlets,
+            "raw_titles": [x.get("raw_title") or x["title"] for x in m],
             # article list (newest first) — kept for listed stories' pages, not stored per reading
             "members":    [{"title": x["title"], "source": x["source"], "url": x["url"],
                             "ts": x["ts"], "region": x["region"]}
@@ -642,9 +660,22 @@ def score_if_quiet(s, at_ts, articles_ts=None):
     return story_score_parts(q, at_ts)["score"]
 
 
-def _load_story_index(session, before_ts=None):
-    """story_index list from the latest FSNI reading (optionally at or before a time)."""
+def _load_story_index(session, before_ts=None, arena="food"):
+    """story_index list from the latest reading of an arena (optionally at or before a time).
+    Food readings live in index_ticks (FSNI rows); other arenas in arena_readings."""
     import sqlalchemy as sa
+    if arena != "food":
+        q = ("SELECT story_index FROM arena_readings WHERE arena = :a"
+             + (" AND ts <= :b" if before_ts else "") + " ORDER BY ts DESC LIMIT 1")
+        params = {"a": arena}
+        if before_ts:
+            params["b"] = before_ts
+        try:
+            row = session.execute(sa.text(q), params).fetchone()
+            return json.loads(row[0]) if row else []
+        except Exception as e:
+            print(f"⚠️ story_index load error ({arena}): {e}")
+            return []
     q = ("SELECT headlines FROM index_ticks WHERE headlines LIKE :pat"
          + (" AND ts <= :b" if before_ts else "") + " ORDER BY ts DESC LIMIT 1")
     params = {"pat": '%"story_index"%'}
@@ -677,18 +708,18 @@ def _same_story_over_time(new, old):
     return len(b) == 1 and len(a) <= 3                 # tiny one-word stories, only if still tiny
 
 
-def assign_story_ids(stories, session, now=None):
+def assign_story_ids(stories, session, now=None, arena="food"):
     """Give each story a stable sid, first_seen, score, and the score change over TREND_HOURS."""
     import hashlib
     now = now or time.time()
-    prev = _load_story_index(session)
+    prev = _load_story_index(session, arena=arena)
     try:   # listed stories that fell out of the last reading can still be picked up again
         from engine.story_listing import listed_for_matching
         have = {p.get("sid") for p in prev}
-        prev = prev + [x for x in listed_for_matching(session) if x["sid"] not in have]
+        prev = prev + [x for x in listed_for_matching(session, arena) if x["sid"] not in have]
     except Exception as e:
         print(f"⚠️ listed-story matching skipped: {e}")
-    prev_t = _load_story_index(session, before_ts=now - TREND_HOURS * 3600)
+    prev_t = _load_story_index(session, before_ts=now - TREND_HOURS * 3600, arena=arena)
     prev_sets = [{**p, "tokens": set(p.get("tokens") or []), "hazards": set(p.get("hazards") or [])} for p in prev]
     then = {p["sid"]: p.get("score") for p in prev_t if p.get("sid")}
     used = set()
@@ -710,7 +741,7 @@ def assign_story_ids(stories, session, now=None):
             s["sid"], s["first_seen"] = best["sid"], best.get("first_seen") or s["first_ts"]
             used.add(best["sid"])
         else:
-            s["sid"] = hashlib.sha1(f"{s['title']}|{now}".encode()).hexdigest()[:10]
+            s["sid"] = hashlib.sha1(f"{arena}|{s['title']}|{now}".encode()).hexdigest()[:10]
             s["first_seen"] = now
         old = then.get(s["sid"])
         s["score_then"] = old
@@ -727,6 +758,7 @@ def compact_story_index(stories):
              "categories": s["categories"], "first_seen": s["first_seen"], "ts": s["ts"],
              "url": s["url"], "source": s["source"], "listed": s.get("listed", False),
              "severity": s["severity"], "recent_12h": s["recent_12h"],
+             "company": s.get("company"), "arena": s.get("arena", "food"),
              "closes_at": s.get("closes_at"),
              "tokens": s["tokens"][:40], "hazards": s["hazards"]} for s in top]
 
@@ -954,11 +986,11 @@ def calculate_narrative_index() -> dict:
         by_score = sorted(stories, key=lambda x: x["story_score"], reverse=True)
         try:
             from engine.story_listing import update_listings
-            update_listings(stories, session)
+            update_listings(stories, session, arena="food")
         except Exception as e:
             print(f"⚠️ Story listing error: {e}")
         story_index = compact_story_index(stories)
-        top = [{k: v for k, v in s.items() if k not in ("all_outlets", "tokens", "hazards", "members")}
+        top = [{k: v for k, v in s.items() if k not in ("all_outlets", "tokens", "hazards", "members", "raw_titles")}
                | {"outlet_names": s["all_outlets"][:6]}
                for s in by_score[:MAX_STORIES]]
 
@@ -1034,6 +1066,11 @@ def run_collector_loop():
                     store_index_tick(scores)
             except Exception as e:
                 print(f"❌ Collector error: {e}")
+            try:   # other arenas (brand scandals …) — separate from the FSNI
+                from engine.arenas import collect_all_arenas
+                collect_all_arenas()
+            except Exception as e:
+                print(f"❌ Arena collector error: {e}")
             time.sleep(COLLECT_EVERY_SECS)
 
     threading.Thread(target=_loop, daemon=True).start()

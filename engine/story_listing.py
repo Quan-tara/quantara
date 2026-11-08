@@ -48,6 +48,7 @@ def _snapshot(s, old=None):
         "tokens": list(s.get("tokens") or (old or {}).get("tokens", []))[:40],
         "hazards": list(s.get("hazards") or (old or {}).get("hazards", [])),
         "ts": max(float((old or {}).get("ts", 0)), float(s.get("ts") or 0)),
+        "company": s.get("company") or (old or {}).get("company"),
         "first_ts": min(x for x in [(old or {}).get("first_ts"), s.get("first_ts")] if x) if (s.get("first_ts") or (old or {}).get("first_ts")) else None,
     }
 
@@ -61,8 +62,41 @@ def _score_from_snapshot(snap, now):
                         "ts": snap.get("ts") or now}, now)
 
 
-def history_from_readings(session, sid, since_ts):
+# Per-arena listing rules. Brand scandals get far wider coverage than food recalls,
+# so the bar is higher; DAILY_CAP stops a flood on a busy news day (highest scores first).
+ARENA_RULES = {
+    "food":   {"score": LIST_SCORE, "outlets": LIST_MIN_OUTLETS, "daily_cap": None},
+    "brands": {"score": 40.0, "outlets": 6, "daily_cap": 5},
+}
+
+
+def rules_for(arena):
+    return ARENA_RULES.get(arena or "food", ARENA_RULES["food"])
+
+
+def _arena_filter(q, arena):
+    if (arena or "food") == "food":
+        return q.filter(sa.or_(Narrative.arena == "food", Narrative.arena.is_(None)))
+    return q.filter(Narrative.arena == arena)
+
+
+def history_from_readings(session, sid, since_ts, arena="food"):
     """Score points for a story from the per-reading story_index (before it was listed)."""
+    if (arena or "food") != "food":
+        rows = session.execute(sa.text(
+            "SELECT ts, story_index FROM arena_readings WHERE arena = :ar AND ts >= :a "
+            "AND story_index LIKE :pat ORDER BY ts"
+        ), {"ar": arena, "a": since_ts, "pat": f'%"sid": "{sid}"%'}).fetchall()
+        out = []
+        for ts, h in rows:
+            try:
+                for x in json.loads(h) or []:
+                    if x.get("sid") == sid:
+                        out.append((float(ts), float(x.get("score") or 0)))
+                        break
+            except Exception:
+                continue
+        return out
     rows = session.execute(sa.text(
         "SELECT ts, headlines FROM index_ticks WHERE ts >= :a AND headlines LIKE :pat ORDER BY ts"
     ), {"a": since_ts, "pat": f'%"sid": "{sid}"%'}).fetchall()
@@ -102,23 +136,25 @@ def _settle(session, sid, final=None, refund=False):
         print(f"⚠️ story settlement error {sid}: {e}")
 
 
-def listed_for_matching(session):
-    """LISTED stories in the shape assign_story_ids matches against."""
+def listed_for_matching(session, arena="food"):
+    """LISTED stories of one arena in the shape assign_story_ids matches against."""
     out = []
-    for n in session.query(Narrative).filter(Narrative.status == "LISTED").all():
+    for n in _arena_filter(session.query(Narrative).filter(Narrative.status == "LISTED"), arena).all():
         snap = json.loads(n.snapshot or "{}")
         out.append({"sid": n.sid, "first_seen": n.first_seen, "score": n.last_score,
                     "tokens": snap.get("tokens", []), "hazards": snap.get("hazards", [])})
     return out
 
 
-def update_listings(stories, session, now=None):
-    """Call once per collector run, after assign_story_ids. Marks stories with
-    listed / closes_at and keeps the narratives tables up to date."""
+def update_listings(stories, session, now=None, arena="food"):
+    """Call once per collector run of an arena, after assign_story_ids. Marks stories with
+    listed / closes_at and keeps the narratives tables up to date. Only touches that arena."""
     now = now or time.time()
+    arena = arena or "food"
+    rules = rules_for(arena)
     live = {s["sid"]: s for s in stories if s.get("sid")}
     known = {n.sid: n for n in session.query(Narrative).filter(Narrative.sid.in_(list(live) or ["-"])).all()}
-    active = session.query(Narrative).filter(Narrative.status == "LISTED").all()
+    active = _arena_filter(session.query(Narrative).filter(Narrative.status == "LISTED"), arena).all()
     for n in active:
         known.setdefault(n.sid, n)
 
@@ -163,19 +199,27 @@ def update_listings(stories, session, now=None):
             _settle(session, n.sid, final=score)
             print(f"🔒 Story closed  {n.sid}  final {score:.1f}  {n.title[:70]}")
 
-    # 2) list new stories that crossed the threshold
-    for s in stories:
+    # 2) list new stories that crossed the threshold (highest first, within the daily cap)
+    room = None
+    if rules["daily_cap"]:
+        today = _arena_filter(session.query(Narrative).filter(Narrative.listed_at >= now - 86400), arena).count()
+        room = max(0, rules["daily_cap"] - today)
+    for s in sorted(stories, key=lambda x: x["story_score"], reverse=True):
         if s["sid"] in known:
             continue
-        if s["story_score"] < LIST_SCORE or s["outlets"] < LIST_MIN_OUTLETS:
+        if s["story_score"] < rules["score"] or s["outlets"] < rules["outlets"]:
             continue
-        n = Narrative(sid=s["sid"], title=s["title"], url=s["url"], source=s["source"],
+        if room is not None:
+            if room <= 0:
+                break
+            room -= 1
+        n = Narrative(sid=s["sid"], title=s["title"], url=s["url"], source=s["source"], arena=arena,
                       status="LISTED", first_seen=s.get("first_seen"), listed_at=now,
                       closes_at=now + LIST_WINDOW_H * 3600, list_score=s["story_score"],
                       last_score=s["story_score"], peak_score=s["story_score"],
                       last_seen=now, snapshot=json.dumps(_snapshot(s)))
         session.add(n)
-        for ts, sc in history_from_readings(session, s["sid"], now - BACKFILL_H * 3600):
+        for ts, sc in history_from_readings(session, s["sid"], now - BACKFILL_H * 3600, arena):
             session.add(NarrativePoint(sid=s["sid"], ts=ts, score=sc))
         session.add(NarrativePoint(sid=s["sid"], ts=now, score=s["story_score"]))
         _price_point(session, s["sid"], now, s["story_score"])

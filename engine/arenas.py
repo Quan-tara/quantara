@@ -69,6 +69,53 @@ EXCLUDE_TERMS = [
     "suizid", "scheidung", "hochzeit", "schwanger", "affäre", "beerdigung", "nachruf",
 ]
 
+# Roundups pack several stories into one headline ("X resigns; Y loses €100mn …") — they
+# would glue unrelated stories together, so they are left out.
+ROUNDUP_RX = re.compile(
+    r";|\bwrap[- ]?up\b|\bround[- ]?up\b|\bbriefing\b|what we know|\bdigest\b|live updates|"
+    r"\blive:|top stories|the latest:|week in review|this week in|\brecap\b|newsletter|"
+    r"morning report|evening report|news in brief|kurz gemeldet|nachrichten des tages|"
+    r"im überblick|\bticker\b|\bnewsblog\b", re.I)
+
+# Politics: left out unless a company is clearly the subject
+POLITICS_TERMS = [
+    "president", "prime minister", "minister", "chancellor", "parliament", "senate", "senator",
+    "congress", "congressman", "lawmakers", "election", "elections", "campaign", "party leader",
+    "government", "mayor", "governor", "opposition", "coalition", "cabinet", "white house",
+    "kremlin", "downing street", "impeach", "referendum",
+    "bundestag", "bundesregierung", "kanzler", "ministerin", "regierung", "partei", "wahlkampf",
+    "koalition", "bürgermeister", "landtag",
+]
+STRONG_CORPORATE = [
+    "inc", "corp", "corporation", "plc", "ltd", "llc", "ag", "gmbh", "company", "companies", "firm",
+    "ceo", "chief executive", "shares", "shareholders", "stock", "brand", "retailer", "manufacturer",
+    "unternehmen", "konzern", "firma", "konzernchef", "aktie", "aktionäre", "marke", "hersteller",
+]
+
+# Never a company name: countries, big cities/regions, road and route codes
+PLACES = set("""
+afghanistan albania algeria argentina armenia australia austria azerbaijan bahrain bangladesh belarus
+belgium bolivia bosnia brazil bulgaria cambodia cameroon canada chile china colombia congo croatia cuba
+cyprus czechia denmark ecuador egypt england estonia ethiopia finland france georgia germany ghana greece
+guatemala haiti honduras hungary iceland india indonesia iran iraq ireland israel italy jamaica japan
+jordan kazakhstan kenya korea kosovo kuwait latvia lebanon libya lithuania luxembourg malaysia mali malta
+mexico moldova mongolia montenegro morocco myanmar nepal netherlands nicaragua niger nigeria norway oman
+pakistan panama paraguay peru philippines poland portugal qatar romania russia rwanda scotland senegal
+serbia singapore slovakia slovenia somalia spain sudan sweden switzerland syria taiwan tanzania thailand
+tunisia turkey uganda ukraine uruguay uzbekistan venezuela vietnam wales yemen zambia zimbabwe
+london paris berlin munich münchen hamburg frankfurt cologne köln vienna wien zurich madrid rome milan
+brussels amsterdam dublin lisbon warsaw prague budapest moscow kyiv istanbul dubai beijing shanghai
+tokyo seoul delhi mumbai sydney melbourne toronto vancouver montreal chicago boston seattle houston
+dallas atlanta miami denver phoenix detroit california texas florida york washington ohio michigan
+illinois georgia virginia carolina arizona nevada oregon colorado massachusetts pennsylvania jersey
+bavaria bayern hessen sachsen nrw manchester birmingham liverpool leeds glasgow edinburgh bristol
+redditch silicon valley wall street europe asia africa americas
+""".split())
+_ROAD_RX = re.compile(r"^(?:[a-z]{1,2}-?\d{1,4}|\d+)$", re.I)     # M56, A9, I-95, B12, 2026
+_LEAD_STRIP = {"the", "a", "an", "and", "of", "for", "to", "in", "on", "at", "by", "with", "from", "as",
+               "breaking", "exclusive", "watch", "video", "live", "update", "opinion", "analysis",
+               "report", "new", "latest", "how", "why", "what", "when", "where", "after", "amid", "over"}
+
 BRAND_SEVERITY = {
     "fraud": 3, "criminal": 2, "charged": 2, "indicted": 3, "arrested": 2, "raid": 2,
     "fined": 2, "billion": 1, "million": 1, "class action": 2, "lawsuit": 1, "probe": 1,
@@ -173,13 +220,27 @@ _ALL = SCANDAL_TERMS + CORPORATE_TERMS + EXCLUDE_TERMS + list(BRAND_SEVERITY) + 
 _SEV_RX = {k: re.compile(r"\b" + re.escape(k) + r"\b") for k in BRAND_SEVERITY}
 
 
+def _strict(text):
+    """A scandal word plus a clear company signal."""
+    return ni._has_any(text, SCANDAL_TERMS) and (ni._has_any(text, CORPORATE_TERMS)
+                                                 or ni._has_any(text, _KNOWN_LIST))
+
+
 def _brand_relevant(text, title):
+    """Kept for the arena: strict articles, plus scandal headlines that name someone —
+    the latter survive only if a strict article names the same company (see collect_arena)."""
     if ni._has_any(text, EXCLUDE_TERMS):
+        return False
+    if ROUNDUP_RX.search(title or ""):
+        return False
+    if ni._has_any(text, POLITICS_TERMS) and not (ni._has_any(text, STRONG_CORPORATE)
+                                                  or ni._has_any(text, _KNOWN_LIST)):
         return False
     if ni.FOOD_PROFILE["relevant"](text, title):       # food safety → food arena
         return False
-    return ni._has_any(text, SCANDAL_TERMS) and (ni._has_any(text, CORPORATE_TERMS)
-                                                 or ni._has_any(text, _KNOWN_LIST))
+    if _strict(text):
+        return True
+    return ni._has_any(text, SCANDAL_TERMS) and bool(names_in(title))
 
 
 def _brand_severity(text):
@@ -236,25 +297,39 @@ ARENA_LABELS = {"food": "Food safety", "brands": "Brand scandals"}
 # COMPANY NAME — which company is the story about
 # ─────────────────────────────────────────────
 
-_CAP_RX = re.compile(r"[A-ZÄÖÜ][\w&'.\-]*(?:\s+(?:&\s+)?[A-ZÄÖÜ][\w&'.\-]*){0,2}")
+_CAP_RX = re.compile(r"[A-ZÄÖÜ][\w&'.\-]*(?:\s+(?:&\s+)?[A-ZÄÖÜ][\w&'.\-]*){0,4}")
+
+
+def _clean_name(raw):
+    """Trim a capitalised run to a plausible company name, or None."""
+    name = re.sub(r"['’]s$", "", raw.strip(" .-")).strip(" .'-")
+    parts = [p for p in name.split() if not p.lower().endswith("-based")]
+    while parts and parts[0].lower().strip(".,:'") in _LEAD_STRIP:          # only small words at the front
+        parts.pop(0)
+    while parts and parts[-1].lower().strip(".,:'") in _STRIP:              # generic words at the end
+        parts.pop()
+    parts = [p for p in parts if not _ROAD_RX.match(p.strip(".,:'"))] if len(parts) == 1 else parts
+    if not parts:
+        return None
+    key = " ".join(parts).lower()
+    if len(parts) == 1 and (key in _NOT_NAMES or key in _NAME_OK or key in PLACES or _ROAD_RX.match(key)):
+        return None
+    if key in BRAND_GENERIC or key in PLACES or len(key) < 2:
+        return None
+    if all(p.lower() in PLACES or p.lower() in _NOT_NAMES for p in parts):
+        return None
+    return " ".join(parts)
 
 
 def names_in(title):
     """Candidate company names in one headline (lower-case keys)."""
     out = set()
     for m in _CAP_RX.finditer(title or ""):
-        name = re.sub(r"['’]s$", "", m.group(0).strip(" .-")).strip(" .'-")
+        name = _clean_name(m.group(0))
+        if not name:
+            continue
+        out.add(name.lower())
         parts = name.split()
-        while parts and parts[0].lower().strip(".,:'") in _STRIP:
-            parts.pop(0)
-        while parts and parts[-1].lower().strip(".,:'") in _STRIP:
-            parts.pop()
-        if not parts or (len(parts) == 1 and parts[0].lower() in _NAME_OK):
-            continue
-        key = " ".join(parts).lower()
-        if key in _NOT_NAMES or key in BRAND_GENERIC or len(key) < 2:
-            continue
-        out.add(key)
         if len(parts) > 1:                       # "Volkswagen Owners" also counts as "volkswagen"
             for p in parts:
                 if p.lower() in KNOWN_BRANDS:
@@ -284,22 +359,17 @@ def extract_company(titles):
         sentence_case = lower_share >= 0.35
         seen = set()
         for m in _CAP_RX.finditer(t):
-            name = re.sub(r"['’]s$", "", m.group(0).strip(" .-")).strip(" .'-")
+            name = _clean_name(m.group(0))
+            if not name:
+                continue
             parts = name.split()
-            while parts and parts[0].lower().strip(".,:'") in _STRIP:      # trim generic words at the edges
-                parts.pop(0)
-            while parts and parts[-1].lower().strip(".,:'") in _STRIP:
-                parts.pop()
-            if not parts or (len(parts) == 1 and parts[0].lower() in _NAME_OK):
-                continue
-            name = " ".join(parts)
             key = name.lower()
-            if key in _NOT_NAMES or key in BRAND_GENERIC or len(key) < 2:
-                continue
             if key in seen:
                 continue
             seen.add(key)
             w = 2.0 if sentence_case and m.start() > 0 else 1.0
+            if m.start() < len(t) * 0.45:          # names near the front are usually the subject
+                w += 0.5
             if key in KNOWN_BRANDS or any(p.lower() in KNOWN_BRANDS for p in parts):
                 w += 1.5
             score[key] += w
@@ -326,6 +396,11 @@ def collect_arena(name, profile):
         return None
     for a in articles:
         a["names"] = names_in(a.get("raw_title") or a["title"])
+    if name == "brands":
+        # headlines without a company word stay only if a clear company story names the same company
+        strict = [a for a in articles if _strict((a.get("raw_title") or a["title"]).lower())]
+        known = set().union(*(a["names"] for a in strict)) if strict else set()
+        articles = [a for a in articles if a in strict or (a["names"] & known)]
     stories = ni.group_stories(articles, same=same_brand_story if name == "brands" else None)
     for s in stories:
         s["arena"] = name

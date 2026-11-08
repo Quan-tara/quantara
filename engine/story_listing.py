@@ -49,17 +49,26 @@ def _snapshot(s, old=None):
         "hazards": list(s.get("hazards") or (old or {}).get("hazards", [])),
         "ts": max(float((old or {}).get("ts", 0)), float(s.get("ts") or 0)),
         "company": s.get("company") or (old or {}).get("company"),
+        "outlets_eff": s.get("outlets_eff", (old or {}).get("outlets_eff")),
         "first_ts": min(x for x in [(old or {}).get("first_ts"), s.get("first_ts")] if x) if (s.get("first_ts") or (old or {}).get("first_ts")) else None,
     }
+
+
+def _inputs_from_snapshot(snap, now):
+    recent = sum(1 for a in snap.get("articles", []) if a["ts"] >= now - 12 * 3600)
+    return {"outlets": snap.get("outlets", 0), "outlets_eff": snap.get("outlets_eff"),
+            "regions": snap.get("regions", []), "severity": snap.get("severity", 0),
+            "recent_12h": recent, "ts": snap.get("ts") or now}
+
+
+def _inputs_from_live(s):
+    return {k: s.get(k) for k in ("outlets", "outlets_eff", "regions", "severity", "recent_12h", "ts")}
 
 
 def _score_from_snapshot(snap, now):
     """Score of a listed story that isn't in this run's news: same formula, stored articles."""
     from engine.narrative_index import story_score
-    recent = sum(1 for a in snap.get("articles", []) if a["ts"] >= now - 12 * 3600)
-    return story_score({"outlets": snap.get("outlets", 0), "regions": snap.get("regions", []),
-                        "severity": snap.get("severity", 0), "recent_12h": recent,
-                        "ts": snap.get("ts") or now}, now)
+    return story_score(_inputs_from_snapshot(snap, now), now)
 
 
 # Per-arena listing rules. Brand scandals get far wider coverage than food recalls,
@@ -139,7 +148,7 @@ def _settle(session, sid, final=None, refund=False):
 def listed_for_matching(session, arena="food"):
     """LISTED stories of one arena in the shape assign_story_ids matches against."""
     out = []
-    for n in _arena_filter(session.query(Narrative).filter(Narrative.status == "LISTED"), arena).all():
+    for n in _arena_filter(session.query(Narrative).filter(Narrative.status.in_(["LISTED", "DELISTED"])), arena).all():
         snap = json.loads(n.snapshot or "{}")
         out.append({"sid": n.sid, "first_seen": n.first_seen, "score": n.last_score,
                     "tokens": snap.get("tokens", []), "hazards": snap.get("hazards", [])})
@@ -185,10 +194,15 @@ def update_listings(stories, session, now=None, arena="food"):
         if s:
             snap = _snapshot(s, snap)
             score = s["story_score"]
+            inputs = _inputs_from_live(s)
             n.title, n.url, n.source = s["title"], s["url"], s["source"]
             n.last_seen = now
         else:
+            inputs = _inputs_from_snapshot(snap, now)
             score = _score_from_snapshot(snap, now)
+        # exactly what this score was computed from — the story page's breakdown uses it,
+        # and it stays frozen once the story closes
+        snap["score_inputs"] = {**inputs, "at": now}
         n.snapshot = json.dumps(snap)
         n.last_score = score
         n.peak_score = max(n.peak_score or 0, score)
@@ -207,7 +221,8 @@ def update_listings(stories, session, now=None, arena="food"):
     for s in sorted(stories, key=lambda x: x["story_score"], reverse=True):
         if s["sid"] in known:
             continue
-        if s["story_score"] < rules["score"] or s["outlets"] < rules["outlets"]:
+        eff = s.get("outlets_eff", s["outlets"])
+        if s["story_score"] < rules["score"] or eff < rules["outlets"]:
             continue
         if room is not None:
             if room <= 0:
@@ -217,7 +232,8 @@ def update_listings(stories, session, now=None, arena="food"):
                       status="LISTED", first_seen=s.get("first_seen"), listed_at=now,
                       closes_at=now + LIST_WINDOW_H * 3600, list_score=s["story_score"],
                       last_score=s["story_score"], peak_score=s["story_score"],
-                      last_seen=now, snapshot=json.dumps(_snapshot(s)))
+                      last_seen=now, snapshot=json.dumps({**_snapshot(s),
+                                                          "score_inputs": {**_inputs_from_live(s), "at": now}}))
         session.add(n)
         for ts, sc in history_from_readings(session, s["sid"], now - BACKFILL_H * 3600, arena):
             session.add(NarrativePoint(sid=s["sid"], ts=ts, score=sc))
@@ -234,3 +250,30 @@ def update_listings(stories, session, now=None, arena="food"):
         s["listed"] = bool(n and n.status == "LISTED")
         s["list_status"] = n.status if n else None
         s["closes_at"] = n.closes_at if n else None
+
+
+def delist(sid, moderator_id, reason=None):
+    """A moderator removes a listed story (wrong arena, politics, private person, roundup…).
+    All positions are refunded. The story keeps its id, so it is never listed again."""
+    from db.database import SessionLocal
+    from engine.story_comments import is_moderator
+    if not is_moderator(moderator_id):
+        raise PermissionError("Moderators only")
+    session = SessionLocal()
+    try:
+        n = session.query(Narrative).filter(Narrative.sid == sid).first()
+        if not n:
+            raise LookupError("Story not found")
+        if n.status != "LISTED":
+            raise ValueError(f"Story is already {n.status.lower()}")
+        now = time.time()
+        snap = json.loads(n.snapshot or "{}")
+        snap["delisted"] = {"by": str(moderator_id), "reason": (reason or "")[:200], "at": now}
+        n.snapshot = json.dumps(snap)
+        n.status, n.closed_at = "DELISTED", now
+        _settle(session, sid, refund=True)
+        session.commit()
+        print(f"🚫 Story delisted  {sid}  by moderator  {n.title[:70]}")
+        return True
+    finally:
+        session.close()

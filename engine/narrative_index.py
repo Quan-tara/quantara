@@ -447,7 +447,7 @@ def pull_rss_articles(profile=None):
 
                 summary = re.sub(r"<[^>]+>", " ", e.get("summary", "") or "")
                 text = (title + " " + summary).lower()
-                if not pr["relevant"](text, title.lower()):
+                if not pr["relevant"](text, title):
                     continue
 
                 articles.append({
@@ -524,6 +524,17 @@ def _merge_same_event(stories):
     return stories
 
 
+# Sources that publish about stories for their own business (injury-law firms, their blogs)
+# count for a quarter of an outlet and never supply the headline shown.
+LOW_WEIGHT_RX = re.compile(r"marler|food poison journal|\blaw\b|law firm|law group|lawyers?\b|attorneys?\b|"
+                           r"\bllp\b|\bpllc\b|injury|solomon's words", re.I)
+LOW_WEIGHT = 0.25
+
+
+def outlet_weight(source):
+    return LOW_WEIGHT if LOW_WEIGHT_RX.search(source or "") else 1.0
+
+
 def group_stories(articles, same=None):
     """Greedy clustering: each article joins the first story it matches.
     `same`: an arena's own matching rule (default: food rule)."""
@@ -547,9 +558,10 @@ def group_stories(articles, same=None):
         negativity = sum(x["negativity"] for x in m) / len(m)
         cats = set().union(*(x["categories"] for x in m))
         spread = any(x["spread"] for x in m)
-        # headline to show: the most widely-worded (longest token set) recent one
-        lead = max(m, key=lambda x: (len(x["tokens"]), x["ts"]))
+        # headline to show: from a real news outlet if possible, the most widely-worded recent one
+        lead = max(m, key=lambda x: (outlet_weight(x["source"]) == 1.0, len(x["tokens"]), x["ts"]))
         n_out = len(outlets)
+        n_eff = round(sum(outlet_weight(o) for o in outlets), 2)
         score = severity * 0.5 + negativity * 0.2 + min(1.0, math.log2(1 + n_out) / 4) * 0.6
         impact = max(1, min(5, round(1 + severity * 2 + math.log2(1 + n_out))))
         # CRISIS needs real harm (deaths, hospitalisations, Class I) AND pickup
@@ -570,6 +582,7 @@ def group_stories(articles, same=None):
             "ts":         max(x["ts"] for x in m),
             "first_ts":   min(x["ts"] for x in m),
             "outlets":    n_out,
+            "outlets_eff": n_eff,
             "articles":   len(m),
             "regions":    regions,
             "categories": sorted(cats),
@@ -610,7 +623,8 @@ TREND_HOURS     = 3      # trend arrow compares with the score this many hours a
 
 def story_score(s, now=None):
     now = now or time.time()
-    reach = min(1.0, math.log2(1 + s["outlets"]) / math.log2(41))
+    eff = s.get("outlets_eff")
+    reach = min(1.0, math.log2(1 + (s["outlets"] if eff is None else eff)) / math.log2(41))
     geo = min(1.0, len(s.get("regions") or []) / 4)
     sev = float(s.get("severity") or 0)
     mom = min(1.0, s.get("recent_12h", 0) / 8)
@@ -623,17 +637,22 @@ def story_score_parts(s, now=None):
     """The story score split into its parts (for the story page). Same formula as story_score."""
     now = now or time.time()
     outlets = int(s.get("outlets") or 0)
+    eff = s.get("outlets_eff")
+    eff = outlets if eff is None else float(eff)
     regions = list(s.get("regions") or [])
     sev = float(s.get("severity") or 0)
     recent = int(s.get("recent_12h") or 0)
-    reach = min(1.0, math.log2(1 + outlets) / math.log2(41))
+    reach = min(1.0, math.log2(1 + eff) / math.log2(41))
     geo = min(1.0, len(regions) / 4)
     mom = min(1.0, recent / 8)
     age_h = max(0.0, (now - float(s.get("ts") or now)) / 3600)
     fresh = 1.0 if age_h <= 12 else max(0.3, 1 - (age_h - 12) / 86)
     parts = [
         {"key": "reach", "label": "Reach", "weight": 45, "share": round(reach, 3),
-         "points": round(45 * reach, 1), "detail": f"{outlets} outlet{'s' if outlets != 1 else ''} — full marks at 40"},
+         "points": round(45 * reach, 1),
+         "detail": f"{outlets} outlet{'s' if outlets != 1 else ''} in the current news"
+                   + (f" ({eff:g} counted — law-firm blogs count ¼)" if abs(eff - outlets) > 0.01 else "")
+                   + " — full marks at 40"},
         {"key": "regions", "label": "Regions", "weight": 15, "share": round(geo, 3),
          "points": round(15 * geo, 1), "detail": f"{len(regions)} of 4 ({', '.join(regions) or 'none'})"},
         {"key": "severity", "label": "Severity", "weight": 20, "share": round(sev, 3),
@@ -757,7 +776,7 @@ def compact_story_index(stories):
              "outlets": s["outlets"], "articles": s["articles"], "regions": s["regions"],
              "categories": s["categories"], "first_seen": s["first_seen"], "ts": s["ts"],
              "url": s["url"], "source": s["source"], "listed": s.get("listed", False),
-             "severity": s["severity"], "recent_12h": s["recent_12h"],
+             "severity": s["severity"], "recent_12h": s["recent_12h"], "outlets_eff": s.get("outlets_eff"),
              "company": s.get("company"), "arena": s.get("arena", "food"),
              "closes_at": s.get("closes_at"),
              "tokens": s["tokens"][:40], "hazards": s["hazards"]} for s in top]

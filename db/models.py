@@ -260,3 +260,19 @@ class ArenaReading(Base):
     ts          = Column(Float, nullable=False, index=True)
     story_index = Column(Text, nullable=False)     # JSON list, same shape as FSNI story_index
     meta        = Column(Text, nullable=True)      # JSON: feeds ok, articles, stories…
+
+
+class BehaviourSignal(Base):
+    """Daily Google Trends check for a listed story: are people searching to act
+    (boycott / cancel / alternative)? Test data — not used to settle anything yet."""
+    __tablename__ = "behaviour_signals"
+
+    id      = Column(Integer, primary_key=True, autoincrement=True)
+    sid     = Column(String(16), nullable=False, index=True)
+    ts      = Column(Float, nullable=False, index=True)
+    geo     = Column(String(4), nullable=True)
+    company = Column(String(120), nullable=True)
+    status  = Column(String(12), nullable=False, default="OK")    # OK | ERROR | NO_DATA
+    result  = Column(Text, nullable=True)      # JSON: per term {ratio, recent, baseline}, verdict
+    series  = Column(Text, nullable=True)      # JSON: daily values per term (for charts later)
+    error   = Column(String(300), nullable=True)

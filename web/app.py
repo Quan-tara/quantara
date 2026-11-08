@@ -1903,6 +1903,17 @@ def api_social(sid: str, user_id: str = None):
         session.close()
 
 
+@app.get("/api/youtube/status")
+def api_youtube_status():
+    """YouTube recorder health: quota used today, pause, last error, last 10 checks (no key shown)."""
+    from engine.youtube import status
+    session = SessionLocal()
+    try:
+        return status(session)
+    finally:
+        session.close()
+
+
 @app.get("/api/behaviour/{sid}")
 def api_behaviour(sid: str):
     """Behaviour checks recorded for one story (test phase)."""

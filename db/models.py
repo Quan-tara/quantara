@@ -294,3 +294,16 @@ class SocialSignal(Base):
     status  = Column(String(12), nullable=False, default="OK")   # OK | ERROR
     error   = Column(String(300), nullable=True)
     sample  = Column(Text, nullable=True)         # JSON: most-liked posts (moderators only)
+
+
+class BacktestResult(Base):
+    """One past case re-measured by the back-test: what our signals would have shown
+    around the event, next to the company's share price (research only)."""
+    __tablename__ = "backtest_results"
+
+    id     = Column(Integer, primary_key=True, autoincrement=True)
+    run_ts = Column(Float, nullable=False, index=True)
+    key    = Column(String(40), nullable=False, index=True)
+    status = Column(String(12), nullable=False, default="OK")      # OK | PARTIAL | ERROR
+    result = Column(Text, nullable=True)       # JSON: summary + daily series
+    error  = Column(String(500), nullable=True)

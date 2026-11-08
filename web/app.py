@@ -1909,6 +1909,80 @@ def api_social(sid: str, user_id: str = None):
         session.close()
 
 
+@app.get("/company")
+def serve_company():
+    return FileResponse(os.path.join(os.path.dirname(__file__), "company.html"))
+
+
+@app.get("/api/reputation")
+def api_reputation(days: int = 7):
+    """Food Reputation Index: now, outlook, history, the stories driving it."""
+    from engine.reputation import snapshot
+    from engine.everyday import SECTORS
+    session = SessionLocal()
+    try:
+        out = snapshot(session, days=max(1, min(days, 90)))
+        out["sectors"] = list(SECTORS.keys())
+        return out
+    finally:
+        session.close()
+
+
+@app.get("/api/reputation/you")
+def api_reputation_you(sector: str = None, brand: str = None):
+    """Live stories touching a company's category or naming its brand."""
+    from engine.reputation import for_company
+    session = SessionLocal()
+    try:
+        return {"stories": for_company(session, sector, (brand or "")[:60])}
+    finally:
+        session.close()
+
+
+@app.get("/api/protection/quote")
+def api_protection_quote(days: int = 30, strike: float = None, cover: float = 10000):
+    from engine.reputation import quote
+    session = SessionLocal()
+    try:
+        return quote(session, max(7, min(days, 90)), strike, max(1000.0, min(cover, 10_000_000.0)))
+    finally:
+        session.close()
+
+
+class ProtectionBuy(BaseModel):
+    user_id: str
+    days: int = 30
+    strike: float
+    cover: float = 10000
+    sector: _Opt[str] = None
+    brand: _Opt[str] = None
+
+
+@app.post("/api/protection/buy")
+def api_protection_buy(req: ProtectionBuy):
+    """Demo: buy protection on the Food Reputation Index (no real money)."""
+    from engine.reputation import buy
+    session = SessionLocal()
+    try:
+        out = buy(session, parse_user_id(req.user_id), max(7, min(req.days, 90)), req.strike,
+                  max(1000.0, min(req.cover, 10_000_000.0)), (req.sector or None), (req.brand or "")[:60])
+        if out.get("error"):
+            raise HTTPException(400, out["error"])
+        return out
+    finally:
+        session.close()
+
+
+@app.get("/api/protection/positions")
+def api_protection_positions(user_id: str):
+    from engine.reputation import positions
+    session = SessionLocal()
+    try:
+        return {"positions": positions(session, parse_user_id(user_id))}
+    finally:
+        session.close()
+
+
 @app.get("/api/discovery")
 def api_discovery():
     """Food brands rising on Bluesky right now (story discovery)."""

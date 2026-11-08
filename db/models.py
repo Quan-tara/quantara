@@ -324,3 +324,40 @@ class BrandBuzz(Base):
     top_post = Column(Text, nullable=True)         # JSON: most-liked post
     status   = Column(String(12), nullable=False, default="OK")
     error    = Column(String(300), nullable=True)
+
+
+class ReputationTick(Base):
+    """Food Reputation Index reading (every collector run): safety part (the FSNI) + social part
+    (food & drink stories people talk about), plus the outlook (where it is likely heading)."""
+    __tablename__ = "reputation_ticks"
+
+    id      = Column(Integer, primary_key=True, autoincrement=True)
+    ts      = Column(Float, nullable=False, index=True)
+    value   = Column(Float, nullable=False)
+    safety  = Column(Float, nullable=True)
+    social  = Column(Float, nullable=True)
+    normal  = Column(Float, nullable=True)        # median of the last 7 days (None while warming up)
+    outlook = Column(Float, nullable=True)        # 0–100
+    label   = Column(String(24), nullable=True)   # calm | watch | pressure building
+    parts   = Column(Text, nullable=True)         # JSON: outlook parts
+    top     = Column(Text, nullable=True)         # JSON: stories driving the social part
+
+
+class ProtectionPosition(Base):
+    """Demo protection bought by a company: pays if the Food Reputation Index averages above
+    the strike over the cover period (10% of the cover per point above, up to 100%)."""
+    __tablename__ = "protection_positions"
+
+    id       = Column(Integer, primary_key=True, autoincrement=True)
+    user_id  = Column(BigInteger, nullable=False, index=True)
+    sector   = Column(String(40), nullable=True)
+    brand    = Column(String(60), nullable=True)
+    notional = Column(Float, nullable=False)
+    strike   = Column(Float, nullable=False)
+    start_ts = Column(Float, nullable=False)
+    end_ts   = Column(Float, nullable=False, index=True)
+    premium  = Column(Float, nullable=False)
+    status   = Column(String(12), nullable=False, default="OPEN")   # OPEN | SETTLED
+    average  = Column(Float, nullable=True)
+    payout   = Column(Float, nullable=True)
+    settled_at = Column(Float, nullable=True)

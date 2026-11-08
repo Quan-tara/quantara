@@ -86,11 +86,18 @@ def search(query, hours=24):
 
 
 def query_for(title_list, company):
-    from engine.everyday import topic_words
-    words = topic_words(title_list, company, n=2)
-    if company:
-        return f"{company} {words[0]}" if words else company
-    return " ".join(words) if len(words) >= 2 else None
+    """Bluesky search for a story — only when it is clearly about a company:
+    '"<Company>" <topic word>'. Stories without a company, with a place as 'company',
+    or in another language are skipped: two loose headline words find unrelated posts."""
+    from engine.everyday import topic_words, english_only
+    from engine.arenas import PLACES
+    if not company or company.lower() in PLACES:
+        return None
+    titles = [t for t in (title_list or []) if english_only(t)]
+    if not titles:
+        return None
+    words = topic_words(titles, company, n=1)
+    return f'"{company}" {words[0]}' if words else f'"{company}"'
 
 
 def _check(session, sid, titles, company):
@@ -143,6 +150,7 @@ def run_social_checks():
                 if now - last.get(x["sid"], 0) >= CANDIDATE_EVERY_MIN * 60:
                     jobs.append((x["sid"], [x["title"]], x.get("company")))
         done = 0
+        jobs = [j for j in jobs if query_for(j[1], j[2])]       # only stories with a clear company
         for sid, titles, company in jobs[:MAX_SEARCHES_RUN]:
             rec = _check(session, sid, titles, company)
             done += 1

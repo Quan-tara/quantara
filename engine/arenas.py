@@ -95,6 +95,14 @@ HARD_POLITICS = [
     "democrats", "republicans", "gop", "congress", "senate", "parliament", "lawmakers",
     "wahlkampf", "wahl", "wähler", "bundestag", "landtag",
 ]
+# religion, ethnicity, war and the Middle East — too heated for a betting game, never listed
+SENSITIVE_TERMS = [
+    "jewish", "jew", "jews", "muslim", "islam", "islamic", "christian", "catholic", "hindu", "sikh",
+    "religious", "religion", "synagogue", "mosque", "rabbi", "imam", "antisemitic",
+    "antisemitism", "islamophobia", "islamophobic", "israel", "israeli", "gaza", "palestine",
+    "palestinian", "hamas", "hezbollah", "zionist", "west bank", "racist", "racism", "racial",
+    "ethnic", "ethnicity", "genocide", "terrorist", "terrorism", "shooting", "airstrike", "ceasefire",
+]
 STRONG_CORPORATE = [
     "inc", "corp", "corporation", "plc", "ltd", "llc", "ag", "gmbh", "company", "companies", "firm",
     "ceo", "chief executive", "shares", "shareholders", "stock", "brand", "retailer", "manufacturer",
@@ -119,6 +127,15 @@ dallas atlanta miami denver phoenix detroit california texas florida york washin
 illinois georgia virginia carolina arizona nevada oregon colorado massachusetts pennsylvania jersey
 bavaria bayern hessen sachsen nrw manchester birmingham liverpool leeds glasgow edinburgh bristol
 redditch silicon valley wall street europe asia africa americas
+philadelphia brooklyn manhattan queens bronx harlem baltimore pittsburgh cleveland cincinnati columbus
+indianapolis milwaukee minneapolis nashville memphis louisville charlotte raleigh richmond orlando tampa
+jacksonville austin antonio sacramento oakland portland diego francisco angeles vegas orleans honolulu
+anchorage omaha tulsa albuquerque tucson newark buffalo hartford providence st louis kansas missouri
+wisconsin minnesota tennessee kentucky alabama louisiana mississippi arkansas oklahoma iowa nebraska
+utah idaho montana wyoming dakota hawaii alaska maine vermont connecticut maryland delaware
+cardiff swansea newport belfast aberdeen dundee sheffield nottingham leicester coventry newcastle
+brighton southampton portsmouth cambridge oxford york norwich exeter plymouth cornwall devon kent essex
+yorkshire lancashire surrey sussex dorset somerset cumbria
 """.split())
 _ROAD_RX = re.compile(r"^(?:[a-z]{1,2}-?\d{1,4}|\d+)$", re.I)     # M56, A9, I-95, B12, 2026
 # everyday headline words that are never (part of the edge of) a company name

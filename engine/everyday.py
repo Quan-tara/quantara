@@ -235,6 +235,25 @@ _IN_RX = re.compile(r"₹|\brs\.?\s?\d|\binr\b|\blakh\b|\bcrore\b|\bindia(n)?\b|
                     r"\bkolkata\b|\bpune\b|\bkerala\b|\btamil nadu\b|\bmaharashtra\b", re.I)
 
 
+# list articles ("5 Finds Costco Already Discontinued", "10 best snacks", "Every pizza chain, ranked")
+# — nobody argues about them and nobody changes what they buy over them
+LISTICLE_RX = re.compile(
+    r"^\W*\d{1,2}\s+(?:[\w'’-]+\s+){0,3}?(?:things|finds|ways|reasons|foods|items|products|snacks|drinks|"
+    r"recipes|brands|restaurants|chains|spots|places|tips|tricks|hacks|picks|favorites|favourites|"
+    r"best|worst|must|essentials|staples|meals|dishes|treats|sweets|desserts|cereals|chips|candies|"
+    r"sodas|beers|wines|grocery|groceries|costco|trader|aldi|walmart|target|kroger)\b"
+    r"|\b(?:the\s+)?(?:top\s+)?\d{1,2}\s+best\b|\branked\b|\branking\b|\btaste[- ]test\b|"
+    r"\bwe tried\b|\bi tried\b|\bbest\s+[\w\s]{0,20}\bto\s+(?:buy|try)\b|\bshopping list\b", re.I)
+
+
+def blocked_title(text, title):
+    """Shared hard filters: deals, list articles, politics, religion/ethnicity/war."""
+    t = title or ""
+    if DEAL_RX.search(t) or LISTICLE_RX.search(t):
+        return True
+    return ni._has_any(text, A.HARD_POLITICS) or ni._has_any(text, A.SENSITIVE_TERMS)
+
+
 def english_only(title):
     """English, and meant for a US/UK/European audience."""
     t = title or ""
@@ -242,13 +261,11 @@ def english_only(title):
 
 
 def _everyday_relevant(text, title):
-    if not english_only(title) or DEAL_RX.search(title or ""):
+    if not english_only(title) or blocked_title(text, title):
         return False
     if ni._has_any(text, A.EXCLUDE_TERMS):
         return False
     if A.ROUNDUP_RX.search(title or ""):
-        return False
-    if ni._has_any(text, A.HARD_POLITICS):
         return False
     if ni._has_any(text, A.POLITICS_TERMS) and not (ni._has_any(text, FOOD_BRANDS)
                                                     or ni._has_any(text, A.STRONG_CORPORATE)):
@@ -394,9 +411,7 @@ def pull_trending(seen=None):
                 text = (title + " " + term).lower()
                 if ni._has_any(text, A.EXCLUDE_TERMS) or A.ROUNDUP_RX.search(title):
                     continue
-                if not english_only(title) or DEAL_RX.search(title):
-                    continue
-                if ni._has_any(text, A.HARD_POLITICS):
+                if not english_only(title) or blocked_title(text, title):
                     continue
                 if ni._has_any(text, A.POLITICS_TERMS) and not ni._has_any(text, FOOD_BRANDS):
                     continue
@@ -539,7 +554,7 @@ def reach_check(stories, articles, top=REACH_TOP):
                 continue
             if b_low not in tl or not any(w in tl for w in words):
                 continue                                # not clearly the same story
-            if not english_only(t) or DEAL_RX.search(t) or ni._has_any(tl, A.EXCLUDE_TERMS):
+            if not english_only(t) or blocked_title(tl, t) or ni._has_any(tl, A.EXCLUDE_TERMS):
                 continue
             seen.add(key)
             extra.append({

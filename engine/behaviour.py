@@ -36,7 +36,7 @@ TERMS = {
     "en": ["boycott {c}", "cancel {c}", "{c} alternative"],
     "de": ["{c} boykott", "{c} kündigen", "{c} alternative"],
 }
-GEO_FOR_REGION = [("US", "US", "en"), ("UK", "GB", "en"), ("EU", "DE", "de"), ("AU", "AU", "en")]
+GEO_FOR_REGION = [("US", "US", "en"), ("UK", "GB", "en"), ("AU", "AU", "en")]   # English only for now
 UA = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
                     "(KHTML, like Gecko) Chrome/124.0 Safari/537.36",
       "Accept-Language": "en-US,en;q=0.9"}

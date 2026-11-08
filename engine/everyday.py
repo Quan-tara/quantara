@@ -48,6 +48,21 @@ CONSUMER_BRANDS = [
     "dhl", "royal mail", "deliveroo", "uber eats", "lieferando", "doordash", "instacart", "zalando",
     "lego", "barbie", "mattel", "peloton", "fitbit", "gymshark", "boots", "superdrug", "sephora",
     "ulta", "lush", "apple tv", "paramount", "peacock", "dazn", "crunchyroll", "duolingo", "tinder",
+    "vinted", "etsy", "depop", "jetblue", "trainline", "skims", "duckduckgo", "rogers", "nvidia", "meta",
+    "disney", "sony", "hulu", "roku", "twitch", "discord", "reddit", "pinterest", "linkedin", "zoom",
+    "canva", "adobe", "dropbox", "robinhood", "coinbase", "venmo", "cash app", "chase", "wells fargo",
+    "bank of america", "barclays", "hsbc", "lloyds", "natwest", "monzo", "starling", "virgin media",
+    "bt", "ee", "comcast", "xfinity", "spectrum", "spirit airlines", "frontier airlines", "alaska airlines",
+    "jet2", "tui", "virgin atlantic", "emirates", "qatar airways", "air canada", "westjet", "expedia",
+    "hertz", "avis", "waitrose", "marks & spencer", "m&s", "john lewis", "argos", "currys", "home depot",
+    "lowe's", "best buy", "kroger", "trader joe's", "whole foods", "safeway", "cvs", "walgreens",
+    "dunkin", "krispy kreme", "tim hortons", "nando's", "wetherspoons", "five guys", "chick-fil-a",
+    "popeyes", "papa john's", "shake shack", "panera", "heinz", "kellogg's", "mars", "hershey", "oreo",
+    "doritos", "pringles", "monster energy", "prime hydration", "stanley", "crocs", "lululemon", "under armour",
+    "new balance", "converse", "vans", "uniqlo", "gap", "old navy", "victoria's secret", "asos", "boohoo",
+    "ugg", "airpods", "ipad", "macbook", "galaxy", "pixel", "kindle", "alexa", "fortnite", "epic games",
+    "roblox", "minecraft", "call of duty", "ubisoft", "valve", "rockstar", "gta", "ea sports", "bud light",
+    "anheuser-busch", "jaguar", "harley-davidson", "ford", "toyota", "honda",
 ]
 
 EVERYDAY_WORDS = [
@@ -155,7 +170,20 @@ def relatability(text, trending=False):
     return ok, {"brand": brand, "everyday": everyday, "reaction": reaction, "jargon": jargon}
 
 
+# shopping deals and coupon posts are not controversies
+DEAL_RX = re.compile(r"\$\d[\d,]*\s*-?\s*off|\d+\s*%\s*off|\bdeals?\b|\bdiscount|\bon sale\b|"
+                     r"\bcoupon|\bpromo code|\bblack friday\b|\bcyber monday\b|\bprime day\b", re.I)
+# German (or other non-English) headlines are left out for now
+_DE_RX = re.compile(r"\b(der|die|das|und|für|über|nicht|mit|wegen|teurer|erwägt|keine)\b|[äöüß]", re.I)
+
+
+def english_only(title):
+    return not _DE_RX.search(title or "")
+
+
 def _everyday_relevant(text, title):
+    if not english_only(title) or DEAL_RX.search(title or ""):
+        return False
     if ni._has_any(text, A.EXCLUDE_TERMS):
         return False
     if A.ROUNDUP_RX.search(title or ""):
@@ -217,9 +245,6 @@ EVERYDAY_FEEDS = [
     _gn("boycott+brand+OR+%22goes+viral%22+customers", "US"),
     _gn("shoppers+furious+OR+customers+fuming+OR+%22price+rise%22", "UK"),
     _gn("passengers+OR+customers+%22slammed%22+OR+%22backlash%22", "UK"),
-    _gn("Kunden+sauer+OR+Empörung+OR+Preiserhöhung", "DE"),
-    _gn("Shitstorm+Marke+OR+Kunden+OR+Fans", "DE"),
-    _gn("Abo+teurer+OR+Preiserh%C3%B6hung+Streaming+OR+Netflix", "DE"),
     ("https://www.theguardian.com/money/rss", "UK"),
     ("https://feeds.bbci.co.uk/news/business/rss.xml", "UK"),
     ("https://feeds.bbci.co.uk/news/technology/rss.xml", "UK"),
@@ -239,7 +264,7 @@ EVERYDAY_PROFILE = {
 # Google Trends daily trending searches (free RSS) — what people actually search for today
 # ─────────────────────────────────────────────
 
-TRENDS_GEOS = [("US", "US"), ("GB", "UK"), ("DE", "EU")]
+TRENDS_GEOS = [("US", "US"), ("GB", "UK")]          # English only for now (German later)
 TRENDS_URLS = ["https://trends.google.com/trending/rss?geo={geo}",
                "https://trends.google.com/trends/trendingsearches/daily/rss?geo={geo}"]
 
@@ -307,6 +332,8 @@ def pull_trending(seen=None):
                 text = (title + " " + term).lower()
                 if ni._has_any(text, A.EXCLUDE_TERMS) or A.ROUNDUP_RX.search(title):
                     continue
+                if not english_only(title) or DEAL_RX.search(title):
+                    continue
                 if ni._has_any(text, A.HARD_POLITICS):
                     continue
                 if ni._has_any(text, A.POLITICS_TERMS) and not ni._has_any(text, CONSUMER_BRANDS):
@@ -324,3 +351,26 @@ def pull_trending(seen=None):
                 })
     print(f"📈 [everyday] trends {ok}/{len(TRENDS_GEOS)} OK | {len(out)} relatable / {total} trending news items")
     return out, {"trends_ok": ok}
+
+
+def brand_in(titles):
+    """The consumer brand the headlines are about: most mentioned, earliest first.
+    Returned in the spelling the headline uses ("McDonald's", "PlayStation")."""
+    counts, first, shown = {}, {}, {}
+    for i, t in enumerate(titles or []):
+        low = t.lower()
+        for b in CONSUMER_BRANDS:
+            m = re.search(r"(?<![\w])" + re.escape(b) + r"(?![\w])", low)
+            if not m:
+                continue
+            counts[b] = counts.get(b, 0) + 1
+            first.setdefault(b, i * 1000 + m.start())
+            shown.setdefault(b, t[m.start():m.end()])
+    if not counts:
+        return None
+    # a longer brand that contains a shorter one wins ("playstation plus" over "plus", "bud light" over "light")
+    best = sorted(counts, key=lambda b: (-counts[b], first[b], -len(b)))[0]
+    for b in counts:
+        if b != best and best in b and counts[b] >= counts[best] - 0:
+            best = b
+    return shown[best]

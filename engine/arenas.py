@@ -91,7 +91,7 @@ POLITICS_TERMS = [
 ]
 # clearly political: no brand can make these a consumer story
 HARD_POLITICS = [
-    "midterm", "midterms", "voter", "voters", "election", "elections", "ballot", "campaign",
+    "prime minister", "president", "chancellor", "minister", "government", "midterm", "midterms", "voter", "voters", "election", "elections", "ballot", "campaign",
     "democrats", "republicans", "gop", "congress", "senate", "parliament", "lawmakers",
     "wahlkampf", "wahl", "wähler", "bundestag", "landtag",
 ]
@@ -392,6 +392,11 @@ def extract_company(titles):
             if key in seen:
                 continue
             seen.add(key)
+            if not sentence_case and len(parts) > 2:      # Title Case run → keep the head of it
+                parts = parts[:2]
+                name, key = " ".join(parts), " ".join(parts).lower()
+                if key in seen:
+                    continue
             w = 2.0 if sentence_case and m.start() > 0 else 1.0
             if m.start() < len(t) * 0.45:          # names near the front are usually the subject
                 w += 0.5
@@ -451,9 +456,9 @@ def collect_arena(name, profile):
         s["arena"] = name
         s["company"] = extract_company(s.get("raw_titles"))
         if name == "everyday":
-            from engine.everyday import sector_of, CONSUMER_BRANDS
-            if s["company"] and (s["company"] + "'s").lower() in CONSUMER_BRANDS:
-                s["company"] += "'s"
+            from engine.everyday import sector_of, brand_in
+            # a known consumer brand in the headlines always wins over the guessed name
+            s["company"] = brand_in(s.get("raw_titles")) or s["company"]
             s["sector"] = sector_of(" ".join(s.get("raw_titles") or []).lower())
             tr = [by_title[t] for t in s.get("raw_titles") or [] if t in by_title and by_title[t].get("trend")]
             if tr:

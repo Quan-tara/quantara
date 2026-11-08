@@ -1857,11 +1857,14 @@ def api_story_candidates(user_id: str, arena: str = "everyday", limit: int = 25)
         rows = [x for x in idx if not x.get("listed")]
         rows.sort(key=lambda x: x.get("score") or 0, reverse=True)
         from db.models import SocialSignal
-        buzz = {}
+        buzz, vids = {}, {}
         for b in (session.query(SocialSignal).filter(SocialSignal.sid.in_([x.get("sid") for x in rows[:60]] or ["-"]),
                                                      SocialSignal.status == "OK")
                   .order_by(SocialSignal.ts).all()):
-            buzz[b.sid] = b.posts
+            if b.source == "youtube":
+                vids[b.sid] = b.reposts
+            else:
+                buzz[b.sid] = b.posts
         rules = rules_for(arena)
         out = []
         for x in rows[:max(1, min(limit, 60))]:
@@ -1874,7 +1877,7 @@ def api_story_candidates(user_id: str, arena: str = "everyday", limit: int = 25)
             if x.get("list_status"):
                 why.append(f"was {x['list_status'].lower()}")
             out.append({"sid": x.get("sid"), "title": x.get("title"), "score": x.get("score"),
-                        "buzz": buzz.get(x.get("sid")),
+                        "buzz": buzz.get(x.get("sid")), "views": vids.get(x.get("sid")),
                         "outlets": x.get("outlets"), "company": x.get("company"), "sector": x.get("sector"),
                         "trending": x.get("trending"), "regions": x.get("regions"),
                         "why_not": "; ".join(why) or "cap reached or listed earlier"})
@@ -1892,7 +1895,10 @@ def api_social(sid: str, user_id: str = None):
     mod = bool(user_id) and is_moderator(parse_user_id(user_id))
     session = SessionLocal()
     try:
-        return buzz_for(session, sid[:16], moderator=mod)
+        from engine.youtube import video_buzz_for
+        out = buzz_for(session, sid[:16], moderator=mod)
+        out["youtube"] = video_buzz_for(session, sid[:16], moderator=mod)
+        return out
     finally:
         session.close()
 

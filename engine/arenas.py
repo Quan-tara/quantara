@@ -289,8 +289,10 @@ BRAND_PROFILE = {
     "severity": _brand_severity,
 }
 
-ARENAS = {"brands": BRAND_PROFILE}
-ARENA_LABELS = {"food": "Food safety", "brands": "Brand scandals"}
+ARENAS = {"brands": BRAND_PROFILE}          # "everyday" is added at the bottom (engine/everyday.py)
+ARENA_LABELS = {"food": "Food safety", "brands": "Brand scandals", "everyday": "Everyday"}
+# arenas that only keep their already-listed stories up to date (no news pulled, nothing new listed)
+MAINTENANCE_ONLY = {"brands"}
 
 
 # ─────────────────────────────────────────────
@@ -386,11 +388,28 @@ def extract_company(titles):
 # COLLECT
 # ─────────────────────────────────────────────
 
+def maintain_arena(name):
+    """No new news: listed stories fade from their stored articles and close on time."""
+    from db.database import SessionLocal
+    from engine.story_listing import update_listings
+    session = SessionLocal()
+    try:
+        update_listings([], session, arena=name)
+    finally:
+        session.close()
+
+
 def collect_arena(name, profile):
     from db.database import SessionLocal
     from db.models import ArenaReading
     from engine.story_listing import update_listings
     articles, stats = ni.pull_rss_articles(profile)
+    if name == "everyday":
+        from engine.everyday import pull_trending
+        seen = {(a["title"].lower(), a["source"].lower()) for a in articles}
+        trending, tstats = pull_trending(seen)
+        articles += trending
+        stats = {**stats, **tstats, "feeds_ok": stats.get("feeds_ok", 0) + tstats.get("trends_ok", 0)}
     if stats.get("feeds_ok", 0) == 0:
         print(f"⏭️ [{name}] no feeds reachable — reading skipped")
         return None
@@ -401,10 +420,22 @@ def collect_arena(name, profile):
         strict = [a for a in articles if _strict((a.get("raw_title") or a["title"]).lower())]
         known = set().union(*(a["names"] for a in strict)) if strict else set()
         articles = [a for a in articles if a in strict or (a["names"] & known)]
-    stories = ni.group_stories(articles, same=same_brand_story if name == "brands" else None)
+    stories = ni.group_stories(articles, same=same_brand_story if name in ("brands", "everyday") else None)
+    by_title = {}
+    for a in articles:
+        by_title.setdefault(a.get("raw_title") or a["title"], a)
     for s in stories:
         s["arena"] = name
         s["company"] = extract_company(s.get("raw_titles"))
+        if name == "everyday":
+            from engine.everyday import sector_of, CONSUMER_BRANDS
+            if s["company"] and (s["company"] + "'s").lower() in CONSUMER_BRANDS:
+                s["company"] += "'s"
+            s["sector"] = sector_of(" ".join(s.get("raw_titles") or []).lower())
+            tr = [by_title[t] for t in s.get("raw_titles") or [] if t in by_title and by_title[t].get("trend")]
+            if tr:
+                top = max(tr, key=lambda a: a.get("traffic") or 0)
+                s["trending"] = {"term": top["trend"], "traffic": top.get("traffic") or 0}
     session = SessionLocal()
     try:
         ni.assign_story_ids(stories, session, arena=name)
@@ -428,6 +459,25 @@ def collect_arena(name, profile):
 def collect_all_arenas():
     for name, profile in ARENAS.items():
         try:
-            collect_arena(name, profile)
+            if name in MAINTENANCE_ONLY:
+                maintain_arena(name)
+            else:
+                collect_arena(name, profile)
         except Exception as e:
             print(f"❌ [{name}] arena collector error: {e}")
+    try:
+        from engine.behaviour import run_behaviour_checks
+        run_behaviour_checks()
+    except Exception as e:
+        print(f"❌ behaviour recorder error: {e}")
+
+
+def _register_everyday():
+    try:
+        from engine.everyday import EVERYDAY_PROFILE
+        ARENAS["everyday"] = EVERYDAY_PROFILE
+    except Exception as e:
+        print(f"⚠️ everyday arena not loaded: {e}")
+
+
+_register_everyday()

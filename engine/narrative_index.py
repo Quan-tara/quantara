@@ -247,7 +247,9 @@ _RX_CACHE = {}
 
 
 def _rx(terms):
-    key = id(terms)
+    # keyed by the words themselves (an id() key breaks for lists built on the fly:
+    # a new list can reuse an old list's address and get the wrong pattern)
+    key = tuple(terms)
     if key not in _RX_CACHE:
         parts = []
         for t in sorted(set(terms), key=len, reverse=True):
@@ -778,6 +780,7 @@ def compact_story_index(stories):
              "url": s["url"], "source": s["source"], "listed": s.get("listed", False),
              "severity": s["severity"], "recent_12h": s["recent_12h"], "outlets_eff": s.get("outlets_eff"),
              "company": s.get("company"), "arena": s.get("arena", "food"),
+             "sector": s.get("sector"), "trending": s.get("trending"),
              "closes_at": s.get("closes_at"),
              "tokens": s["tokens"][:40], "hazards": s["hazards"]} for s in top]
 

@@ -51,7 +51,7 @@ def founding_numbers(session):
 
 def _calls(session, user_ids=None):
     """{user_id: [call, …]}"""
-    from engine.story_market import close_value
+    from engine.story_market import close_value, base_for
     tq = session.query(StoryTrade)
     pq = session.query(StoryPosition)
     if user_ids is not None:
@@ -91,7 +91,7 @@ def _calls(session, user_ids=None):
     out = defaultdict(list)
     for (uid, sid, side), c in calls.items():
         n, m = nar.get(sid), mk.get(sid)
-        open_val = close_value(n.last_score if n else 0, m.crowd_offset if m else 0, side, c["held"]) if c["held"] else 0.0
+        open_val = close_value(base_for(n) if n else 0, m.crowd_offset if m else 0, side, c["held"]) if c["held"] else 0.0
         finished = c["held"] <= 0
         status = "OPEN" if not finished else (c["status"] or "CLOSED")
         end_ts = (c["settled_at"] or c["last_ts"]) if finished else None

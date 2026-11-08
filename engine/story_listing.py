@@ -49,6 +49,8 @@ def _snapshot(s, old=None):
         "hazards": list(s.get("hazards") or (old or {}).get("hazards", [])),
         "ts": max(float((old or {}).get("ts", 0)), float(s.get("ts") or 0)),
         "company": s.get("company") or (old or {}).get("company"),
+        "sector": s.get("sector") or (old or {}).get("sector"),
+        "trending": s.get("trending") or (old or {}).get("trending"),
         "outlets_eff": s.get("outlets_eff", (old or {}).get("outlets_eff")),
         "first_ts": min(x for x in [(old or {}).get("first_ts"), s.get("first_ts")] if x) if (s.get("first_ts") or (old or {}).get("first_ts")) else None,
     }
@@ -73,9 +75,13 @@ def _score_from_snapshot(snap, now):
 
 # Per-arena listing rules. Brand scandals get far wider coverage than food recalls,
 # so the bar is higher; DAILY_CAP stops a flood on a busy news day (highest scores first).
+# "listing": False → the arena still updates and closes what it already listed, but lists
+# nothing new. The game now lists only relatable everyday stories; food-safety recalls and
+# formal brand scandals (court filings, fines) stay out of it. Food still feeds the FSNI.
 ARENA_RULES = {
-    "food":   {"score": LIST_SCORE, "outlets": LIST_MIN_OUTLETS, "daily_cap": None},
-    "brands": {"score": 40.0, "outlets": 6, "daily_cap": 5},
+    "food":     {"score": LIST_SCORE, "outlets": LIST_MIN_OUTLETS, "daily_cap": None, "listing": False},
+    "brands":   {"score": 40.0, "outlets": 6, "daily_cap": 5, "listing": False},
+    "everyday": {"score": 30.0, "outlets": 4, "daily_cap": 5, "listing": True},
 }
 
 
@@ -121,15 +127,16 @@ def history_from_readings(session, sid, since_ts, arena="food"):
     return out
 
 
-def _price_point(session, sid, now, score):
-    """Market price at this reading = score + crowd lean (no lean yet → price = score)."""
+def _price_point(session, n, now):
+    """Market price at this reading = base (score, or the line-bet chance in %) + crowd lean."""
+    sid = n.sid
     try:
         from db.models import StoryMarket, StoryPricePoint
-        from engine.story_market import grow_price
+        from engine.story_market import grow_price, base_for
         m = session.query(StoryMarket).filter(StoryMarket.sid == sid).first()
         if m and m.status != "OPEN":
             return
-        session.add(StoryPricePoint(sid=sid, ts=now, price=round(grow_price(score, m.crowd_offset if m else 0), 2)))
+        session.add(StoryPricePoint(sid=sid, ts=now, price=round(grow_price(base_for(n), m.crowd_offset if m else 0), 2)))
     except Exception as e:
         print(f"⚠️ price point error {sid}: {e}")
 
@@ -207,7 +214,7 @@ def update_listings(stories, session, now=None, arena="food"):
         n.last_score = score
         n.peak_score = max(n.peak_score or 0, score)
         session.add(NarrativePoint(sid=n.sid, ts=now, score=score))
-        _price_point(session, n.sid, now, score)
+        _price_point(session, n, now)
         if now >= n.closes_at:
             n.status, n.final_score, n.closed_at = "CLOSED", score, now
             _settle(session, n.sid, final=score)
@@ -215,7 +222,9 @@ def update_listings(stories, session, now=None, arena="food"):
 
     # 2) list new stories that crossed the threshold (highest first, within the daily cap)
     room = None
-    if rules["daily_cap"]:
+    if not rules.get("listing", True):
+        room = 0
+    elif rules["daily_cap"]:
         today = _arena_filter(session.query(Narrative).filter(Narrative.listed_at >= now - 86400), arena).count()
         room = max(0, rules["daily_cap"] - today)
     for s in sorted(stories, key=lambda x: x["story_score"], reverse=True):
@@ -228,17 +237,26 @@ def update_listings(stories, session, now=None, arena="food"):
             if room <= 0:
                 break
             room -= 1
+        closes = now + LIST_WINDOW_H * 3600
+        try:
+            from engine.story_market import make_line
+            bet = make_line(session, s, closes)
+        except Exception as e:
+            print(f"⚠️ line error {s['sid']}: {e}")
+            bet = None
+        snap0 = {**_snapshot(s), "score_inputs": {**_inputs_from_live(s), "at": now}}
+        if bet:
+            snap0["bet"] = bet
         n = Narrative(sid=s["sid"], title=s["title"], url=s["url"], source=s["source"], arena=arena,
                       status="LISTED", first_seen=s.get("first_seen"), listed_at=now,
-                      closes_at=now + LIST_WINDOW_H * 3600, list_score=s["story_score"],
+                      closes_at=closes, list_score=s["story_score"],
                       last_score=s["story_score"], peak_score=s["story_score"],
-                      last_seen=now, snapshot=json.dumps({**_snapshot(s),
-                                                          "score_inputs": {**_inputs_from_live(s), "at": now}}))
+                      last_seen=now, snapshot=json.dumps(snap0))
         session.add(n)
         for ts, sc in history_from_readings(session, s["sid"], now - BACKFILL_H * 3600, arena):
             session.add(NarrativePoint(sid=s["sid"], ts=ts, score=sc))
         session.add(NarrativePoint(sid=s["sid"], ts=now, score=s["story_score"]))
-        _price_point(session, s["sid"], now, s["story_score"])
+        _price_point(session, n, now)
         known[s["sid"]] = n
         print(f"📌 Story listed  {s['sid']}  score {s['story_score']:.1f}  "
               f"[{s['outlets']} outlets]  {s['title'][:70]}")

@@ -62,6 +62,89 @@ def market(session, sid, lock=False):
     return m
 
 
+# ─────────────────────────────────────────────
+# THE LINE BET (stories listed from this version on)
+#   Each story gets a line at listing: the score it should end at if it fades normally.
+#     JUST THE BEGINNING (side GROW) pays 100 per unit if the final score ends ABOVE the line
+#     FORGOTTEN          (side FADE) pays 100 per unit if it ends AT or BELOW the line
+#   Expected close = quiet projection (no new coverage) + K × (score now − quiet projection),
+#   K learned from closed stories (default 0.2). At listing the line = expected close,
+#   so both sides start near 50 %. The price is the model chance + the crowd's lean,
+#   so the price reads as a percentage.
+# Stories listed before keep the old linear GROW/FADE (pays the final score) until they close.
+# ─────────────────────────────────────────────
+import json as _json
+import math as _math
+
+LINE_K_DEFAULT = 0.20
+LINE_K_MIN_SAMPLES = 8
+
+
+def _phi(z):
+    return 0.5 * (1 + _math.erf(z / _math.sqrt(2)))
+
+
+def bet_of(n):
+    try:
+        return (_json.loads(n.snapshot or "{}") or {}).get("bet")
+    except Exception:
+        return None
+
+
+def calibrate_k(session):
+    """Share of a story's 'excess over a quiet fade' that typically survives to close,
+    learned from closed line-bet stories (median). Default until enough data."""
+    ks = []
+    for m in session.query(Narrative).filter(Narrative.status == "CLOSED").all():
+        b = bet_of(m)
+        if not b or m.final_score is None:
+            continue
+        den = (m.list_score or 0) - b.get("quiet0", 0)
+        if den > 3:
+            ks.append((m.final_score - b["quiet0"]) / den)
+    if len(ks) < LINE_K_MIN_SAMPLES:
+        return LINE_K_DEFAULT, len(ks)
+    ks.sort()
+    return max(0.05, min(0.6, ks[len(ks) // 2])), len(ks)
+
+
+def expected_close(n, now=None, k=None):
+    """(expected final score, quiet projection) from the inputs of the last reading."""
+    from engine.narrative_index import score_if_quiet
+    snap = _json.loads(n.snapshot or "{}")
+    si = dict(snap.get("score_inputs") or {})
+    si.pop("at", None)
+    b = snap.get("bet") or {}
+    k = b.get("k", LINE_K_DEFAULT) if k is None else k
+    if not si:
+        return n.last_score or 0, n.last_score or 0
+    arts = [a["ts"] for a in snap.get("articles", []) if a.get("ts")]
+    quiet = score_if_quiet(si, n.closes_at, arts or None)
+    cur = n.last_score or 0
+    return quiet + k * max(0.0, cur - quiet), quiet
+
+
+def line_chance(n, now=None):
+    """Model chance (0–1) that the story ends above its line."""
+    now = now or time.time()
+    b = bet_of(n)
+    if not b:
+        return None
+    if n.status != "LISTED" and n.final_score is not None:
+        return 1.0 if n.final_score > b["line"] else 0.0
+    exp, _ = expected_close(n, now)
+    window = max(1.0, n.closes_at - (n.listed_at or now))
+    frac = max(0.0, min(1.0, (n.closes_at - now) / window))
+    sigma = 2.0 + 8.0 * frac                    # less uncertain as the close approaches
+    return max(0.03, min(0.97, _phi((exp - b["line"]) / sigma)))
+
+
+def base_for(n):
+    """Price before the crowd's lean: the score (old bet) or the model chance in % (line bet)."""
+    c = line_chance(n)
+    return (n.last_score or 0) if c is None else 100.0 * c
+
+
 def grow_price(score, offset):
     return max(PRICE_MIN, min(PRICE_MAX, (score or 0) + (offset or 0)))
 
@@ -128,8 +211,9 @@ def trade(user_id, sid, side, action, units):
         other = mine.get("FADE" if side == "GROW" else "GROW")
 
         score = n.last_score or 0
-        unit, new_off = quote(score, m.crowd_offset, side, action, units)
-        p_after = grow_price(score, new_off)
+        base = base_for(n)
+        unit, new_off = quote(base, m.crowd_offset, side, action, units)
+        p_after = grow_price(base, new_off)
         if p_after <= PRICE_MIN or p_after >= PRICE_MAX:
             raise TradeError("price limit reached — try fewer units")
         credits = round(unit * units, 2)
@@ -187,11 +271,17 @@ def settle(session, sid, final=None, refund=False):
     if m.status != "OPEN":
         return 0
     now = time.time()
+    nar = session.query(Narrative).filter(Narrative.sid == sid).first()
+    bet = bet_of(nar) if nar else None
     n = 0
     for p in session.query(StoryPosition).filter(StoryPosition.sid == sid,
                                                  StoryPosition.status == "OPEN").all():
         if refund:
             pay, p.status = p.cost, "REFUNDED"
+        elif bet:                                   # line bet: all or nothing
+            above = final > bet["line"]
+            per = 100.0 if (p.side == "GROW") == above else 0.0
+            pay, p.status = round(per * p.units, 4), "SETTLED"
         else:
             per = final if p.side == "GROW" else 100 - final
             pay, p.status = round(per * p.units, 4), "SETTLED"
@@ -211,7 +301,8 @@ def market_view(session, n, user_id=None):
     off = m.crowd_offset if m else 0.0
     score = n.last_score or 0
     ok, why, stops = trading_state(n, now)
-    p = grow_price(score, off)
+    base = base_for(n)
+    p = grow_price(base, off)
     held = {"GROW": 0, "FADE": 0}
     traders = set()
     for q in session.query(StoryPosition).filter(StoryPosition.sid == n.sid).all():
@@ -226,6 +317,7 @@ def market_view(session, n, user_id=None):
         "offset": round(off, 2), "score": round(score, 2), "final": m.final if m else None,
         "impact": IMPACT, "max_units": MAX_UNITS_TRADE, "max_units_story": MAX_UNITS_STORY,
         "held": held, "traders": len(traders),
+        "bet": _bet_view(n, now),
         "trades": [{"user_id": str(t.user_id), "side": t.side, "action": t.action, "units": t.units,
                     "price": round(t.price, 2), "ts": t.ts} for t in trades],
     }
@@ -237,7 +329,7 @@ def market_view(session, n, user_id=None):
                                                      StoryPosition.user_id == user_id).all():
             if q.status == "CLOSED" and not q.realized:
                 continue
-            mark = close_value(score, off, q.side, q.units) if q.status == "OPEN" else (q.payout or 0)
+            mark = close_value(base, off, q.side, q.units) if q.status == "OPEN" else (q.payout or 0)
             mine.append({"side": q.side, "units": q.units, "cost": round(q.cost, 2),
                          "avg": round(q.cost / q.units, 2) if q.units else None,
                          "status": q.status, "payout": q.payout, "realized": round(q.realized, 2),
@@ -245,3 +337,26 @@ def market_view(session, n, user_id=None):
                          "pnl": round(mark - q.cost + q.realized, 2)})
         out["me"] = {"credits": round(acc.credits, 2), "positions": mine}
     return out
+
+
+def _bet_view(n, now):
+    b = bet_of(n)
+    if not b:
+        return {"kind": "linear"}
+    exp, quiet = expected_close(n, now)
+    return {"kind": "line", "line": round(b["line"], 1), "expected": round(exp, 1),
+            "quiet": round(quiet, 1), "chance": round(100 * (line_chance(n, now) or 0), 1),
+            "k": b.get("k"), "closes_at": n.closes_at}
+
+
+def make_line(session, live_story, closes_at):
+    """Line for a story being listed now (expected close under a normal fade)."""
+    from engine.narrative_index import score_if_quiet
+    k, samples = calibrate_k(session)
+    si = {k_: live_story.get(k_) for k_ in ("outlets", "outlets_eff", "regions", "severity", "recent_12h", "ts")}
+    arts = [a["ts"] for a in live_story.get("members", []) if a.get("ts")]
+    quiet = score_if_quiet(si, closes_at, arts or None)
+    cur = live_story["story_score"]
+    line = quiet + k * max(0.0, cur - quiet)
+    return {"kind": "line", "line": round(line, 2), "k": round(k, 3), "k_samples": samples,
+            "quiet0": round(quiet, 2), "score0": cur}

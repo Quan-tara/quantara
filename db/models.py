@@ -307,3 +307,20 @@ class BacktestResult(Base):
     status = Column(String(12), nullable=False, default="OK")      # OK | PARTIAL | ERROR
     result = Column(Text, nullable=True)       # JSON: summary + daily series
     error  = Column(String(500), nullable=True)
+
+
+class BrandBuzz(Base):
+    """Discovery: how many Bluesky posts mention a food brand in the last 3 hours, and
+    whether that is a spike against the brand's own normal level."""
+    __tablename__ = "brand_buzz"
+
+    id       = Column(Integer, primary_key=True, autoincrement=True)
+    brand    = Column(String(60), nullable=False, index=True)
+    ts       = Column(Float, nullable=False, index=True)
+    posts    = Column(Integer, nullable=True)
+    baseline = Column(Float, nullable=True)        # median of the brand's earlier readings (7 days)
+    spike    = Column(Boolean, nullable=False, default=False)
+    words    = Column(Text, nullable=True)         # JSON: what the posts are about (top words)
+    top_post = Column(Text, nullable=True)         # JSON: most-liked post
+    status   = Column(String(12), nullable=False, default="OK")
+    error    = Column(String(300), nullable=True)

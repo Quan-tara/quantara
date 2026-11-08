@@ -565,6 +565,11 @@ def collect_all_arenas():
     except Exception as e:
         print(f"❌ discovery error: {e}")
     try:
+        from engine.reputation import compute_reputation
+        compute_reputation()
+    except Exception as e:
+        print(f"❌ reputation index error: {e}")
+    try:
         from engine.youtube import run_youtube_checks
         run_youtube_checks()
     except Exception as e:

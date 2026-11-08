@@ -388,8 +388,10 @@ def same_brand_story(a, b):
     if na & nb:
         # "backlash" is a reaction, not a subject — it never separates two articles
         ka, kb = set(a["hazards"]) - {"backlash"}, set(b["hazards"]) - {"backlash"}
-        if not ka or not kb or (ka & kb):
+        if ka and kb and (ka & kb):          # same company, same kind of trouble
             return True
+        # same company but no shared kind of trouble → only if the headlines share words
+        # ("McDonald's Welsh town backlash" ≠ "McDonald's brings back old-school hospitality")
     return ni._same_story(a, b)
 
 
@@ -569,6 +571,11 @@ def collect_all_arenas():
         compute_reputation()
     except Exception as e:
         print(f"❌ reputation index error: {e}")
+    try:
+        from engine.titles import run_titles
+        run_titles()
+    except Exception as e:
+        print(f"❌ short titles error: {e}")
     try:
         from engine.youtube import run_youtube_checks
         run_youtube_checks()

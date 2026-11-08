@@ -30,14 +30,20 @@ BACKFILL_H       = 72      # history copied from earlier readings when a story l
 MAX_ARTICLES     = 60
 
 
+_KEEP = ("bet", "short_title", "title_by", "delisted", "merged_into")
+
+
 def _snapshot(s, old=None):
-    """What we keep about a story so its page and its score survive after it leaves the news."""
+    """What we keep about a story so its page and its score survive after it leaves the news.
+    Keys set once (the bet line, the short title, moderator flags) are carried over."""
+    kept = {k: (old or {})[k] for k in _KEEP if k in (old or {})}
     arts = {(a["title"], a["source"]): a for a in (old or {}).get("articles", [])}
     for a in s.get("members", []):
         arts[(a["title"], a["source"])] = a
     arts = sorted(arts.values(), key=lambda a: a["ts"], reverse=True)[:MAX_ARTICLES]
     outlets = sorted(set((old or {}).get("outlet_names", [])) | set(s.get("all_outlets") or []))
     return {
+        **kept,
         "outlets": max(len(outlets), s.get("outlets", 0)),
         "outlet_names": outlets,
         "articles": arts,
@@ -163,7 +169,7 @@ def listed_for_matching(session, arena="food"):
     return out
 
 
-TALK_MIN_VIDEOS = 3
+TALK_MIN_VIDEOS = 6
 
 
 def talk_level(session, sid, company=None):

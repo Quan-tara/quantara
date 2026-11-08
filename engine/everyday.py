@@ -265,8 +265,19 @@ def english_only(title):
     return not _DE_RX.search(t) and not _IN_RX.search(t)
 
 
+# fan-favourite / praise stories ("the Costco deli find fans want all to themselves") are not drama
+POSITIVE_RX = re.compile(r"\bfans? (?:love|loves|want|rave|are obsessed)|\bobsessed\b|\bbest (?:meals?|thing|item|snack|deal)|"
+                         r"\bmust[- ]try\b|\bgame[- ]changer\b|\byou need to try\b|\bdelicious\b|\bhidden gem\b|"
+                         r"\bfan[- ]favou?rite\b|\bnew find\b|\bfind that\b|\bwant all to themselves\b", re.I)
+NEGATIVE_HINT = ["furious", "outrage", "outraged", "backlash", "boycott", "angry", "slam", "slammed", "complain",
+                 "disgusting", "overpriced", "ripoff", "rip-off", "scam", "smaller", "shrink", "discontinued",
+                 "worst", "terrible", "not worth", "price hike", "swearing off", "quit", "ditch"]
+
+
 def _everyday_relevant(text, title):
     if not english_only(title) or blocked_title(text, title):
+        return False
+    if POSITIVE_RX.search(title or "") and not ni._has_any((title or "").lower(), NEGATIVE_HINT):
         return False
     if ni._has_any(text, A.EXCLUDE_TERMS):
         return False

@@ -166,6 +166,13 @@ main { max-width: 1240px; margin: 0 auto; padding-top: 18px; display: grid; gap:
 .bd-note { font-size: 12px; color: var(--muted); line-height: 1.55 }
 .bd-note b { color: var(--text) }
 @media (max-width: 500px) { .bd-row { grid-template-columns: 76px minmax(0, 1fr) 64px } }
+.arena { font-family: var(--mono); font-size: 9px; font-weight: 700; letter-spacing: 1px; padding: 2px 7px; border-radius: 3px; white-space: nowrap }
+.arena.brands { background: rgba(179,136,255,.18); color: #c9a8ff; border: 1px solid rgba(179,136,255,.45) }
+.arena.food { background: rgba(0,230,118,.12); color: var(--green); border: 1px solid rgba(0,230,118,.4) }
+.co { font-size: 12px; color: var(--text); font-weight: 600 }
+.co::before { content: "🏢 "; }
+.house { padding: 10px 14px; font-size: 11px; color: var(--muted); line-height: 1.5; border-bottom: 1px solid var(--border); background: var(--s2) }
+.house b { color: var(--text) }
 .fb { font-family: var(--mono); font-size: 9px; font-weight: 700; color: var(--amber); border: 1px solid rgba(255,179,0,.5); border-radius: 3px; padding: 0 5px; white-space: nowrap }
 .tabs { display: flex; gap: 6px }
 .tabs button { font-family: var(--mono); font-size: 10px; padding: 5px 10px; border-radius: 4px; border: 1px solid var(--border); background: transparent; color: var(--muted); cursor: pointer }
@@ -334,6 +341,11 @@ async function historyPage() {
     </section>`;
 }
 
+const ARENA_NAME = { brands: "BRANDS", food: "FOOD" };
+const arenaTag = a => `<span class="arena ${esc(a || "food")}">${ARENA_NAME[a || "food"] || esc(a)}</span>`;
+let BOARD_ARENA = (() => { try { return localStorage.getItem("st_arena") || "all"; } catch (e) { return "all"; } })();
+function setArena(a) { BOARD_ARENA = a; try { localStorage.setItem("st_arena", a); } catch (e) {} board(); }
+
 // ── BOARD ──
 async function board() {
   document.title = "Listed Stories — Quantara";
@@ -341,17 +353,20 @@ async function board() {
   let d;
   try { d = await (await fetch("/api/narrative/listed")).json(); }
   catch (e) { $("#main").innerHTML = `<div class="empty">Could not load stories.</div>`; return; }
-  const open = d.stories.filter(s => s.status === "LISTED");
-  const closed = d.stories.filter(s => s.status === "CLOSED");
-  const r = d.rules;
+  const inArena = s => BOARD_ARENA === "all" || (s.arena || "food") === BOARD_ARENA;
+  const open = d.stories.filter(s => s.status === "LISTED" && inArena(s));
+  const closed = d.stories.filter(s => s.status === "CLOSED" && inArena(s));
+  const r = d.rules, ar = d.arenas || {};
+  const cnt = a => d.stories.filter(s => s.status === "LISTED" && (a === "all" || (s.arena || "food") === a)).length;
   const card = s => {
     const isOpen = s.status === "LISTED";
     const left = s.closes_at - d.now, full = r.window_h * 3600;
     const v = isOpen ? s.score : s.final_score;
     return `<a class="card" href="/story/${encodeURIComponent(s.sid)}">
-      <div class="card-top"><span class="pill ${s.status}">${s.status}</span>
+      <div class="card-top"><span class="pill ${s.status}">${s.status}</span>${arenaTag(s.arena)}
         ${(s.regions || []).map(x => `<span class="tag">${esc(x)}</span>`).join("")}
         ${(s.categories || []).slice(0, 2).map(x => `<span class="tag">${esc(x)}</span>`).join("")}</div>
+      ${s.company ? `<div class="co">${esc(s.company)}</div>` : ""}
       <div class="card-title">${esc(s.title)}</div>
       <div class="card-row">
         <div><div class="lbl">${isOpen ? "Score now" : "Final score"}</div>
@@ -370,7 +385,7 @@ async function board() {
     <section class="panel">
       <div class="ph"><span class="lbl">How listing works</span></div>
       <div class="rules">
-        <span>A story is <b>listed</b> when its story score reaches <b>${r.score}</b> with <b>${r.outlets}+</b> outlets.</span>
+        <span>A story is <b>listed</b> when its score crosses its arena's bar — ${Object.entries(ar).map(([k, v]) => `<b>${esc(v.label)}</b>: score ${v.score} with ${v.outlets}+ outlets${v.daily_cap ? `, max ${v.daily_cap} a day` : ""}`).join(" · ") || `score <b>${r.score}</b> with <b>${r.outlets}+</b> outlets`}.</span>
         <span>It stays listed for <b>${r.window_h}h</b>, then closes on its <b>final score</b>.</span>
         <span>Scores come only from outside news sources — nothing on this site moves them.</span>
         <span><b>GROW</b> pays the final score per unit, <b>FADE</b> pays 100 − final. Everyone starts with <b>10,000</b> credits.</span>
@@ -378,7 +393,9 @@ async function board() {
     </section>
     <section class="panel" id="mine"></section>
     <section class="panel">
-      <div class="ph"><span class="lbl">Listed now</span><span class="tag">${open.length}</span></div>
+      <div class="ph"><span class="lbl">Listed now</span>
+        <div class="tabs">${[["all", "ALL"], ["brands", "BRAND SCANDALS"], ["food", "FOOD SAFETY"]].map(([k, l]) =>
+          `<button class="${BOARD_ARENA === k ? "on" : ""}" onclick="setArena('${k}')">${l} · ${cnt(k)}</button>`).join("")}</div></div>
       ${open.length ? `<div class="cards">${open.map(card).join("")}</div>`
         : `<div class="empty">No story is listed right now. The highest scores are on the <a href="/narrative">FSNI page</a> — click any headline to follow its score.</div>`}
     </section>
@@ -502,11 +519,12 @@ async function story(sid) {
   $("#main").innerHTML = `
     <section class="panel">
       <div class="s-head">
-        <div class="s-sub"><span class="pill ${d.status}">${d.status}</span>
+        <div class="s-sub"><span class="pill ${d.status}">${d.status}</span>${arenaTag(d.arena)}
           ${(d.regions || []).map(x => `<span class="tag">${esc(x)}</span>`).join("")}
           ${(d.categories || []).map(x => `<span class="tag">${esc(x)}</span>`).join("")}
           ${(d.hazards || []).map(x => `<span class="tag">${esc(x)}</span>`).join("")}
           <span class="mono" style="font-size:10px">id ${esc(d.sid)}</span></div>
+        ${d.company ? `<div class="co" style="font-size:14px">${esc(d.company)}</div>` : ""}
         <h1 class="s-title">${esc(d.title)}</h1>
       </div>
     </section>
@@ -542,7 +560,7 @@ async function story(sid) {
         <section class="panel"><div class="ph"><span class="lbl">Related stories</span></div>
           ${rel.length ? `<div class="list">${rel.map(r => `<div class="li"><a href="/story/${encodeURIComponent(r.sid)}">${esc(r.title)}</a>
             <div class="m"><span class="pill ${r.status}">${r.status}</span><span>score ${(r.score ?? 0).toFixed(1)}</span>
-            ${r.same_hazard ? "<span>same hazard</span>" : ""}${r.shared.length ? `<span>shares: ${esc(r.shared.join(", "))}</span>` : ""}</div></div>`).join("")}</div>`
+            ${r.same_hazard ? "<span>same type</span>" : ""}${r.shared.length ? `<span>shares: ${esc(r.shared.join(", "))}</span>` : ""}</div></div>`).join("")}</div>`
             : `<div class="empty">No related stories right now.</div>`}
         </section>
         <section class="panel"><div class="ph"><span class="lbl">How the score works</span></div>
@@ -622,6 +640,7 @@ function renderComments() {
   el.innerHTML = `<div class="ph"><span class="lbl">Discussion</span>
       <span class="mono" style="font-size:10px;color:var(--muted)">${DC.count} comment${DC.count === 1 ? "" : "s"} · doesn't affect the score or payouts</span></div>
     ${read}
+    <div class="house"><b>House rules:</b> discuss companies, brands and public roles — not private people. Opinions are welcome; don't state accusations as facts. Comments that break these rules are removed.</div>
     ${!ME ? loginHtml("Log in to join the discussion.") : DC.blocked ? `<div class="note">You can't comment right now.</div>` : composer(null)}
     ${DC.comments.length ? DC.comments.map(c => cmHtml(c, false)).join("") : `<div class="empty">No comments yet. Is this story the real thing — or overblown?</div>`}`;
 }

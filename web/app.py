@@ -52,6 +52,7 @@ async def startup_event():
             "ALTER TABLE index_ticks ADD COLUMN IF NOT EXISTS f_route FLOAT",
             "ALTER TABLE index_ticks ADD COLUMN IF NOT EXISTS f_volume FLOAT",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS username VARCHAR(64)",
+            "ALTER TABLE narratives ADD COLUMN IF NOT EXISTS arena VARCHAR(16) DEFAULT 'food'",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash VARCHAR(128)",
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username) WHERE username IS NOT NULL",
         ]
@@ -1614,21 +1615,36 @@ def _narr_row(n, with_snap=False):
          "in_news": bool(n.last_seen and n.last_seen >= _time.time() - 45 * 60),
          "outlets": snap.get("outlets", 0), "articles": len(snap.get("articles", [])),
          "regions": snap.get("regions", []), "categories": snap.get("categories", []),
-         "merged_into": snap.get("merged_into")}
+         "merged_into": snap.get("merged_into"),
+         "arena": n.arena or "food", "company": snap.get("company")}
     if with_snap:
         d["snapshot"] = snap
     return d
 
 
 def _latest_story_index(session):
+    """Latest story list of every arena (food from the FSNI reading, others from arena_readings)."""
     import json as _json
     import sqlalchemy as _sa
+    ts, out = None, []
     row = session.execute(_sa.text(
         "SELECT ts, headlines FROM index_ticks WHERE headlines LIKE :pat ORDER BY ts DESC LIMIT 1"
     ), {"pat": '%"story_index"%'}).fetchone()
-    if not row:
-        return None, []
-    return float(row[0]), (_json.loads(row[1]) or {}).get("story_index") or []
+    if row:
+        ts = float(row[0])
+        out += [{**x, "arena": x.get("arena") or "food"} for x in (_json.loads(row[1]) or {}).get("story_index") or []]
+    try:
+        from engine.arenas import ARENAS
+        for name in ARENAS:
+            r = session.execute(_sa.text(
+                "SELECT ts, story_index FROM arena_readings WHERE arena = :a ORDER BY ts DESC LIMIT 1"
+            ), {"a": name}).fetchone()
+            if r:
+                ts = max(ts or 0, float(r[0]))
+                out += [{**x, "arena": name} for x in _json.loads(r[1]) or []]
+    except Exception as e:
+        print(f"⚠️ arena story index: {e}")
+    return ts, out
 
 
 @app.get("/api/narrative/listed")
@@ -1664,8 +1680,11 @@ def api_narrative_listed(days: float = 14.0):
             d["trading_open"] = trading_state(n)[0]
             d["comments"] = ccount.get(n.sid, 0)
             out.append(d)
+        from engine.story_listing import ARENA_RULES
+        from engine.arenas import ARENA_LABELS
         return {"now": _time.time(), "rules": {"score": LIST_SCORE, "outlets": LIST_MIN_OUTLETS,
                                                 "window_h": LIST_WINDOW_H},
+                "arenas": {k: {**v, "label": ARENA_LABELS.get(k, k)} for k, v in ARENA_RULES.items()},
                 "stories": out}
     finally:
         session.close()
@@ -1678,7 +1697,7 @@ def api_narrative_story(sid: str):
     import time as _time
     from db.models import Narrative, NarrativePoint
     from engine.story_listing import (LIST_SCORE, LIST_MIN_OUTLETS, LIST_WINDOW_H,
-                                      history_from_readings)
+                                      history_from_readings, rules_for)
     sid = (sid or "")[:16]
     session = SessionLocal()
     try:
@@ -1702,8 +1721,10 @@ def api_narrative_story(sid: str):
                  "delta": live.get("delta"), "outlets": live.get("outlets", 0),
                  "articles": live.get("articles", 0), "regions": live.get("regions", []),
                  "categories": live.get("categories", []), "in_news": True,
-                 "needs": {"score": LIST_SCORE, "outlets": LIST_MIN_OUTLETS}}
-            pts = [[t, sc] for t, sc in history_from_readings(session, sid, now - 72 * 3600)]
+                 "arena": live.get("arena", "food"), "company": live.get("company"),
+                 "needs": {"score": rules_for(live.get("arena")).get("score"),
+                           "outlets": rules_for(live.get("arena")).get("outlets")}}
+            pts = [[t, sc] for t, sc in history_from_readings(session, sid, now - 72 * 3600, live.get("arena", "food"))]
             articles = [{"title": live["title"], "source": live.get("source"), "url": live.get("url"),
                          "ts": live.get("ts"), "region": (live.get("regions") or [""])[0]}]
             d["outlet_names"] = []
@@ -1752,6 +1773,10 @@ def api_narrative_story(sid: str):
                 arts_ts = None
                 src = {k: live.get(k) for k in ("outlets", "regions", "severity", "recent_12h", "ts")}
             bd = story_score_parts(src, at)
+            if (d.get("arena") or "food") != "food":
+                for p_ in bd["parts"]:
+                    if p_["key"] == "severity":
+                        p_["detail"] = p_["detail"].split(" — ")[0] + " — fraud, criminal charges, fines, resignations, boycotts, bankruptcy…"
             bd["as_of"] = at
             bd["complete"] = src.get("severity") is not None
             if n and n.status == "LISTED":
@@ -1771,8 +1796,11 @@ def api_narrative_story(sid: str):
             "origin": arts[:3],
             "hazards": sorted(hazards),
             "related": rel[:6],
-            "rules": {"score": LIST_SCORE, "outlets": LIST_MIN_OUTLETS, "window_h": LIST_WINDOW_H},
+            "rules": {"score": rules_for(d.get("arena")).get("score"),
+                      "outlets": rules_for(d.get("arena")).get("outlets"), "window_h": LIST_WINDOW_H},
         })
+        from engine.arenas import ARENA_LABELS
+        d["arena_label"] = ARENA_LABELS.get(d.get("arena") or "food", d.get("arena"))
         return d
     finally:
         session.close()

@@ -61,6 +61,10 @@ main { max-width: 1240px; margin: 0 auto; padding-top: 18px; display: grid; gap:
 .card:hover { border-color: var(--accent) }
 .card-top { display: flex; align-items: center; gap: 6px; flex-wrap: wrap }
 .card-title { font-size: 13px; font-weight: 600; line-height: 1.4; text-wrap: balance }
+.card-title.short { font-size: 17px; font-weight: 700; line-height: 1.25 }
+.orig { font-size: 11px; color: var(--muted); line-height: 1.4 }
+.ttl-edit { display: flex; gap: 6px; flex-wrap: wrap; align-items: center }
+.ttl-edit input { flex: 1 1 240px; min-width: 0; background: var(--s2); color: var(--text); border: 1px solid var(--border); border-radius: 4px; padding: 6px 9px; font: 13px var(--sans) }
 .card-row { display: flex; align-items: end; justify-content: space-between; gap: 10px }
 .card-score { font-family: var(--mono); font-size: 26px; font-weight: 700; line-height: 1 }
 .card-score small { font-size: 11px; font-weight: 400; margin-left: 6px }
@@ -382,7 +386,7 @@ async function board() {
         ${(s.regions || []).map(x => `<span class="tag">${esc(x)}</span>`).join("")}
         ${(s.categories || []).filter(x => x !== s.sector).slice(0, 2).map(x => `<span class="tag">${esc(x)}</span>`).join("")}</div>
       ${s.company ? `<div class="co">${esc(s.company)}</div>` : ""}
-      <div class="card-title">${esc(s.title)}</div>
+      ${s.short_title ? `<div class="card-title short">${esc(s.short_title)}</div><div class="orig">${esc(s.title)}</div>` : `<div class="card-title">${esc(s.title)}</div>`}
       ${trendTag(s.trending)}
       <div class="card-row">
         <div><div class="lbl">${isOpen ? "Score now" : "Final score"}</div>
@@ -574,7 +578,8 @@ async function story(sid) {
           ${(d.hazards || []).map(x => `<span class="tag">${esc(x)}</span>`).join("")}
           <span class="mono" style="font-size:10px">id ${esc(d.sid)}</span></div>
         ${d.company ? `<div class="co" style="font-size:14px">${esc(d.company)}</div>` : ""}
-        <h1 class="s-title">${esc(d.title)}</h1>
+        <h1 class="s-title">${esc(d.short_title || d.title)}</h1>
+        ${d.short_title ? `<div class="orig" style="font-size:13px">${esc(d.title)}</div>` : ""}
         ${trendTag(d.trending)}
         <div id="mod-tools"></div>
       </div>
@@ -705,11 +710,20 @@ function renderModTools() {
   renderBehaviour();
   const el = $("#mod-tools"); if (!el) return;
   if (!DC || !DC.moderator || !STORY || STORY.status !== "LISTED") { el.innerHTML = ""; return; }
-  el.innerHTML = DL_OPEN
+  const ttl = `<div class="ttl-edit"><input id="tt-in" maxlength="80" placeholder="Short title shown to players (empty = let the AI write it)" value="${esc(STORY.short_title || "")}">
+      <button class="btn ghost" onclick="saveTitle()">SAVE TITLE</button><span class="mono" style="font-size:10px;color:var(--muted)">${STORY.title_by ? "by " + esc(STORY.title_by) : "no short title yet"}</span><span class="tp-msg err" id="tt-msg"></span></div>`;
+  el.innerHTML = ttl + (DL_OPEN
     ? `<div class="dl"><input id="dl-r" maxlength="200" placeholder="Reason (shown on the page), e.g. politics, not a company story">
         <button class="btn danger" onclick="doDelist()">DELIST &amp; REFUND</button><button class="btn ghost" onclick="DL_OPEN=false;renderModTools()">CANCEL</button>
         <span class="tp-msg err" id="dl-msg"></span></div>`
-    : `<button class="btn ghost" style="justify-self:start" onclick="DL_OPEN=true;renderModTools();$('#dl-r').focus()">🚫 Delist story (moderator)</button>`;
+    : `<button class="btn ghost" style="justify-self:start" onclick="DL_OPEN=true;renderModTools();$('#dl-r').focus()">🚫 Delist story (moderator)</button>`);
+}
+async function saveTitle() {
+  const r = await fetch(`/api/narrative/story/${encodeURIComponent(STORY.sid)}/title`, { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user_id: ME.id, title: $("#tt-in").value }) });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) { $("#tt-msg").textContent = d.detail || "Could not save"; return; }
+  story(STORY.sid);
 }
 async function doDelist() {
   const r = await fetch(`/api/narrative/story/${encodeURIComponent(STORY.sid)}/delist`, { method: "POST", headers: { "Content-Type": "application/json" },

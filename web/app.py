@@ -1617,7 +1617,8 @@ def _narr_row(n, with_snap=False):
          "regions": snap.get("regions", []), "categories": snap.get("categories", []),
          "merged_into": snap.get("merged_into"),
          "arena": n.arena or "food", "company": snap.get("company"),
-         "sector": snap.get("sector"), "trending": snap.get("trending")}
+         "sector": snap.get("sector"), "trending": snap.get("trending"),
+         "short_title": snap.get("short_title"), "title_by": snap.get("title_by")}
     if with_snap:
         d["snapshot"] = snap
     return d
@@ -1981,6 +1982,23 @@ def api_protection_positions(user_id: str):
         return {"positions": positions(session, parse_user_id(user_id))}
     finally:
         session.close()
+
+
+class TitleEdit(BaseModel):
+    user_id: str
+    title: str = ""
+
+
+@app.post("/api/narrative/story/{sid}/title")
+def api_story_title(sid: str, req: TitleEdit):
+    """Moderator: set the short title by hand (empty → the AI writes it again)."""
+    from engine.titles import set_title
+    try:
+        return set_title(sid[:16], parse_user_id(req.user_id), req.title[:120])
+    except PermissionError as e:
+        raise HTTPException(403, str(e))
+    except LookupError as e:
+        raise HTTPException(404, str(e))
 
 
 @app.get("/api/discovery")

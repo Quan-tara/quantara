@@ -41,26 +41,66 @@ PROMPT = """You check short posts on a game where players flag trouble brewing a
 Brand: {brand}
 Post: "{reason}"
 Source link given: {link}
+Title of the linked page: {title}
 
 Answer with JSON only: {{"verdict": "ok" | "needs_source" | "private_person" | "call_to_action" | "abusive", "why": "<max 15 words, to the player>"}}
 - "needs_source": it states a serious accusation (health, safety, crime, mistreatment) as a FACT and gives no link and no sign of where it was seen.
+- "unrelated_link": it makes a serious accusation and the link (judging by its address and page title) clearly does not report that problem — e.g. a shop or product page, a homepage, an unrelated article.
 - "private_person": it names or targets a private individual (an employee, a customer), not the company or a public executive.
 - "call_to_action": it asks others to post, complain, review-bomb, contact the company or otherwise act against the brand.
 - "abusive": insults, hate, threats.
 - "ok": everything else, including opinions, rumours clearly marked as such, and claims with a link. Be lenient: when unsure, "ok"."""
 
 
-def _rules(reason, link):
+def _domain(link):
+    from urllib.parse import urlparse
+    try:
+        d = urlparse(link or "").netloc.lower()
+        return d[4:] if d.startswith("www.") else d
+    except Exception:
+        return ""
+
+
+def _own_site(link, brand):
+    """Is the link the brand's own website (shop, product page)? That is never a source for a claim against it."""
+    d = _domain(link)
+    b = re.sub(r"[^a-z0-9]", "", (brand or "").lower())
+    if not (d and b and len(b) >= 3):
+        return False
+    labels = [re.sub(r"[^a-z0-9]", "", x) for x in d.split(".")[:-1]]     # without the .com / .co
+    return any(l == b for l in labels)
+
+
+def page_title(link):
+    """The linked page's title (first 60 KB, 5 s max) — so the AI can judge whether it supports the claim."""
+    if not link:
+        return ""
+    try:
+        with requests.get(link, timeout=5, stream=True, headers={"User-Agent": "Mozilla/5.0 QuantaraBot/1.0"}) as r:
+            raw = r.raw.read(60000, decode_content=True) or b""
+        m = re.search(rb"<title[^>]*>(.*?)</title>", raw, re.I | re.S)
+        if not m:
+            m = re.search(rb'<meta[^>]+property=["\']og:title["\'][^>]+content=["\']([^"\']+)', raw, re.I)
+        import html
+        return html.unescape(m.group(1).decode("utf-8", "ignore")).strip()[:200] if m else ""
+    except Exception:
+        return ""
+
+
+def _rules(reason, link, brand=None):
     if ACTION_RX.search(reason):
         return False, ("Spots are for calling what will happen, not for making it happen. "
                        "Please remove the call to action (no campaigns, posting drives or contacting the brand).")
     if SERIOUS_RX.search(reason) and not link and not ATTRIBUTION_RX.search(reason):
         return False, ("That's a serious claim. Add a source link, or say where you saw it "
                        "(for example: \"Reddit users report…\", \"a TikTok video shows…\").")
+    if SERIOUS_RX.search(reason) and link and _own_site(link, brand):
+        return False, (f"A link to {brand}'s own website isn't a source for this claim. "
+                       "Link to where the problem is reported (news, a post, a video), or say where you saw it.")
     return True, ""
 
 
-def _ai(reason, link, brand):
+def _ai(reason, link, brand, title=""):
     key = os.getenv("GEMINI_API_KEY", "").strip()
     if not key:
         return None
@@ -81,7 +121,8 @@ def _ai(reason, link, brand):
         models = _model["list"]
     if not models:
         return None
-    prompt = PROMPT.format(brand=brand or "?", reason=reason.replace('"', "'")[:600], link=link or "none")
+    prompt = PROMPT.format(brand=brand or "?", reason=reason.replace('"', "'")[:600], link=link or "none",
+                           title=(title or "unknown").replace('"', "'"))
     for m in dict.fromkeys(x for x in models if x):
         try:
             r = requests.post(f"{GEMINI}/models/{m}:generateContent", params={"key": key}, timeout=8,
@@ -110,16 +151,18 @@ MESSAGES = {
     "private_person": "Please don't name or target private people (staff, customers). Talk about the company.",
     "call_to_action": "Spots are for calling what will happen, not for making it happen. Please remove the call to action.",
     "abusive": "Please keep it civil. Insults, hate and threats aren't allowed.",
+    "unrelated_link": "Your link doesn't seem to report this problem. Link to where it's reported, or say where you saw it.",
 }
 
 
 def check(reason, link=None, brand=None):
     """(ok, message). Rules first, then the AI. An AI outage never blocks a spot."""
     reason = (reason or "").strip()
-    ok, msg = _rules(reason, link)
+    ok, msg = _rules(reason, link, brand)
     if not ok:
         return False, msg
-    v = _ai(reason, link, brand)
+    title = page_title(link) if (link and SERIOUS_RX.search(reason)) else ""
+    v = _ai(reason, link, brand, title)
     if not v:
         return True, ""
     verdict = str(v.get("verdict", "ok")).lower()

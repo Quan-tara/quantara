@@ -1609,6 +1609,11 @@ def _bet_card(n, b_):
     import time as _t
     if not b_:
         return {"kind": "linear"}
+    if b_.get("kind") == "cave":
+        from engine.story_market import EARLY_H
+        return {"kind": "cave", "company": b_.get("company"), "deadline": b_.get("deadline", n.closes_at),
+                "hint": b_.get("hint"), "caved": b_.get("caved"), "closes_at": n.closes_at,
+                "early_until": (n.listed_at or 0) + EARLY_H * 3600}
     if b_.get("kind") == "outlets":
         from engine.story_market import outlets_now, new_outlets, _snap, EARLY_H
         return {"kind": "outlets", "target": b_["target"], "now": outlets_now(n),
@@ -1959,8 +1964,10 @@ def api_reputation_you(sector: str = None, brand: str = None):
     session = SessionLocal()
     try:
         from engine.intent import for_brand
+        from engine.sectors import board as _sb
+        sec = next((x for x in _sb(session)["sectors"] if x["sector"] == sector), None) if sector else None
         return {"stories": for_company(session, sector, (brand or "")[:60]),
-                "intent": for_brand(session, (brand or "")[:60])}
+                "intent": for_brand(session, (brand or "")[:60]), "sector": sec}
     finally:
         session.close()
 
@@ -2061,6 +2068,56 @@ def api_intent_get(sid: str, user_id: str = None):
         return tally(session, sid[:16], parse_user_id(user_id) if user_id else None)
     finally:
         session.close()
+
+
+@app.get("/api/sectors")
+def api_sectors(user_id: str = None):
+    """Sector stocks: price (falls with drama), 24h change, history, drivers, crowd mood, my positions."""
+    from engine.sectors import board
+    session = SessionLocal()
+    try:
+        return board(session, parse_user_id(user_id) if user_id else None)
+    finally:
+        session.close()
+
+
+class SectorTradeReq(BaseModel):
+    user_id: str
+    sector: str
+    action: str
+    shares: int
+
+
+@app.post("/api/sectors/trade")
+def api_sectors_trade(req: SectorTradeReq):
+    from engine.sectors import trade, SectorError
+    session = SessionLocal()
+    try:
+        return trade(session, parse_user_id(req.user_id), req.sector, req.action, req.shares)
+    except SectorError as e:
+        session.rollback()
+        raise HTTPException(400, str(e))
+    finally:
+        session.close()
+
+
+class CaveReq(BaseModel):
+    user_id: str
+    caved: bool
+
+
+@app.post("/api/narrative/story/{sid}/cave")
+def api_story_cave(sid: str, req: CaveReq):
+    """Moderator: confirm the brand backed down (YES wins, story closes) or dismiss a flagged headline."""
+    from engine.story_listing import confirm_cave
+    try:
+        return confirm_cave(sid[:16], parse_user_id(req.user_id), req.caved)
+    except PermissionError as e:
+        raise HTTPException(403, str(e))
+    except LookupError as e:
+        raise HTTPException(404, str(e))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
 
 
 @app.get("/api/discovery")

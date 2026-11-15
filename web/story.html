@@ -70,6 +70,18 @@ main { max-width: 1240px; margin: 0 auto; padding-top: 18px; display: grid; gap:
 .intent-btns button.on.y { border-color: var(--green); color: var(--green) }
 .intent-btns button.on.n { border-color: var(--red); color: var(--red) }
 .ibar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; background: var(--s3) }
+.secs { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; padding: 12px 14px }
+.sec { background: var(--s2); border: 1px solid var(--border); border-radius: 8px; padding: 12px; display: grid; gap: 6px; min-width: 0 }
+.sec .nm { font-weight: 700; font-size: 13px }
+.sec .px { font-family: var(--mono); font-size: 26px; font-weight: 700; line-height: 1 }
+.sec .ch { font-family: var(--mono); font-size: 12px }
+.sec .drv { font-size: 11px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.sec .drv a { color: var(--muted) }
+.sec .btns { display: grid; grid-template-columns: 1fr 1fr; gap: 6px }
+.sec .btns button { font: 700 11px var(--mono); padding: 8px 4px; border-radius: 4px; cursor: pointer; border: 1px solid var(--border); background: var(--s1); color: var(--text) }
+.sec .btns .b { border-color: var(--green); color: var(--green) } .sec .btns .s { border-color: var(--red); color: var(--red) }
+.sec-bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 0 14px 12px; font-size: 12px; color: var(--muted) }
+.sec-bar input { width: 70px; background: var(--s2); color: var(--text); border: 1px solid var(--border); border-radius: 4px; padding: 5px 8px; font: 12px var(--mono) }
 .ibar i { display: block; height: 100% }
 .orig { font-size: 11px; color: var(--muted); line-height: 1.4 }
 .ttl-edit { display: flex; gap: 6px; flex-wrap: wrap; align-items: center }
@@ -372,6 +384,54 @@ let BOARD_ARENA = (() => { try { return localStorage.getItem("st_arena") || "all
 function setArena(a) { BOARD_ARENA = a; try { localStorage.setItem("st_arena", a); } catch (e) {} board(); }
 
 // ── BOARD ──
+// ── SECTOR STOCKS ──
+let SEC_SH = 10;
+const SECTOR_HELP = "Price falls when drama rises: 100 = a normal day.";
+function secSpark(h) {
+  if (!h || h.length < 2) return "";
+  const W = 180, H = 36, ps = h.map(p => p[1]), lo = Math.min(...ps, 95), hi = Math.max(...ps, 105);
+  const x = i => i / (h.length - 1) * W, y = v => 2 + (1 - (v - lo) / (hi - lo || 1)) * (H - 4);
+  const base = y(100);
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:36px" aria-hidden="true">
+    <line x1="0" x2="${W}" y1="${base}" y2="${base}" stroke="var(--s3)" stroke-dasharray="2 3"/>
+    <polyline fill="none" stroke="${ps[ps.length - 1] < 100 ? "var(--red)" : "var(--green)"}" stroke-width="1.6" points="${ps.map((v, i) => x(i).toFixed(1) + "," + y(v).toFixed(1)).join(" ")}"/></svg>`;
+}
+async function sectorsPanel() {
+  const el = $("#sectors"); if (!el) return;
+  const q = ME ? "?user_id=" + encodeURIComponent(ME.id) : "";
+  let d; try { d = await (await fetch("/api/sectors" + q)).json(); } catch (e) { el.innerHTML = ""; return; }
+  const pos = Object.fromEntries(((d.me || {}).positions || []).map(p => [p.sector, p]));
+  const card = x => {
+    const p = pos[x.sector], c = x.change_24h, pc = x.price == null ? "var(--muted)" : x.price < 95 ? "var(--red)" : x.price > 105 ? "var(--green)" : "var(--text)";
+    const drv = (x.drivers || [])[0];
+    return `<div class="sec">
+      <div class="row" style="display:flex;justify-content:space-between;gap:6px"><span class="nm">${esc(x.label)}</span>
+        <span class="ch" style="color:${c == null ? "var(--muted)" : c < 0 ? "var(--red)" : "var(--green)"}">${c == null ? "" : (c < 0 ? "▼ " : "▲ +") + c.toFixed(1)}</span></div>
+      <div class="px" style="color:${pc}">${x.price == null ? "—" : x.price.toFixed(1)}</div>
+      ${secSpark(x.spark)}
+      <div class="drv">${drv ? `drama: <a href="/story/${encodeURIComponent(drv.sid)}">${esc(drv.title || "")}</a>` : x.sector === "food safety" ? "drama: recalls &amp; outbreaks (FSNI)" : "no drama right now"}</div>
+      <div class="drv">${x.sell_pct == null ? "no trades yet" : `crowd: <b style="color:${x.sell_pct > 55 ? "var(--red)" : x.sell_pct < 45 ? "var(--green)" : "var(--text)"}">${Math.round(x.sell_pct)}% selling</b> · ${x.traders} trader${x.traders === 1 ? "" : "s"}`}</div>
+      ${p ? `<div class="drv" style="color:var(--text)">You: <b>${p.side === "LONG" ? "bought" : "sold"} ${p.shares}</b> @ ${p.entry} · <b class="${p.pnl >= 0 ? "down" : "up"}">${sgn(p.pnl)} cr</b></div>` : ""}
+      ${ME && x.price != null ? `<div class="btns"><button class="b" onclick="secTrade('${esc(x.sector)}','BUY')">BUY · calm</button><button class="s" onclick="secTrade('${esc(x.sector)}','SELL')">SELL · trouble</button></div>` : ""}
+    </div>`;
+  };
+  el.innerHTML = `<div class="ph"><span class="lbl">Sector stocks · prices fall when drama rises</span>
+      <span class="mono" style="font-size:10px;color:var(--muted)">${ME && d.me ? `your credits ${cr(d.me.credits)}` : "100 = a normal day"}</span></div>
+    <div class="secs">${d.sectors.map(card).join("")}</div>
+    <div class="sec-bar">${ME ? `<label for="sec-sh">Shares per trade</label><input id="sec-sh" type="number" min="1" max="${d.max_shares}" value="${SEC_SH}" oninput="SEC_SH=+this.value">
+      <span>Buy = you expect calm. Sell = you expect trouble (or you sell what you hold). Hold as long as you like.</span><span class="tp-msg" id="sec-msg"></span>`
+      : `<span>Log in on any story page to trade sectors. You start with 10,000 credits.</span>`}</div>`;
+}
+async function secTrade(sector, action) {
+  const sh = Math.max(1, SEC_SH | 0), m = $("#sec-msg");
+  const r = await fetch("/api/sectors/trade", { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user_id: ME.id, sector, action, shares: sh }) });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) { if (m) { m.className = "tp-msg err"; m.textContent = d.detail || "Could not trade"; } return; }
+  await sectorsPanel();
+  const m2 = $("#sec-msg"); if (m2) { m2.className = "tp-msg"; m2.textContent = `${action === "BUY" ? "Bought" : "Sold"} ${d.shares} at ${d.price.toFixed(2)} · credits ${cr(d.balance)}`; }
+}
+
 async function board() {
   document.title = "Listed Stories — Quantara";
   $("#nav-board").classList.add("on");
@@ -406,13 +466,16 @@ async function board() {
             <small class="mono" style="color:var(--muted)">listed at ${s.list_score.toFixed(1)}</small></div></div>
         ${spark(s.spark)}
       </div>
+      ${isOpen && s.bet && s.bet.kind === "cave" ? `<div class="ask" style="font-weight:700;font-size:13px">🏳️ Will ${esc(s.bet.company || s.company || "they")} back down by ${DAYS[new Date(s.bet.deadline * 1000).getDay()]}?</div>
+        <div class="card-meta">${s.bet.hint ? `<span style="color:var(--amber)">⚠ possible cave spotted, waiting for confirmation</span>` : `<span>apologise · reverse · bring it back</span>`}
+          ${s.bet.early_until > Date.now() / 1000 ? `<span style="color:var(--amber)">⚡ early bonus ${dur(s.bet.early_until - Date.now() / 1000)} left</span>` : ""}</div>` : ""}
       ${isOpen && s.bet && s.bet.kind === "outlets" ? (() => { const b = s.bet, pct = Math.min(100, 100 * b.now / b.target), early = b.early_until > Date.now() / 1000;
         return `<div class="ask" style="font-weight:600">Will ${b.target}+ news outlets cover it by ${DAYS[new Date(b.closes_at * 1000).getDay()]}?</div>
         <div style="display:flex;align-items:center;gap:8px"><div class="bar" style="flex:1;margin:0"><i style="width:${pct.toFixed(0)}%;background:${b.now >= b.target ? "var(--red)" : "var(--accent)"}"></i></div>
           <span class="mono" style="font-size:11px"><b>${b.now}</b>/${b.target}</span></div>
         <div class="card-meta">${b.new_24h ? `<span style="color:var(--amber)">🔥 +${b.new_24h} outlet${b.new_24h === 1 ? "" : "s"} in 24h</span>` : `<span>no new outlets in 24h</span>`}
           ${early ? `<span style="color:var(--amber)">⚡ early-call bonus ${dur(b.early_until - Date.now() / 1000)} left</span>` : ""}</div>`; })() : ""}
-      ${isOpen ? `<div class="card-meta">${s.bet && s.bet.kind === "outlets"
+      ${isOpen ? `<div class="card-meta">${s.bet && (s.bet.kind === "outlets" || s.bet.kind === "cave")
         ? `<span>YES <b style="color:var(--red)">${Math.round(s.price)}%</b></span><span>NO <b style="color:var(--green)">${100 - Math.round(s.price)}%</b></span>`
         : s.bet && s.bet.kind === "line"
         ? `<span>JUST THE BEGINNING <b style="color:var(--red)">${Math.round(s.price)}%</b></span><span>FORGOTTEN <b style="color:var(--green)">${100 - Math.round(s.price)}%</b></span>`
@@ -424,13 +487,15 @@ async function board() {
     </a>`;
   };
   $("#main").innerHTML = `
+    <section class="panel" id="sectors"><div class="empty">Loading sector stocks…</div></section>
     <section class="panel">
       <div class="ph"><span class="lbl">How listing works</span></div>
       <div class="rules">
         <span>A story is <b>listed</b> when its score crosses its arena's bar — ${Object.entries(ar).map(([k, v]) => `<b>${esc(v.label)}</b>: score ${v.score} with ${v.outlets}+ outlets${v.daily_cap ? `, max ${v.daily_cap} a day` : ""}`).join(" · ") || `score <b>${r.score}</b> with <b>${r.outlets}+</b> outlets`}.</span>
         <span>It stays listed for <b>${r.window_h}h</b>, then closes on its <b>final score</b>.</span>
         <span>Scores come only from outside news sources — nothing on this site moves them.</span>
-        <span>Each story asks one question: <b>will N+ news outlets cover it by the close?</b> Bet <b>YES</b> (it spreads) or <b>NO</b> (it stalls). The winner gets 100 per unit; prices are the chance in %. <b>⚡ Early calls</b>: units bought in a story's first 12 hours pay <b>120</b> if right. Everyone starts with <b>10,000</b> credits.</span>
+        <span><b>Sector stocks</b> (top): each food sector has a price that <b>falls when drama rises</b>. <b>Buy</b> if you think it stays calm, <b>sell</b> if you see trouble coming. Hold as long as you like.</span>
+        <span><b>Will they cave?</b> Big stories ask whether the brand <b>backs down within 7 days</b> (apologises, reverses, brings it back). Bet <b>YES</b> or <b>NO</b>; the winner gets 100 per unit, prices are the chance in %. <b>⚡ Early calls</b> in a story's first 12 hours pay <b>120</b>. Everyone starts with <b>10,000</b> credits.</span>
       </div>
     </section>
     <section class="panel" id="mine"></section>
@@ -448,6 +513,7 @@ async function board() {
     </section>`;
   myStories();
   candidates();
+  sectorsPanel();
 }
 let CANDS_OPEN = false;
 async function candidates() {
@@ -764,13 +830,24 @@ function renderModTools() {
   renderBehaviour();
   const el = $("#mod-tools"); if (!el) return;
   if (!DC || !DC.moderator || !STORY || STORY.status !== "LISTED") { el.innerHTML = ""; return; }
-  const ttl = `<div class="ttl-edit"><input id="tt-in" maxlength="80" placeholder="Short title shown to players (empty = let the AI write it)" value="${esc(STORY.short_title || "")}">
+  const cb = STORY.bet && STORY.bet.kind === "cave" && !STORY.bet.caved ? `<div class="ttl-edit" style="border:1px dashed var(--border);border-radius:6px;padding:8px">
+      <span style="font-size:12px">🏳️ ${STORY.bet.hint ? `Possible cave: “${esc(STORY.bet.hint)}”` : `Did ${esc(STORY.bet.company || "the brand")} back down?`}</span>
+      <button class="btn ghost" onclick="cave(true)">CONFIRM: THEY CAVED</button>
+      ${STORY.bet.hint ? `<button class="btn ghost" onclick="cave(false)">NOT A CAVE</button>` : ""}<span class="tp-msg err" id="cv-msg"></span></div>` : "";
+  const ttl = cb + `<div class="ttl-edit"><input id="tt-in" maxlength="80" placeholder="Short title shown to players (empty = let the AI write it)" value="${esc(STORY.short_title || "")}">
       <button class="btn ghost" onclick="saveTitle()">SAVE TITLE</button><span class="mono" style="font-size:10px;color:var(--muted)">${STORY.title_by ? "by " + esc(STORY.title_by) : "no short title yet"}</span><span class="tp-msg err" id="tt-msg"></span></div>`;
   el.innerHTML = ttl + (DL_OPEN
     ? `<div class="dl"><input id="dl-r" maxlength="200" placeholder="Reason (shown on the page), e.g. politics, not a company story">
         <button class="btn danger" onclick="doDelist()">DELIST &amp; REFUND</button><button class="btn ghost" onclick="DL_OPEN=false;renderModTools()">CANCEL</button>
         <span class="tp-msg err" id="dl-msg"></span></div>`
     : `<button class="btn ghost" style="justify-self:start" onclick="DL_OPEN=true;renderModTools();$('#dl-r').focus()">🚫 Delist story (moderator)</button>`);
+}
+async function cave(v) {
+  const r = await fetch(`/api/narrative/story/${encodeURIComponent(STORY.sid)}/cave`, { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user_id: ME.id, caved: v }) });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) { $("#cv-msg").textContent = d.detail || "Could not save"; return; }
+  story(STORY.sid);
 }
 async function saveTitle() {
   const r = await fetch(`/api/narrative/story/${encodeURIComponent(STORY.sid)}/title`, { method: "POST", headers: { "Content-Type": "application/json" },
@@ -920,10 +997,12 @@ function preview(side, action, units) {      // same formula as the server
   return (side === "GROW" ? mid : 100 - mid) * units;
 }
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-function isLine() { return MK && MK.bet && (MK.bet.kind === "line" || MK.bet.kind === "outlets"); }
+function isLine() { return MK && MK.bet && ["line", "outlets", "cave"].includes(MK.bet.kind); }
 function isOutlets() { return MK && MK.bet && MK.bet.kind === "outlets"; }
+function isCave() { return MK && MK.bet && MK.bet.kind === "cave"; }
 function sideName(side, short) {
   if (!isLine()) return side;
+  if (isCave()) return side === "GROW" ? (short ? "YES" : "YES, THEY CAVE") : (short ? "NO" : "NO, THEY HOLD");
   if (isOutlets()) return side === "GROW" ? (short ? "YES" : "YES, IT SPREADS") : (short ? "NO" : "NO, IT STALLS");
   if (side === "GROW") return short ? "BEGINNING" : "JUST THE BEGINNING";
   const d = DAYS[new Date(MK.bet.closes_at * 1000).getDay()];
@@ -938,7 +1017,10 @@ function renderMarket() {
   let body;
   if (MK.status !== "OPEN") {
     const mine = (MK.me || {}).positions || [];
-    const lineRes = isOutlets() && MK.bet.final_outlets != null ? (MK.bet.final_outlets >= MK.bet.target
+    const lineRes = isCave() ? (MK.bet.caved
+      ? `<b>${esc(MK.bet.company || "The brand")} backed down</b>: <b>YES</b> won and paid 100 per unit (120 for early calls).`
+      : `<b>${esc(MK.bet.company || "The brand")} held firm</b> for the whole week: <b>NO</b> won and paid 100 per unit (120 for early calls).`)
+      : isOutlets() && MK.bet.final_outlets != null ? (MK.bet.final_outlets >= MK.bet.target
       ? `It reached <b>${MK.bet.final_outlets} outlets</b> (target ${MK.bet.target}): <b>YES</b> won and paid 100 per unit (120 for early calls).`
       : `It stopped at <b>${MK.bet.final_outlets} outlets</b>, short of ${MK.bet.target}: <b>NO</b> won and paid 100 per unit (120 for early calls).`)
       : isLine() && MK.final != null ? (MK.final > MK.bet.line
@@ -957,7 +1039,11 @@ function renderMarket() {
     const canF = MK.open && ME && !(held && held.side === "GROW");
     const L = isLine() ? MK.bet : null;
     body = `<div class="tp">
-      ${L && isOutlets() ? `<div style="font-size:15px;font-weight:700">Will <b>${L.target}+ news outlets</b> cover this by ${DAYS[new Date(L.closes_at * 1000).getDay()]} ${when(L.closes_at).split(",").pop()}?</div>
+      ${L && isCave() ? `<div style="font-size:16px;font-weight:700">🏳️ Will ${esc(L.company || "the brand")} back down by ${DAYS[new Date(L.deadline * 1000).getDay()]} ${when(L.deadline).split(",").pop()}?</div>
+        <div class="bd-note">Backing down = an apology, reversing the change, or bringing the item back. A public statement alone doesn't count.</div>
+        ${L.hint ? `<div class="note" style="padding:0;color:var(--amber)">⚠ Possible cave spotted: “${esc(L.hint)}”. Waiting for a moderator to confirm.</div>` : ""}
+        ${L.early_until > Date.now() / 1000 ? `<div class="m" style="color:var(--amber)">⚡ early-call bonus: units bought in the next ${dur(L.early_until - Date.now() / 1000)} pay ${100 + L.early_bonus} if right</div>` : ""}`
+      : L && isOutlets() ? `<div style="font-size:15px;font-weight:700">Will <b>${L.target}+ news outlets</b> cover this by ${DAYS[new Date(L.closes_at * 1000).getDay()]} ${when(L.closes_at).split(",").pop()}?</div>
         <div style="display:flex;align-items:center;gap:8px"><div class="bar" style="flex:1;margin:0"><i style="width:${Math.min(100, 100 * L.now / L.target).toFixed(0)}%;background:var(--accent)"></i></div>
           <span class="mono" style="font-size:12px"><b>${L.now}</b> / ${L.target} outlets</span></div>
         <div class="m" style="display:flex;flex-direction:column;gap:2px"><span>${L.new_24h ? `🔥 +${L.new_24h} new outlet${L.new_24h === 1 ? "" : "s"} in the last 24h` : "no new outlets in the last 24h"}</span>
@@ -965,11 +1051,11 @@ function renderMarket() {
       : L ? `<div class="bd-note" style="font-size:13px">Will people <b>still be talking about this</b> when the window closes ${DAYS[new Date(L.closes_at * 1000).getDay()]} ${when(L.closes_at).split(",").pop()}, or is it <b>already dying</b>?</div>` : ""}
       <div class="tp-prices">
         <div class="tp-side grow"><span class="lbl"><b>${sideName("GROW")}</b></span><span class="tp-price">${L ? Math.round(MK.price) + "%" : MK.price.toFixed(1)}</span>
-          <span class="tp-pays">${L && isOutlets() ? `Wins if <b>${L.target} or more</b> outlets cover it by the close. Pays 100 per unit.` : L ? `Wins if the story ends <b>above ${L.line.toFixed(1)}</b> — more coverage than a normal fade. Pays 100 per unit.` : "Pays the final score. Wins if the story ends bigger than this."}</span></div>
+          <span class="tp-pays">${L && isCave() ? `Wins if the brand <b>backs down</b> before the deadline. Pays 100 per unit.` : L && isOutlets() ? `Wins if <b>${L.target} or more</b> outlets cover it by the close. Pays 100 per unit.` : L ? `Wins if the story ends <b>above ${L.line.toFixed(1)}</b> — more coverage than a normal fade. Pays 100 per unit.` : "Pays the final score. Wins if the story ends bigger than this."}</span></div>
         <div class="tp-side fade"><span class="lbl"><b>${sideName("FADE")}</b></span><span class="tp-price">${L ? (100 - Math.round(MK.price)) + "%" : MK.fade_price.toFixed(1)}</span>
-          <span class="tp-pays">${L && isOutlets() ? `Wins if it stays <b>below ${L.target}</b> outlets. Pays 100 per unit.` : L ? `Wins if the story ends <b>at or below ${L.line.toFixed(1)}</b> — it fizzles out. Pays 100 per unit.` : "Pays 100 − final score. Wins if the story ends smaller."}</span></div>
+          <span class="tp-pays">${L && isCave() ? `Wins if the brand <b>holds firm</b> all week. Pays 100 per unit.` : L && isOutlets() ? `Wins if it stays <b>below ${L.target}</b> outlets. Pays 100 per unit.` : L ? `Wins if the story ends <b>at or below ${L.line.toFixed(1)}</b> — it fizzles out. Pays 100 per unit.` : "Pays 100 − final score. Wins if the story ends smaller."}</span></div>
       </div>
-      <div class="tp-cost">${L && isOutlets() ? `Outlets = different news sites covering the story; they only go up. Price = the chance it gets there, in % and credits per unit · ${leanTxt}.` : L ? `The line is where the story should end if it fades normally (score now ${MK.score.toFixed(1)}, expected at close ${L.expected.toFixed(1)}). Price = the chance, in % and credits per unit · ${leanTxt}.` : `Price = score now ${MK.score.toFixed(1)} · ${leanTxt}.`} Each unit traded moves the price ${MK.impact} points.</div>
+      <div class="tp-cost">${L && isCave() ? `Most storms pass without the brand backing down, so YES starts around 25%. Price = the chance, in % and credits per unit · ${leanTxt}.` : L && isOutlets() ? `Outlets = different news sites covering the story; they only go up. Price = the chance it gets there, in % and credits per unit · ${leanTxt}.` : L ? `The line is where the story should end if it fades normally (score now ${MK.score.toFixed(1)}, expected at close ${L.expected.toFixed(1)}). Price = the chance, in % and credits per unit · ${leanTxt}.` : `Price = score now ${MK.score.toFixed(1)} · ${leanTxt}.`} Each unit traded moves the price ${MK.impact} points.</div>
       ${!ME ? "" : MK.open ? `<div class="tp-row">
           <label class="lbl" for="tp-u">Units</label>
           <input id="tp-u" type="number" min="1" max="${MK.max_units}" value="${units}" oninput="UNITS=+this.value;renderCosts()">

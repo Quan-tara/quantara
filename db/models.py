@@ -374,3 +374,46 @@ class StoryIntent(Base):
     still_buy = Column(Boolean, nullable=False)
     company   = Column(String(60), nullable=True, index=True)
     ts        = Column(Float, nullable=False)
+
+
+class SectorTick(Base):
+    """Heat (0–100, drama) and stock price of one food sector at one collector run.
+    The price falls when drama rises: 100 = normal, lower = trouble."""
+    __tablename__ = "sector_ticks"
+
+    id     = Column(Integer, primary_key=True, autoincrement=True)
+    ts     = Column(Float, nullable=False, index=True)
+    sector = Column(String(40), nullable=False, index=True)
+    heat   = Column(Float, nullable=False)
+    normal = Column(Float, nullable=True)
+    price  = Column(Float, nullable=False)
+    top    = Column(Text, nullable=True)          # JSON: stories driving it
+
+
+class SectorPosition(Base):
+    """A player's holding in one sector stock (virtual credits). LONG = expects calm,
+    SHORT = expects trouble. Collateral = shares × entry price, paid when opening."""
+    __tablename__ = "sector_positions"
+
+    id        = Column(Integer, primary_key=True, autoincrement=True)
+    user_id   = Column(BigInteger, nullable=False, index=True)
+    sector    = Column(String(40), nullable=False, index=True)
+    side      = Column(String(5), nullable=False)       # LONG | SHORT
+    shares    = Column(Float, nullable=False, default=0.0)
+    cost      = Column(Float, nullable=False, default=0.0)   # credits paid for the shares held
+    realized  = Column(Float, nullable=False, default=0.0)
+    status    = Column(String(8), nullable=False, default="OPEN")
+    opened_at = Column(Float, nullable=True)
+
+
+class SectorTrade(Base):
+    __tablename__ = "sector_trades"
+
+    id      = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(BigInteger, nullable=False, index=True)
+    sector  = Column(String(40), nullable=False, index=True)
+    action  = Column(String(5), nullable=False)      # BUY | SELL
+    shares  = Column(Float, nullable=False)
+    price   = Column(Float, nullable=False)
+    credits = Column(Float, nullable=False)
+    ts      = Column(Float, nullable=False, index=True)

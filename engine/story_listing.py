@@ -97,7 +97,7 @@ ARENA_RULES = {
     "food":     {"score": LIST_SCORE, "outlets": LIST_MIN_OUTLETS, "daily_cap": None, "listing": False},
     "brands":   {"score": 40.0, "outlets": 6, "daily_cap": 5, "listing": False},
     "everyday": {"score": 30.0, "outlets": 4, "daily_cap": 5, "listing": True, "min_talk": 5,
-                 "stakes": True, "fresh_h": 12, "bet": "cave", "cave_days": 7,
+                 "stakes": True, "fresh_h": 12, "bet": "cave", "cave_days": 7, "demand": True,
                  "score_low": 25.0, "few_open": 3},   # fewer than 3 open stories → bar 25
 }
 
@@ -314,6 +314,11 @@ def update_listings(stories, session, now=None, arena="food"):
         if rules.get("fresh_h"):
             newest = max([m.get("ts") or 0 for m in s.get("members", [])] or [s.get("ts") or 0])
             if newest < now - rules["fresh_h"] * 3600 and not talk_level(session, s["sid"], s.get("company"))[2]:
+                continue
+        # nobody is asking the brand for anything → nothing to cave to, and usually fluff
+        if rules.get("demand"):
+            from engine.everyday import demand
+            if not demand(s.get("title"), [m.get("title") for m in s.get("members", [])]):
                 continue
         # nobody talking about it → not listed, however many news sites wrote it up
         if rules.get("min_talk") and not talked_about(session, s["sid"], s.get("company"), rules["min_talk"]):

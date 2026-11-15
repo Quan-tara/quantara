@@ -289,6 +289,44 @@ STAKES_LOW = ["discontinued", "bring back", "want back", "wants back", "nostalgi
               "ranked", "secret menu", "hack"]
 
 
+# ── DEMAND: is somebody asking the brand to DO something? ──
+# "Will they cave?" only makes sense when there is something to cave to. Stories without a
+# demand (jokes, listicles, taste tests, "what's in this dip") are not listed, however much
+# coverage they get.
+_CHANGE = r"(?:price|prices|\$\d|smaller|portion|shrink|recipe|removed|remove|discontinu|policy|fee|fees|surcharge|charge|tipping|tip |menu change|cut |cuts |downsiz|replac)"
+DEMAND_RX = re.compile(
+    r"\bbring(?:s|ing)? (?:\w+ ){0,3}back\b|\b(?:want|wants|wanted|beg|begs|begging|plead\w*|demand\w*|asking|ask)\b.{0,40}\bback\b"
+    r"|\breturn of\b|\bpetition|\bboycott|\brefund|\bapolog|\bdemand(?:s|ing|ed)?\b|\bcalls? (?:on|for)\b|\burg(?:e|es|ing)\b"
+    r"|\bprotest|\bwalkout|\bwalk out\b|\bstrike\b|\blawsuit|\bclass action|\bsued\b|\bsuing\b"
+    r"|\brevers(?:e|es|ed|al)\b|\bbacktrack|\bu-turn|\bscrap(?:s|ped)?\b|\bnever again\b|\bdone with\b|\bswitching to\b"
+    r"|\b(?:price hike|price increase|raises prices|raising prices|shrinkflation|hidden fee|junk fee)"
+    r"|\b(?:backlash|outrage\w*|furious|angry|anger|slam\w*|complain\w*|fume\w*|livid|blast\w*|rip-?off)\b.{0,60}" + _CHANGE
+    + r"|" + _CHANGE + r".{0,60}\b(?:backlash|outrage\w*|furious|angry|anger|slam\w*|complain\w*|fume\w*|livid|blast\w*)\b",
+    re.I)
+STRONG_DEMAND_RX = re.compile(r"\bpetition|\bboycott|\blawsuit|\bclass action|\bsued\b|\bwalkout|\bstrike\b", re.I)
+JOKE_RX = re.compile(r"\bjok(?:e|es|ing)\b|\broast(?:ed|ing)?\b|\bmemes?\b|\bhilarious\b|\bwheezing\b|\bwe tried\b|"
+                     r"\btaste test\b|\branked\b|\breview\b|\bdisadvantages\b|\breasons? (?:why|to)\b|\bwhat,? exactly\b|"
+                     r"\bsecret menu\b|\bhacks?\b|\bis (?:the )?new .{0,60} good\b|^\d+ ", re.I)
+
+
+def demand(lead, others=()):
+    """The demand phrase found ('' if none). A joke / listicle lead headline needs a strong demand
+    (boycott, petition, lawsuit, strike) to count."""
+    lead = (lead or "").replace("’", "'")
+    texts = [lead] + [(t or "").replace("’", "'") for t in others or []]
+    if JOKE_RX.search(lead):
+        for t in texts:
+            m = STRONG_DEMAND_RX.search(t)
+            if m:
+                return m.group(0).strip()
+        return ""
+    for t in texts:
+        m = DEMAND_RX.search(t)
+        if m:
+            return m.group(0).strip()[:60]
+    return ""
+
+
 def stakes(texts):
     """('high' | 'normal' | 'low', multiplier) for a story's headlines."""
     t = " ".join(texts or []).lower().replace("’", "'")

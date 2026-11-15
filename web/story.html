@@ -74,6 +74,8 @@ main { max-width: 1240px; margin: 0 auto; padding-top: 18px; display: grid; gap:
 .fri-v { font: 700 34px var(--mono); line-height: 1.1 } .fri-v small { font-size: 12px }
 .fri .m { font-size: 13px; color: var(--muted); padding: 2px 0 } .fri .m b { color: var(--text) } .fri .m a { color: var(--text) }
 @media (max-width: 640px) { .fri { grid-template-columns: 1fr } }
+.chart-h { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; font-size: 12px; margin: 0 0 4px }
+.chart-h b { font-size: 13px } .chart-h span { color: var(--muted) }
 .howline { display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; padding: 12px 14px; font-size: 13px }
 .ibar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; background: var(--s3) }
 .secs { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; padding: 12px 14px }
@@ -113,7 +115,8 @@ main { max-width: 1240px; margin: 0 auto; padding-top: 18px; display: grid; gap:
 .window .bar { height: 6px }
 .window-txt { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 10px; color: var(--muted); gap: 8px; flex-wrap: wrap }
 .chart-wrap { padding: 8px 14px 14px; position: relative }
-.chart-wrap svg { width: 100%; height: 240px; display: block }
+.chart-wrap svg { width: 100%; height: 170px; display: block }
+.chart-wrap svg#sp { height: 120px }
 .chart-tip { font-family: var(--mono); font-size: 10px; color: var(--muted); min-height: 14px; margin-top: 4px }
 .list { display: grid }
 .li { display: grid; gap: 3px; padding: 10px 14px; border-bottom: 1px solid var(--border); min-width: 0 }
@@ -598,70 +601,96 @@ async function myStories() {
       : `<div class="note">No story bets yet. Open a story and bet YES or NO on <b>Will they cave?</b></div>`}`;
 }
 
-// ── STORY ──
+// ── STORY ── two charts on one timeline: what the news did (top) · what is expected (bottom)
+function chanceLabel(d) {
+  const k = d.bet && d.bet.kind;
+  return k === "cave" ? `Chance ${d.bet.company || "the brand"} caves` : k === "line" ? "Chance it's just the beginning"
+    : k === "outlets" ? "Chance it spreads to more outlets" : "Market price";
+}
 function chart(d) {
   const pts = d.points || [];
   if (pts.length < 2) return `<div class="empty">Score history builds up with each reading (every 15 minutes).</div>`;
-  const W = 760, H = 240, L = 32, R = 10, T = 10, B = 22;
+  const W = 760, L = 32, R = 10, T = 8, B = 20, H1 = 170, H2 = 120;
   const t0 = Math.min(pts[0][0], d.listed_at || pts[0][0]);
   const t1 = Math.max(pts[pts.length - 1][0], d.status === "LISTED" ? d.closes_at : 0);
   const X = t => L + ((t - t0) / Math.max(1, t1 - t0)) * (W - L - R);
-  const Y = v => T + (1 - Math.min(100, v) / 100) * (H - T - B);
-  const line = pts.map(p => `${X(p[0]).toFixed(1)},${Y(p[1]).toFixed(1)}`).join(" ");
-  const area = `${X(pts[0][0]).toFixed(1)},${Y(0)} ${line} ${X(pts[pts.length - 1][0]).toFixed(1)},${Y(0)}`;
-  const grid = [0, 25, 50, 75, 100].map(v => `<line x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--s3)"/>
-    <text x="${L - 6}" y="${Y(v) + 3}" text-anchor="end" font-size="9" fill="var(--dim)" font-family="Space Mono, monospace">${v}</text>`).join("");
-  const thr = d.rules.score;
-  let marks = `<line x1="${L}" x2="${W - R}" y1="${Y(thr)}" y2="${Y(thr)}" stroke="var(--amber)" stroke-dasharray="4 4" opacity=".6"/>
-    <text x="${W - R}" y="${Y(thr) - 4}" text-anchor="end" font-size="9" fill="var(--amber)" font-family="Space Mono, monospace">listing line ${thr}</text>`;
-  if (d.bet && d.bet.kind === "line") marks += `<line x1="${L}" x2="${W - R}" y1="${Y(d.bet.line)}" y2="${Y(d.bet.line)}" stroke="var(--accent)" stroke-dasharray="6 3" opacity=".8"/>
-    <text x="${L + 4}" y="${Y(d.bet.line) - 4}" font-size="9" fill="var(--accent)" font-family="Space Mono, monospace">line ${d.bet.line.toFixed(1)} — above: just the beginning · below: forgotten</text>`;
-  if (d.listed_at) marks += `<line x1="${X(d.listed_at)}" x2="${X(d.listed_at)}" y1="${T}" y2="${H - B}" stroke="var(--amber)" opacity=".8"/>
-    <text x="${X(d.listed_at) + 4}" y="${T + 9}" font-size="9" fill="var(--amber)" font-family="Space Mono, monospace">listed</text>`;
-  if (d.closes_at) marks += `<line x1="${X(d.closes_at)}" x2="${X(d.closes_at)}" y1="${T}" y2="${H - B}" stroke="var(--muted)" stroke-dasharray="3 3"/>
-    <text x="${X(d.closes_at) - 4}" y="${T + 9}" text-anchor="end" font-size="9" fill="var(--muted)" font-family="Space Mono, monospace">${d.status === "CLOSED" ? "closed" : "closes"}</text>`;
-  const tl = [t0, (t0 + t1) / 2, t1].map((t, i) => `<text x="${X(t)}" y="${H - 6}" text-anchor="${["start", "middle", "end"][i]}" font-size="9" fill="var(--dim)" font-family="Space Mono, monospace">${esc(when(t))}</text>`).join("");
+  const Y1 = v => T + (1 - Math.min(100, v) / 100) * (H1 - T - B);
+  const Y2 = v => T + (1 - Math.min(100, v) / 100) * (H2 - T - B);
+  const mono = `font-size="9" font-family="Space Mono, monospace"`;
+  const grid = (Y, vals, unit) => vals.map(v => `<line x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--s3)"/>
+    <text x="${L - 6}" y="${Y(v) + 3}" text-anchor="end" ${mono} fill="var(--dim)">${v}${unit}</text>`).join("");
+  const vlines = (H) => {
+    let m = "";
+    if (d.listed_at) m += `<line x1="${X(d.listed_at)}" x2="${X(d.listed_at)}" y1="${T}" y2="${H - B}" stroke="var(--amber)" opacity=".7"/>`;
+    if (d.closes_at) m += `<line x1="${X(d.closes_at)}" x2="${X(d.closes_at)}" y1="${T}" y2="${H - B}" stroke="var(--muted)" stroke-dasharray="3 3"/>`;
+    return m;
+  };
+  const tl = H => [t0, (t0 + t1) / 2, t1].map((t, i) => `<text x="${X(t)}" y="${H - 5}" text-anchor="${["start", "middle", "end"][i]}" ${mono} fill="var(--dim)">${esc(when(t))}</text>`).join("");
+
+  // top: news heat
+  const line = pts.map(p => `${X(p[0]).toFixed(1)},${Y1(p[1]).toFixed(1)}`).join(" ");
+  const area = `${X(pts[0][0]).toFixed(1)},${Y1(0)} ${line} ${X(pts[pts.length - 1][0]).toFixed(1)},${Y1(0)}`;
+  let m1 = vlines(H1);
+  if (d.listed_at) m1 += `<text x="${X(d.listed_at) + 4}" y="${T + 9}" ${mono} fill="var(--amber)">listed</text>`;
+  if (d.closes_at) m1 += `<text x="${X(d.closes_at) - 4}" y="${T + 9}" text-anchor="end" ${mono} fill="var(--muted)">${d.status === "CLOSED" ? "closed" : "closes"}</text>`;
+  if (d.bet && d.bet.kind === "line") m1 += `<line x1="${L}" x2="${W - R}" y1="${Y1(d.bet.line)}" y2="${Y1(d.bet.line)}" stroke="var(--accent)" stroke-dasharray="6 3" opacity=".8"/>
+    <text x="${L + 4}" y="${Y1(d.bet.line) - 4}" ${mono} fill="var(--accent)">line ${d.bet.line.toFixed(1)}: ends above → "just the beginning" wins</text>`;
+  if (IS_MOD) m1 += `<line x1="${L}" x2="${W - R}" y1="${Y1(d.rules.score)}" y2="${Y1(d.rules.score)}" stroke="var(--amber)" stroke-dasharray="4 4" opacity=".4"/>
+    <text x="${W - R}" y="${Y1(d.rules.score) - 4}" text-anchor="end" ${mono} fill="var(--amber)" opacity=".7">listing bar ${d.rules.score}</text>`;
+
+  // bottom: chance (calculated, moved by trades)
   const pp = (d.price_points || []).filter(p => p[0] >= t0);
   let pline = "";
-  if (pp.length) {   // price only changes at trades / readings → step line, carried to the last score point
+  if (pp.length) {   // the price only changes at readings and trades → step line
     const steps = [];
     pp.forEach((p, k) => { if (k) steps.push([p[0], pp[k - 1][1]]); steps.push(p); });
-    const tEnd = Math.max(pts[pts.length - 1][0], pp[pp.length - 1][0]);
-    steps.push([tEnd, pp[pp.length - 1][1]]);
-    pline = steps.map(p => `${X(p[0]).toFixed(1)},${Y(p[1]).toFixed(1)}`).join(" ");
+    steps.push([Math.max(pts[pts.length - 1][0], pp[pp.length - 1][0]), pp[pp.length - 1][1]]);
+    pline = steps.map(p => `${X(p[0]).toFixed(1)},${Y2(p[1]).toFixed(1)}`).join(" ");
   }
-  window.__pts = pts; window.__pp = pp; window.__X = X; window.__Y = Y; window.__W = W;
-  return `<svg id="sc" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Story score over time">
-    ${grid}${marks}
+  window.__pts = pts; window.__pp = pp; window.__X = X; window.__Y1 = Y1; window.__Y2 = Y2; window.__W = W;
+  const hover = (id, H) => `<line id="${id}-h" y1="${T}" y2="${H - B}" stroke="var(--text)" opacity="0" vector-effect="non-scaling-stroke"/>
+    <circle id="${id}-d" r="4" opacity="0"/>
+    <rect x="${L}" y="${T}" width="${W - L - R}" height="${H - T - B}" fill="transparent" class="chart-hit"/>`;
+  return `
+  <div class="chart-h"><b>News heat</b><span>score 0–100 from outside news: outlets, reach, severity, new articles. Players can't move it.</span></div>
+  <svg id="sc" viewBox="0 0 ${W} ${H1}" preserveAspectRatio="none" role="img" aria-label="News heat over time">
+    ${grid(Y1, [0, 25, 50, 75, 100], "")}${m1}
     <polygon points="${area}" fill="var(--amber)" opacity=".08"/>
     <polyline points="${line}" fill="none" stroke="var(--amber)" stroke-width="2" vector-effect="non-scaling-stroke"/>
-    ${pline ? `<polyline points="${pline}" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-dasharray="5 3" vector-effect="non-scaling-stroke"/>` : ""}
-    <line id="sc-h" y1="${T}" y2="${H - B}" stroke="var(--text)" opacity="0" vector-effect="non-scaling-stroke"/>
-    <circle id="sc-d" r="4" fill="var(--amber)" opacity="0"/>
-    ${tl}
-    <rect x="${L}" y="${T}" width="${W - L - R}" height="${H - T - B}" fill="transparent" id="sc-hit"/>
-  </svg><div class="chart-tip" id="sc-tip">Hover the chart for values</div>
-  <div class="dc-legend" style="margin-top:4px"><span><i class="dot" style="background:var(--amber)"></i>story score</span>
-    ${pline ? `<span><i class="dot" style="background:var(--accent)"></i>${d.bet && d.bet.kind === "line" ? "crowd chance it's just the beginning (%)" : "market price (GROW)"}</span>` : ""}</div>`;
+    ${hover("sc", H1)}${tl(H1)}
+  </svg>
+  <div class="chart-h" style="margin-top:10px"><b>${esc(chanceLabel(d))}</b><span>${pline ? "calculated from the news, then pushed up or down by players' bets." : "appears once the story is listed."}</span></div>
+  ${pline ? `<svg id="sp" viewBox="0 0 ${W} ${H2}" preserveAspectRatio="none" role="img" aria-label="Chance over time">
+    ${grid(Y2, [0, 50, 100], "%")}${vlines(H2)}
+    <polyline points="${pline}" fill="none" stroke="var(--accent)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+    ${hover("sp", H2)}${tl(H2)}
+  </svg>` : ""}
+  <div class="chart-tip" id="sc-tip">Hover a chart for values</div>`;
 }
 function hookChart() {
-  const svg = document.getElementById("sc"); if (!svg) return;
-  const pts = window.__pts, X = window.__X, Y = window.__Y, W = window.__W;
-  svg.addEventListener("mousemove", e => {
-    const r = svg.getBoundingClientRect(), x = (e.clientX - r.left) / r.width * W;
+  const pts = window.__pts, X = window.__X, W = window.__W;
+  const svgs = ["sc", "sp"].map(id => document.getElementById(id)).filter(Boolean);
+  if (!svgs.length) return;
+  const show = x => {
     let i = 0, best = 1e9;
     pts.forEach((p, k) => { const dx = Math.abs(X(p[0]) - x); if (dx < best) { best = dx; i = k; } });
-    const h = document.getElementById("sc-h"), c = document.getElementById("sc-d");
-    h.setAttribute("x1", X(pts[i][0])); h.setAttribute("x2", X(pts[i][0])); h.setAttribute("opacity", ".5");
-    c.setAttribute("cx", X(pts[i][0])); c.setAttribute("cy", Y(pts[i][1])); c.setAttribute("opacity", "1");
-    const pp = window.__pp || [], t = pts[i][0];
+    const t = pts[i][0], pp = window.__pp || [];
     let pr = null; pp.forEach(p => { if (p[0] <= t + 60) pr = p[1]; });
-    document.getElementById("sc-tip").textContent = `▸ score ${pts[i][1].toFixed(1)}${pr != null ? ` · price ${pr.toFixed(1)}` : ""} · ${when(t)}`;
-  });
-  svg.addEventListener("mouseleave", () => {
-    document.getElementById("sc-h").setAttribute("opacity", "0");
-    document.getElementById("sc-d").setAttribute("opacity", "0");
-    document.getElementById("sc-tip").textContent = "Hover the chart for values";
+    [["sc", window.__Y1(pts[i][1]), "var(--amber)"], ["sp", pr == null ? null : window.__Y2(pr), "var(--accent)"]].forEach(([id, cy, col]) => {
+      const h = document.getElementById(id + "-h"), c = document.getElementById(id + "-d"); if (!h) return;
+      h.setAttribute("x1", X(t)); h.setAttribute("x2", X(t)); h.setAttribute("opacity", ".5");
+      if (cy == null) { c.setAttribute("opacity", "0"); return; }
+      c.setAttribute("cx", X(t)); c.setAttribute("cy", cy); c.setAttribute("fill", col); c.setAttribute("opacity", "1");
+    });
+    document.getElementById("sc-tip").textContent = `▸ ${when(t)} · news heat ${pts[i][1].toFixed(1)}${pr != null ? ` · chance ${pr.toFixed(0)}%` : ""}`;
+  };
+  const hide = () => {
+    ["sc", "sp"].forEach(id => { ["-h", "-d"].forEach(x => { const e = document.getElementById(id + x); if (e) e.setAttribute("opacity", "0"); }); });
+    document.getElementById("sc-tip").textContent = "Hover a chart for values";
+  };
+  svgs.forEach(svg => {
+    svg.addEventListener("mousemove", e => { const r = svg.getBoundingClientRect(); show((e.clientX - r.left) / r.width * W); });
+    svg.addEventListener("mouseleave", hide);
   });
 }
 function art(a) {

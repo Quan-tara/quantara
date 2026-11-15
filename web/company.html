@@ -252,10 +252,10 @@ function renderChart() {
 }
 
 function renderDrivers() {
-  const el = $("#drivers"), top = SNAP.top || [];
+  const el = $("#drivers"), top = (SNAP.top || []).filter(s => s.weighted > 0);
   el.innerHTML = top.length ? `<div class="list">${top.slice(0, 8).map((s, i) => `<div class="li"><a href="/story/${encodeURIComponent(s.sid)}">${esc(s.title)}</a>
-      <div class="m"><span>${i < 5 ? "counts" : "below top 5"}</span><span>score ${f1(s.score)}${s.weighted > s.score ? ` → ${f1(s.weighted)} with talk` : ""}</span>${s.posts ? `<span>🦋 ${s.posts}</span>` : ""}${s.company ? `<span>🏢 ${esc(s.company)}</span>` : ""}${s.sector ? `<span>${esc(s.sector)}</span>` : ""}${s.listed ? `<span class="tag on">listed</span>` : ""}</div></div>`).join("")}</div>`
-    : `<div class="empty">No food &amp; drink stories in the latest reading.</div>`;
+      <div class="m"><span>${i < 5 ? "counts" : "below top 5"}</span>${s.demand ? `<span>demand: “${esc(s.demand)}”</span>` : ""}<span>score ${f1(s.score)}${s.weighted > s.score ? ` → ${f1(s.weighted)} with talk` : ""}</span>${s.posts ? `<span>🦋 ${s.posts}</span>` : ""}${s.company ? `<span>🏢 ${esc(s.company)}</span>` : ""}${s.sector ? `<span>${esc(s.sector)}</span>` : ""}${s.listed ? `<span class="tag on">listed</span>` : ""}</div></div>`).join("")}</div>`
+    : `<div class="empty">No story is putting real pressure on a brand right now (stories without a demand on the brand don't count).</div>`;
 }
 
 // ── PROTECTION ──

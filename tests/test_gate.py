@@ -24,6 +24,7 @@ GOOD = [  # real pressure on a US food/drink brand
     "Costco members threaten to cancel over membership fee hike",
     "Subway franchisees sue over $6.99 footlong deal",
     "Starbucks customers say they're done with the chain after price hike",
+    "Starbucks baristas in U.S. and Canada walk out over staffing",
 ]
 BAD = [  # (headline, why it must stay out)
     ('"Babadook Hip": People Online Are Joking About The Starbucks Braised Short Rib Grilled Cheese Sandwich, And These 28 Comments About What The Meat Looks Like Have Me Wheezing So Hard I Turned Into A Cake Pop', "joke"),
@@ -53,6 +54,7 @@ BAD = [  # (headline, why it must stay out)
     ("Trader Joe's Upcoming Frozen Dessert Is Giving Fans Sweet '90s Nostalgia With the Return of a Classic", "promo"),
     ("McDonald's Snack Wrap is back and fans want it to stay forever", "promo / already back"),
     ("Taco Bell launches new Cantina menu nationwide", "launch"),
+    ("Starbucks To Close 250 Coffeehouses In U.S. and Canada", "no demand (but it IS about the US)"),
     ("Every fast-food chicken sandwich, ranked", "ranking"),
     ("The Internet Is Furious With Wendy’s After the Fast Food Chain Is Seemingly Caught ‘Lying’", "no concrete demand"),
 ]

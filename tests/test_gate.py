@@ -55,6 +55,8 @@ BAD = [  # (headline, why it must stay out)
     ("McDonald's Snack Wrap is back and fans want it to stay forever", "promo / already back"),
     ("Taco Bell launches new Cantina menu nationwide", "launch"),
     ("Starbucks To Close 250 Coffeehouses In U.S. and Canada", "no demand (but it IS about the US)"),
+    ("Tesco PLC (TSCO.L) stock price, news, quote and history", "quote page / UK"),
+    ("McDonald's Corporation (MCD) Stock Price, News, Quote & History", "quote page"),
     ("Every fast-food chicken sandwich, ranked", "ranking"),
     ("The Internet Is Furious With Wendy’s After the Fast Food Chain Is Seemingly Caught ‘Lying’", "no concrete demand"),
 ]

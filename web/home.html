@@ -1,0 +1,99 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Quantara — spot food scandals before they blow up</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0f1320; --s1: #151d2e; --s2: #1c2538; --s3: #232f47; --border: #2a3a55;
+  --accent: #00c8f0; --green: #00e676; --red: #ff3d5a; --amber: #ffb300;
+  --text: #f8faff; --muted: #7a95b8; --dim: #4a6080;
+  --mono: 'Space Mono', ui-monospace, Menlo, monospace;
+  --sans: 'DM Sans', system-ui, -apple-system, sans-serif;
+  color-scheme: dark;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0 }
+body { background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 15px; line-height: 1.55;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 0 48px }
+a { color: var(--accent) }
+header { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 14px 0; border-bottom: 1px solid var(--border); max-width: 1080px; margin: 0 auto }
+.logo { font-family: var(--mono); font-size: 13px; color: var(--accent); letter-spacing: 3px }
+header nav { display: flex; gap: 8px; flex-wrap: wrap }
+header nav a { font-family: var(--mono); font-size: 10px; color: var(--muted); text-decoration: none; padding: 5px 10px; border: 1px solid var(--border); border-radius: 4px }
+header nav a:hover { color: var(--accent); border-color: var(--accent) }
+main { max-width: 1080px; margin: 0 auto; display: grid; gap: 40px; padding-top: 56px }
+.hero { display: grid; gap: 14px; max-width: 720px }
+.eyebrow { font: 700 11px var(--mono); letter-spacing: 2px; color: var(--accent); text-transform: uppercase }
+h1 { font-size: clamp(32px, 5vw, 50px); line-height: 1.08; letter-spacing: -.02em; text-wrap: balance }
+h1 em { font-style: normal; color: var(--red) }
+.lede { color: var(--muted); font-size: 17px; max-width: 62ch }
+.doors { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px }
+.door { background: var(--s1); border: 1px solid var(--border); border-radius: 10px; padding: 24px; display: grid; gap: 14px; align-content: start; text-decoration: none; color: var(--text); transition: border-color .15s }
+.door:hover, .door:focus-visible { border-color: var(--accent); outline: none }
+.door .tag { font: 700 10px var(--mono); letter-spacing: 2px; color: var(--muted) }
+.door h2 { font-size: 24px; letter-spacing: -.01em }
+.door p { color: var(--muted); font-size: 14px }
+.door ul { list-style: none; display: grid; gap: 8px; font-size: 14px }
+.door li { display: grid; grid-template-columns: 22px 1fr; gap: 6px }
+.door .go { font: 700 12px var(--mono); letter-spacing: 1px; color: var(--accent) }
+.door.play { border-top: 3px solid var(--green) }
+.door.biz { border-top: 3px solid var(--amber) }
+.how { display: grid; gap: 14px }
+.how h3 { font: 700 11px var(--mono); letter-spacing: 2px; color: var(--muted); text-transform: uppercase }
+.steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px }
+.step { background: var(--s1); border: 1px solid var(--border); border-radius: 8px; padding: 16px; display: grid; gap: 6px }
+.step b { font-size: 15px } .step span { color: var(--muted); font-size: 13px }
+.step .n { font: 700 11px var(--mono); color: var(--accent) }
+footer { max-width: 1080px; margin: 40px auto 0; font-size: 12px; color: var(--dim); display: flex; gap: 14px; flex-wrap: wrap }
+footer a { color: var(--dim) }
+@media (prefers-reduced-motion: reduce) { .door { transition: none } }
+</style>
+
+<header>
+  <div class="logo">QUANTARA</div>
+  <nav><a href="/stories">Play</a><a href="/company">For companies</a></nav>
+</header>
+
+<main>
+  <section class="hero">
+    <span class="eyebrow">Food &amp; drink · US</span>
+    <h1>Spot food scandals <em>before</em> they blow up.</h1>
+    <p class="lede">Price anger, boycotts, recalls, brands caught out online. Quantara follows what people say about food brands and turns it into an early warning: a game for players, protection for companies.</p>
+  </section>
+
+  <section class="doors">
+    <a class="door play" href="/stories">
+      <span class="tag">FOR PLAYERS · FREE</span>
+      <h2>Play</h2>
+      <p>Today's food drama, and your read on it. You start with 10,000 credits.</p>
+      <ul>
+        <li><span>👍</span><span><b>Would you still buy?</b> One tap on each story.</span></li>
+        <li><span>🏳️</span><span><b>Will they cave?</b> Bet whether the brand backs down this week.</span></li>
+        <li><span>📉</span><span><b>Markets:</b> trade five food sectors. Prices fall when drama rises.</span></li>
+      </ul>
+      <span class="go">START PLAYING →</span>
+    </a>
+    <a class="door biz" href="/company">
+      <span class="tag">FOR FOOD &amp; DRINK COMPANIES</span>
+      <h2>For companies</h2>
+      <p>Reputation pressure on your industry in one number, with a warning before it rises.</p>
+      <ul>
+        <li><span>📊</span><span><b>Food Reputation Index:</b> food safety plus social drama.</span></li>
+        <li><span>🧭</span><span><b>Outlook:</b> calm, watch or pressure building, from crowd, buzz and searches.</span></li>
+        <li><span>🛡️</span><span><b>Protection</b> that pays when the index stays high.</span></li>
+      </ul>
+      <span class="go">OPEN COMPANY VIEW →</span>
+    </a>
+  </section>
+
+  <section class="how">
+    <h3>Why it matters</h3>
+    <div class="steps">
+      <div class="step"><span class="n">1</span><b>A story starts</b><span>A price hike, a recall, a viral complaint.</span></div>
+      <div class="step"><span class="n">2</span><b>People talk, then act</b><span>Posts, searches, boycotts. Players call it early.</span></div>
+      <div class="step"><span class="n">3</span><b>Sales fall weeks later</b><span>In 16 past cases, most of the damage came 1–3 months after the first signal.</span></div>
+    </div>
+  </section>
+</main>
+
+<footer><span>Quantara · Munich</span><a href="/exchange">Operators' exchange</a></footer>

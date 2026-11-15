@@ -1389,8 +1389,35 @@ def api_mm_stats(admin_id: str):
     return get_mm_pnl()
 
 @app.get("/")
+def serve_home():
+    """Home: two doors — Play (players) and For companies."""
+    return FileResponse(os.path.join(os.path.dirname(__file__), "home.html"))
+
+
+@app.get("/exchange")
 def serve_index():
+    """The operators' exchange (FSNI covers, market maker) — moved here from /."""
     return FileResponse(os.path.join(os.path.dirname(__file__), "index.html"))
+
+
+@app.get("/markets")
+def serve_markets():
+    return FileResponse(os.path.join(os.path.dirname(__file__), "story.html"))
+
+
+@app.get("/me")
+def serve_me():
+    return FileResponse(os.path.join(os.path.dirname(__file__), "story.html"))
+
+
+@app.get("/api/me/role")
+def api_me_role(user_id: str = None):
+    """Is this user a moderator? (decides which technical panels the pages show)"""
+    from engine.story_comments import is_moderator
+    try:
+        return {"moderator": bool(user_id) and is_moderator(parse_user_id(user_id))}
+    except Exception:
+        return {"moderator": False}
 
 @app.get("/narrative")
 def serve_narrative():

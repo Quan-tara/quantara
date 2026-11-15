@@ -69,6 +69,7 @@ main { max-width: 1240px; margin: 0 auto; padding-top: 18px; display: grid; gap:
 .intent-btns button { font: 700 13px var(--sans); padding: 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--s2); color: var(--text); cursor: pointer }
 .intent-btns button.on.y { border-color: var(--green); color: var(--green) }
 .intent-btns button.on.n { border-color: var(--red); color: var(--red) }
+.howline { display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; padding: 12px 14px; font-size: 13px }
 .ibar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; background: var(--s3) }
 .secs { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; padding: 12px 14px }
 .sec { background: var(--s2); border: 1px solid var(--border); border-radius: 8px; padding: 12px; display: grid; gap: 6px; min-width: 0 }
@@ -224,14 +225,12 @@ table.lb th.best { text-align: left }
 </style>
 
 <header>
-  <div class="logo">QUANTARA<em>/</em>STORIES</div>
+  <a class="logo" href="/" style="text-decoration:none">QUANTARA</a>
   <nav class="nav">
-    <a href="/narrative">← FSNI</a>
-    <a href="/company">Company view</a>
-    <a href="/stories" id="nav-board">Listed stories</a>
-    <a href="/leaderboard" id="nav-lb">Leaderboard</a>
-    <a href="/history" id="nav-hist">My history</a>
-    <a href="/">Exchange</a>
+    <a href="/stories" id="nav-board">Stories</a>
+    <a href="/markets" id="nav-mk">Markets</a>
+    <a href="/me" id="nav-me">Me</a>
+    <a href="/company" style="margin-left:8px;border-style:dashed">For companies</a>
   </nav>
 </header>
 
@@ -301,7 +300,7 @@ function navOn(id) { document.querySelectorAll(".nav a").forEach(a => a.classLis
 // ── LEADERBOARD ──
 let LB_PERIOD = "all";
 async function leaderboardPage() {
-  document.title = "Leaderboard — Quantara"; navOn("nav-lb");
+  document.title = "Leaderboard — Quantara"; navOn("nav-me");
   const q = `?period=${LB_PERIOD}` + (ME ? "&user_id=" + encodeURIComponent(ME.id) : "");
   let d; try { d = await (await fetch("/api/stories/leaderboard" + q)).json(); }
   catch (e) { $("#main").innerHTML = `<div class="empty">Could not load the leaderboard.</div>`; return; }
@@ -322,7 +321,7 @@ async function leaderboardPage() {
           <button class="${LB_PERIOD === "week" ? "on" : ""}" onclick="LB_PERIOD='week';leaderboardPage()">THIS WEEK</button></div></div>
       <div class="rules">
         <span>${LB_PERIOD === "week" ? "Profit on calls <b>finished in the last 7 days</b>." : "Profit on every call — open positions at what they'd fetch if closed now."}</span>
-        <span>A <b>call</b> is one GROW or FADE on one story. <b>Win rate</b> counts finished calls with a profit.</span>
+        <span>A <b>call</b> is one bet on one story. <b>Win rate</b> counts finished calls with a profit.</span>
         <span><b>★ Founding members</b>: the first ${d.seats} people to trade — ${d.seats_taken} of ${d.seats} seats taken.</span>
       </div>
       ${me ? `<div class="mine">
@@ -339,7 +338,7 @@ async function leaderboardPage() {
 
 // ── MY HISTORY ──
 async function historyPage() {
-  document.title = "My History — Quantara"; navOn("nav-hist");
+  document.title = "My History — Quantara"; navOn("nav-me");
   if (!ME) { $("#main").innerHTML = `<section class="panel"><div class="ph"><span class="lbl">My history</span></div>${loginHtml("Log in to see your story trading history.")}</section>`; return; }
   let d; try { d = await (await fetch("/api/stories/history/" + encodeURIComponent(ME.id))).json(); }
   catch (e) { $("#main").innerHTML = `<div class="empty">Could not load your history.</div>`; return; }
@@ -371,7 +370,7 @@ async function historyPage() {
       ${d.calls.length ? `<div class="tbl-wrap"><table class="lb" style="min-width:900px"><thead><tr>
         <th style="text-align:left">Opened</th><th>Story</th><th>Side</th><th>Units</th><th>Avg price</th><th>Score at entry</th><th>Paid</th><th>Got back / worth now</th><th>Profit</th><th style="text-align:left">Result</th></tr></thead>
         <tbody>${d.calls.map(row).join("")}</tbody></table></div>`
-        : `<div class="empty">No trades yet. <a href="/stories">Pick a listed story</a> and take a GROW or FADE position.</div>`}
+        : `<div class="empty">No trades yet. <a href="/stories">Pick a story</a> and bet YES or NO.</div>`}
     </section>`;
 }
 
@@ -432,6 +431,47 @@ async function secTrade(sector, action) {
   const m2 = $("#sec-msg"); if (m2) { m2.className = "tp-msg"; m2.textContent = `${action === "BUY" ? "Bought" : "Sold"} ${d.shares} at ${d.price.toFixed(2)} · credits ${cr(d.balance)}`; }
 }
 
+// ── WHO IS LOOKING (moderators see the technical panels) ──
+let IS_MOD = false, HOW_OPEN = false;
+async function loadRole() {
+  if (!ME) return;
+  try { IS_MOD = !!(await (await fetch("/api/me/role?user_id=" + encodeURIComponent(ME.id))).json()).moderator; } catch (e) {}
+}
+
+// ── MARKETS: the five sector stocks ──
+async function marketsPage() {
+  document.title = "Markets — Quantara"; navOn("nav-mk");
+  $("#main").innerHTML = `
+    <section class="panel"><div class="howline"><span><b>Five food sectors, one price each.</b> 100 is a normal day; the price <b>falls when drama rises</b> in that sector.
+      <b>Buy</b> if you think it stays calm, <b>sell</b> if you see trouble coming. Hold as long as you like.</span></div></section>
+    <section class="panel" id="sectors"><div class="empty">Loading…</div></section>
+    ${ME ? "" : `<section class="panel">${loginHtml("Log in to trade. You start with 10,000 credits.")}</section>`}`;
+  sectorsPanel();
+}
+
+// ── ME: credits, open positions, results, rank ──
+async function mePage() {
+  document.title = "Me — Quantara"; navOn("nav-me");
+  if (!ME) { $("#main").innerHTML = `<section class="panel"><div class="ph"><span class="lbl">Me</span></div>${loginHtml("Log in to see your credits, positions and results. New players start with 10,000 credits.")}</section>`; return; }
+  $("#main").innerHTML = `
+    <section class="panel" id="mine"></section>
+    <section class="panel" id="me-sectors"></section>
+    <section class="panel"><div class="howline"><span>Full record of every call, and how you rank against other players.</span>
+      <span style="display:flex;gap:8px"><a class="btn ghost" href="/history" style="text-decoration:none">MY HISTORY</a><a class="btn ghost" href="/leaderboard" style="text-decoration:none">LEADERBOARD</a></span></div></section>`;
+  myStories();
+  let d; try { d = await (await fetch("/api/sectors?user_id=" + encodeURIComponent(ME.id))).json(); } catch (e) { return; }
+  const P = (d.me || {}).positions || [];
+  const secVal = P.reduce((a, p) => a + (p.value || 0), 0);
+  const fixNw = () => { const nw = $("#nw"); if (!nw) return setTimeout(fixNw, 300);
+    nw.textContent = cr(+nw.dataset.nw + secVal); nw.title = "includes sector stocks worth " + cr(secVal); };
+  if (secVal) fixNw();
+  $("#me-sectors").innerHTML = `<div class="ph"><span class="lbl">My sector stocks</span><a href="/markets" class="mono" style="font-size:10px">markets ›</a></div>
+    ${P.length ? `<div class="list" style="padding:0 14px">${P.map(p => `<div class="li"><b>${esc(p.label)}</b>
+      <div class="m"><span>${p.side === "LONG" ? "bought (expects calm)" : "sold (expects trouble)"} ${p.shares} @ ${p.entry}</span><span>worth ${cr(p.value)}</span>
+      <b class="${p.pnl >= 0 ? "down" : "up"}">${sgn(p.pnl)} cr</b></div></div>`).join("")}</div>`
+      : `<div class="note">No sector positions yet. <a href="/markets">Trade a sector</a>.</div>`}`;
+}
+
 async function board() {
   document.title = "Listed Stories — Quantara";
   $("#nav-board").classList.add("on");
@@ -487,33 +527,32 @@ async function board() {
     </a>`;
   };
   $("#main").innerHTML = `
-    <section class="panel" id="sectors"><div class="empty">Loading sector stocks…</div></section>
     <section class="panel">
-      <div class="ph"><span class="lbl">How listing works</span></div>
-      <div class="rules">
-        <span>A story is <b>listed</b> when its score crosses its arena's bar — ${Object.entries(ar).map(([k, v]) => `<b>${esc(v.label)}</b>: score ${v.score} with ${v.outlets}+ outlets${v.daily_cap ? `, max ${v.daily_cap} a day` : ""}`).join(" · ") || `score <b>${r.score}</b> with <b>${r.outlets}+</b> outlets`}.</span>
-        <span>It stays listed for <b>${r.window_h}h</b>, then closes on its <b>final score</b>.</span>
-        <span>Scores come only from outside news sources — nothing on this site moves them.</span>
-        <span><b>Sector stocks</b> (top): each food sector has a price that <b>falls when drama rises</b>. <b>Buy</b> if you think it stays calm, <b>sell</b> if you see trouble coming. Hold as long as you like.</span>
-        <span><b>Will they cave?</b> Big stories ask whether the brand <b>backs down within 7 days</b> (apologises, reverses, brings it back). Bet <b>YES</b> or <b>NO</b>; the winner gets 100 per unit, prices are the chance in %. <b>⚡ Early calls</b> in a story's first 12 hours pay <b>120</b>. Everyone starts with <b>10,000</b> credits.</span>
+      <div class="howline">
+        <span><b>How to play:</b> open a story · 👍/👎 <b>Would you still buy?</b> · bet YES/NO on <b>🏳️ Will they cave?</b> · comment.
+          Want the bigger picture? Trade whole sectors in <a href="/markets">Markets</a>.</span>
+        <button class="btn ghost" onclick="HOW_OPEN=!HOW_OPEN;$('#how-more').hidden=!HOW_OPEN;this.textContent=HOW_OPEN?'HIDE':'HOW IT WORKS'">HOW IT WORKS</button>
+      </div>
+      <div class="rules" id="how-more" hidden>
+        <span>Stories are picked from US food news, Reddit and Bluesky when people are really talking about them and something is at stake: prices, safety, trust or a boycott.</span>
+        <span><b>Will they cave?</b> asks whether the brand backs down within 7 days (apologises, reverses the change, brings the item back). The winner gets 100 credits per unit; prices are the chance in %. <b>⚡ Early calls</b> in a story's first 12 hours pay <b>120</b>.</span>
+        <span><b>Would you still buy?</b> is just your honest answer. It never changes scores or payouts.</span>
+        <span>Everyone starts with <b>10,000</b> virtual credits. Your results are under <a href="/me">Me</a>.</span>
       </div>
     </section>
-    <section class="panel" id="mine"></section>
     <section class="panel" id="cands" hidden></section>
     <section class="panel">
       <div class="ph"><span class="lbl">Listed now</span>
         <div class="tabs" style="flex-wrap:wrap">${[["all", "ALL"], ...groups.map(g => [g, g.toUpperCase()])].map(([k, l]) =>
           `<button class="${BOARD_ARENA === k ? "on" : ""}" onclick="setArena('${esc(k)}')">${esc(l)} · ${cnt(k)}</button>`).join("")}</div></div>
       ${open.length ? `<div class="cards">${open.map(card).join("")}</div>`
-        : `<div class="empty">No story is listed right now. The highest scores are on the <a href="/narrative">FSNI page</a> — click any headline to follow its score.</div>`}
+        : `<div class="empty">No story is listed right now. New ones appear when people start talking about a food brand. Meanwhile, trade the sectors in <a href="/markets">Markets</a>.</div>`}
     </section>
     <section class="panel">
       <div class="ph"><span class="lbl">Closed · last 14 days</span><span class="tag">${closed.length}</span></div>
       ${closed.length ? `<div class="cards">${closed.map(card).join("")}</div>` : `<div class="empty">No closed stories yet.</div>`}
     </section>`;
-  myStories();
   candidates();
-  sectorsPanel();
 }
 let CANDS_OPEN = false;
 async function candidates() {
@@ -550,15 +589,15 @@ async function myStories() {
     <div class="m"><b class="mono" style="color:${p.side === "GROW" ? "var(--red)" : "var(--green)"}">${p.side}</b><span>${p.units} units</span>
     ${p.status === "OPEN" ? `<span>cost ${cr(p.cost)}</span><span>worth ${cr(p.value)}</span>` : `<span>${p.status.toLowerCase()}${p.final != null && p.status === "SETTLED" ? " at " + p.final.toFixed(1) : ""}</span>`}
     <span class="${p.pnl >= 0 ? "down" : "up"}">${sgn(p.pnl)} cr</span></div></div>`;
-  el.innerHTML = `<div class="ph"><span class="lbl">My stories · ${esc(ME.name)}</span><span class="tp-row"><span class="tag">${open.length} open</span><a href="/history" class="mono" style="font-size:10px">full history ›</a></span></div>
+  el.innerHTML = `<div class="ph"><span class="lbl">${esc(ME.name)} · story bets</span><span class="tp-row"><span class="tag">${open.length} open</span><a href="/history" class="mono" style="font-size:10px">full history ›</a></span></div>
     <div class="mine">
       <div class="stat"><span class="lbl">Credits</span><span class="v">${cr(d.credits)}</span></div>
       <div class="stat"><span class="lbl">Open positions (if closed now)</span><span class="v">${cr(d.open_value)}</span></div>
-      <div class="stat"><span class="lbl">Net worth</span><span class="v">${cr(d.net_worth)}</span></div>
+      <div class="stat"><span class="lbl">Net worth</span><span class="v" id="nw" data-nw="${d.net_worth}">${cr(d.net_worth)}</span></div>
       <div class="stat"><span class="lbl">Profit / loss</span><span class="v ${d.pnl >= 0 ? "down" : "up"}">${sgn(d.pnl)} cr</span></div>
     </div>
     ${open.length || done.length ? `<div class="list">${open.map(row).join("")}${done.map(row).join("")}</div>`
-      : `<div class="note">No positions yet. Open a listed story and take a GROW or FADE position.</div>`}`;
+      : `<div class="note">No story bets yet. Open a story and bet YES or NO on <b>Will they cave?</b></div>`}`;
 }
 
 // ── STORY ──
@@ -686,7 +725,7 @@ async function story(sid) {
           ${windowHtml}
           <div class="chart-wrap">${chart(d)}</div>
         </section>
-        ${breakdownHtml(d)}
+        ${IS_MOD ? breakdownHtml(d) : ""}
         ${d.status === "WATCHING" || d.status === "DELISTED" ? "" : `<section class="panel" id="dc"></section>`}
         <section class="panel">
           <div class="ph"><span class="lbl">Coverage</span><span class="tag">${d.articles.length}</span></div>
@@ -705,15 +744,15 @@ async function story(sid) {
             ${r.same_hazard ? "<span>same type</span>" : ""}${r.shared.length ? `<span>shares: ${esc(r.shared.join(", "))}</span>` : ""}</div></div>`).join("")}</div>`
             : `<div class="empty">No related stories right now.</div>`}
         </section>
-        <section class="panel"><div class="ph"><span class="lbl">How the score works</span></div>
+        ${IS_MOD ? "" : "<!--"}<section class="panel"><div class="ph"><span class="lbl">How the score works</span></div>
           <div class="note">0–100, from outside news only: <b>reach</b> (outlets, 45%), <b>regions</b> (15%), <b>severity</b> (deaths, hospitalisations, Class I — 20%), <b>momentum</b> (new articles in 12h — 20%), times <b>freshness</b>, which fades once coverage stops.</div>
-        </section>
+        </section>${IS_MOD ? "" : "-->"}
       </div>
     </div>`;
   hookChart();
   STORY = d;
   if (d.status !== "WATCHING") { loadMarket(d.sid); loadComments(d.sid); }
-  loadBuzz(d.sid);
+  if (IS_MOD) loadBuzz(d.sid);
   loadIntent(d);
 }
 
@@ -827,7 +866,7 @@ async function renderBehaviour() {
   side.appendChild(sec);
 }
 function renderModTools() {
-  renderBehaviour();
+  if (IS_MOD) renderBehaviour();
   const el = $("#mod-tools"); if (!el) return;
   if (!DC || !DC.moderator || !STORY || STORY.status !== "LISTED") { el.innerHTML = ""; return; }
   const cb = STORY.bet && STORY.bet.kind === "cave" && !STORY.bet.caved ? `<div class="ttl-edit" style="border:1px dashed var(--border);border-radius:6px;padding:8px">
@@ -1107,9 +1146,14 @@ async function doTrade(side, action, units) {
 }
 
 const m = location.pathname.match(/^\/story\/([^/]+)/);
-const PAGE = m ? "story" : location.pathname.startsWith("/leaderboard") ? "lb" : location.pathname.startsWith("/history") ? "hist" : "board";
-if (m) story(decodeURIComponent(m[1])); else if (PAGE === "lb") leaderboardPage(); else if (PAGE === "hist") historyPage(); else board();
-setInterval(() => { if (!document.hidden && !(m && (dcBusy() || REPLY_TO != null))) (m ? story(decodeURIComponent(m[1])) : PAGE === "lb" ? leaderboardPage() : PAGE === "hist" ? historyPage() : board()); }, 5 * 60 * 1000);
+const PATH = location.pathname;
+const PAGE = m ? "story" : PATH.startsWith("/leaderboard") ? "lb" : PATH.startsWith("/history") ? "hist"
+  : PATH.startsWith("/markets") ? "markets" : PATH.startsWith("/me") ? "me" : "board";
+const RENDER = () => m ? story(decodeURIComponent(m[1])) : PAGE === "lb" ? leaderboardPage() : PAGE === "hist" ? historyPage()
+  : PAGE === "markets" ? marketsPage() : PAGE === "me" ? mePage() : board();
+loadRole().then(RENDER);
+setInterval(() => { if (!document.hidden && !(m && (dcBusy() || REPLY_TO != null)) && PAGE !== "markets") RENDER(); }, 5 * 60 * 1000);
+setInterval(() => { if (!document.hidden && PAGE === "markets") sectorsPanel(); }, 2 * 60 * 1000);
 setInterval(() => { if (!document.hidden && m && MK && document.activeElement?.id !== "tp-u") loadMarket(MK.sid); }, 30 * 1000);
 setInterval(() => { if (!document.hidden && m && DC_SID && !dcBusy() && REPLY_TO == null) loadComments(DC_SID); }, 30 * 1000);
 </script>

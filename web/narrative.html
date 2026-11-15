@@ -584,7 +584,7 @@ header {
 <header>
   <div class="logo">
     QUANTARA<em>/</em>FSNI
-    <a href="/">← Exchange</a>
+    <a href="/exchange">← Exchange</a>
   </div>
   <div class="hdr-center">
     <div class="fsni-pill">
@@ -1468,7 +1468,7 @@ async function renderAcct() {
         <input class="inp" id="li-pw" type="password" placeholder="password" autocomplete="current-password">
         <button class="btn" type="submit">LOG IN</button>
       </form>
-      <div class="acct-cash">Same account as the exchange · <a href="/" style="color:var(--accent)">register there</a></div>
+      <div class="acct-cash">Same account as the exchange · <a href="/exchange" style="color:var(--accent)">register there</a></div>
       ${T.msg && T.msg.login ? `<div class="msg err">${esc(T.msg.text)}</div>` : ""}`;
     return;
   }
@@ -1478,7 +1478,7 @@ async function renderAcct() {
         <button class="link-btn" onclick="doLogout()">log out</button>
       </div>
       <div class="msg" style="color:var(--muted)">This page is for users trading FSNI covers. As the market maker, launch and quote them in
-        <a href="/" style="color:var(--amber)">your dashboard → 🥬 FSNI Operations</a>.</div>`;
+        <a href="/exchange" style="color:var(--amber)">your dashboard → 🥬 FSNI Operations</a>.</div>`;
     return;
   }
   let w = null;

@@ -1411,6 +1411,28 @@ def serve_me():
     return FileResponse(os.path.join(os.path.dirname(__file__), "story.html"))
 
 
+@app.get("/api/reality/report")
+def api_reality_report():
+    """Does the index match reality? Hit rate, false alarms and the live forward log."""
+    from engine.reality import report
+    session = SessionLocal()
+    try:
+        return report(session)
+    finally:
+        session.close()
+
+
+@app.post("/api/reality/collect")
+def api_reality_collect(user_id: str):
+    """Moderators: fetch pageviews and share prices now instead of waiting for the daily run."""
+    from engine.story_comments import is_moderator
+    from engine.reality import collect_in_background, _state
+    if not is_moderator(parse_user_id(user_id)):
+        raise HTTPException(status_code=403, detail="Moderators only")
+    collect_in_background(force=True)
+    return {"started": True, "running": _state["running"], "last": _state["msg"]}
+
+
 @app.get("/api/me/role")
 def api_me_role(user_id: str = None):
     """Is this user a moderator? (decides which technical panels the pages show)"""

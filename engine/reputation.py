@@ -71,17 +71,21 @@ def _social(session):
         return None, []
     stories = json.loads(r.story_index or "[]")
     talk = _talk(session, [s["sid"] for s in stories])
-    from engine.everyday import stakes
+    from engine.everyday import stakes, demand
     rows = []
     for s in stories:
         posts = talk.get(s["sid"], 0)
         level, mult = stakes([s.get("title", "")])
         # damage potential (price / safety / trust / boycott ×1.25 · nostalgia / novelty ×0.75) and talk (up to +50%)
         w = (s.get("score") or 0) * mult * (1 + 0.5 * min(1.0, posts / TALK_FULL))
+        # no demand on the brand (jokes, listicles, taste tests) → no pressure, does not count
+        dem = demand(s.get("title", ""))
+        if not dem:
+            w = 0.0
         rows.append({"sid": s["sid"], "title": s["title"], "score": round(s.get("score") or 0, 1),
                      "weighted": round(min(100.0, w), 1), "posts": posts, "company": s.get("company"),
                      "sector": s.get("sector"), "listed": bool(s.get("listed")), "url": s.get("url"), "stakes": level,
-                     "source": s.get("source")})
+                     "source": s.get("source"), "demand": dem})
     rows.sort(key=lambda x: x["weighted"], reverse=True)
     _social.last_rows = rows                       # all stories, for the sector stocks
     top = rows[:TOP_N]

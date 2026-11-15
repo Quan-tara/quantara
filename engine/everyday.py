@@ -355,7 +355,10 @@ US_RX = re.compile(
     r"missouri|montana|nebraska|nevada|new hampshire|new jersey|new mexico|new york|north carolina|north dakota|"
     r"ohio|oklahoma|oregon|pennsylvania|rhode island|south carolina|south dakota|tennessee|texas|utah|vermont|"
     r"virginia|washington|west virginia|wisconsin|wyoming|chicago|los angeles|manhattan|brooklyn|houston|"
-    r"atlanta|seattle|boston|philadelphia|phoenix|dallas|miami|denver|detroit|nyc)\b",
+    r"atlanta|seattle|boston|philadelphia|phoenix|dallas|miami|denver|detroit|nyc|las vegas|san francisco|san diego|"
+    r"san antonio|san jose|austin|nashville|orlando|tampa|portland|new orleans|st\.? louis|minneapolis|baltimore|"
+    r"cleveland|cincinnati|pittsburgh|kansas city|milwaukee|charlotte|sacramento|salt lake city|honolulu|"
+    r"long island|silicon valley|bay area|midwest|southern california|socal)\b",
     re.I)
 
 
@@ -434,6 +437,39 @@ def gate(title, others=(), company=None):
     return True, f"{d} · {cat}"
 
 
+def index_gate(title, others=(), company=None):
+    """(ok, reason) — does this story count in the Food Reputation Index? Broader than gate():
+    US, a food business, and something real at stake (money, safety, workers, boycott / trust).
+    No named brand or explicit demand needed; culture-war fights about a named food brand count.
+    Jokes, listicles, promos, nostalgia and foreign stories stay out."""
+    title = (title or "").strip()
+    low = title.lower()
+    if not english_only(title):
+        return False, "not English / not a US audience"
+    if blocked_title(low, title, allow_politics=True):
+        only_deal = DEAL_RX.search(title) and not blocked_title(low, DEAL_RX.sub(" ", title), allow_politics=True)
+        if not (only_deal and demand(title)):
+            return False, "off-topic (deal, list, sport, crime, tech…)"
+    if QUOTE_PAGE_RX.search(title):
+        return False, "finance quote page"
+    if POSITIVE_RX.search(title) and not ni._has_any(low, NEGATIVE_HINT):
+        return False, "praise, not pressure"
+    if JOKE_RX.search(title) and not STRONG_DEMAND_RX.search(title):
+        return False, "joke, review or promo"
+    if FOREIGN_RX.search(title) and not US_RX.search(title):
+        return False, "not about the US"
+    named = brand_in([title]) or company
+    if named and named.lower().replace("’", "'") in NON_US_BRANDS and not US_RX.search(title):
+        return False, f"{named} is not a US brand"
+    if not (us_brand([title]) or (company and company.lower() not in NON_US_BRANDS and brand_in([company]))
+            or US_RX.search(title)):
+        return False, "no US brand or US place named"
+    cat = stake_of(title, others)
+    if not cat:
+        return False, "nostalgia, nothing at stake" if NOSTALGIA_RX.search(title) else "no real stakes"
+    return True, cat
+
+
 def stakes(texts):
     """('high' | 'normal' | 'low', multiplier) for a story's headlines."""
     t = " ".join(texts or []).lower().replace("’", "'")
@@ -444,8 +480,20 @@ def stakes(texts):
     return "normal", 1.0
 
 
-def blocked_title(text, title):
-    """Shared hard filters: deals, list articles, politics, religion/ethnicity/war, sport, crime, tech news."""
+# culture-war words: such stories can count in the index (when about a named food brand),
+# but are never shown to players — moderation risk we decided not to take on for now
+CULTURE_WAR = ["transgender", "trans activist", "trans influencer", "lgbtq", "lgbt", "pride month", "pride collection",
+               "drag queen", "woke", "anti-woke", "dei", "diversity, equity", "conservative", "conservatives", "liberal",
+               "liberals", "maga", "trump", "biden", "harris", "right-wing", "left-wing", "abortion", "gun rights",
+               "immigration", "ice raids", "deportation", "culture war", "political"]
+# violence stays out everywhere, even for the index
+ALWAYS_BLOCK = ["shooting", "shot dead", "airstrike", "terrorist", "terrorism", "genocide", "massacre", "bombing"]
+
+
+def blocked_title(text, title, allow_politics=False):
+    """Shared hard filters: deals, list articles, politics, religion/ethnicity/war, sport, crime, tech news.
+    allow_politics=True (index only): a culture-war or political fight ABOUT a named food brand is kept —
+    it never reaches players, but it is real reputation pressure."""
     t = title or ""
     if DEAL_RX.search(t) or LISTICLE_RX.search(t):
         return True
@@ -455,8 +503,13 @@ def blocked_title(text, title):
         if re.search(re.escape(b) + r"\W+(?:field|stadium|arena|center|centre|ballpark|bowl|park|garden|speedway)", t.lower()) \
                 or re.search(r"red bull (?:salzburg|leipzig|racing|bragantino|ring)|red bulls", t.lower()):
             return True
-    return (ni._has_any(text, A.HARD_POLITICS) or ni._has_any(text, A.SENSITIVE_TERMS)
-            or ni._has_any(text, SPORT_TERMS) or ni._has_any(text, CRIME_TERMS) or ni._has_any(text, OFFTOPIC_TERMS))
+    if ni._has_any(text, ALWAYS_BLOCK):
+        return True
+    politics = ni._has_any(text, A.HARD_POLITICS) or ni._has_any(text, A.SENSITIVE_TERMS)
+    politics = politics or ni._has_any(text, CULTURE_WAR)
+    if politics and allow_politics and brand_in([t]):
+        politics = False
+    return (politics or ni._has_any(text, SPORT_TERMS) or ni._has_any(text, CRIME_TERMS) or ni._has_any(text, OFFTOPIC_TERMS))
 
 
 # Tagalog (Filipino) headlines and Philippine TV/showbiz pages
@@ -485,7 +538,7 @@ QUOTE_PAGE_RX = re.compile(r"\bstock (?:price|quote)s?\b.{0,40}\b(?:news|history
 
 
 def _everyday_relevant(text, title):
-    if not english_only(title) or blocked_title(text, title):
+    if not english_only(title) or blocked_title(text, title, allow_politics=True):
         return False
     if QUOTE_PAGE_RX.search(title or ""):
         return False

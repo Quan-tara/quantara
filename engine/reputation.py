@@ -71,7 +71,7 @@ def _social(session):
         return None, []
     stories = json.loads(r.story_index or "[]")
     talk = _talk(session, [s["sid"] for s in stories])
-    from engine.everyday import stakes, gate
+    from engine.everyday import stakes, index_gate
     rows = []
     for s in stories:
         posts = talk.get(s["sid"], 0)
@@ -79,7 +79,7 @@ def _social(session):
         # damage potential (price / safety / trust / boycott ×1.25 · nostalgia / novelty ×0.75) and talk (up to +50%)
         w = (s.get("score") or 0) * mult * (1 + 0.5 * min(1.0, posts / TALK_FULL))
         # no demand on the brand (jokes, listicles, taste tests) → no pressure, does not count
-        ok, why = gate(s.get("title", ""), [], s.get("company"))
+        ok, why = index_gate(s.get("title", ""), [], s.get("company"))   # the broad gate: real pressure, shown or not
         dem = why if ok else ""
         if not ok:
             w = 0.0
@@ -144,6 +144,11 @@ def _momentum(session, value):
     return max(0.0, min(100.0, d * 10)), {"change_24h": round(d, 2)}
 
 
+# the index rules changed on 15 Nov 2026 (one gate for real pressure, no fluff): the "normal" level is
+# built only from readings made with the current rules, so old and new are never compared
+METHOD_SINCE = 1794772800.0   # 2026-11-15 20:00 UTC (22:00 Kyiv)
+
+
 def label_for(o):
     return None if o is None else "calm" if o < 35 else "watch" if o <= 60 else "pressure building"
 
@@ -178,7 +183,8 @@ def compute_reputation():
             return
         value = round(SAFETY_W * (safety or 0) + SOCIAL_W * (social or 0), 2) if safety is not None and social is not None \
             else round(safety if social is None else social, 2)
-        hist = [r.value for r in session.query(ReputationTick).filter(ReputationTick.ts >= time.time() - 7 * DAY).all()]
+        hist = [r.value for r in session.query(ReputationTick).filter(ReputationTick.ts >= max(time.time() - 7 * DAY,
+                                                                                               METHOD_SINCE)).all()]
         normal = round(statistics.median(hist), 2) if len(hist) >= 20 else None
         o, parts = outlook(session, value)
         session.add(ReputationTick(ts=time.time(), value=value, safety=safety, social=social, normal=normal,
@@ -234,6 +240,8 @@ def for_company(session, sector=None, brand=None):
     b = (brand or "").strip().lower().replace("’", "'")
     out = []
     for s in snap.get("top") or []:
+        if (s.get("weighted") or 0) <= 0:          # only stories that really count in the index
+            continue
         hit_brand = bool(b) and b in ((s.get("company") or "") + " " + s.get("title", "")).lower().replace("’", "'")
         hit_sector = bool(sector) and s.get("sector") == sector
         if hit_brand or hit_sector:

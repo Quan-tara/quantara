@@ -274,7 +274,18 @@ def _mean(xs):
     return (round(sum(xs) / len(xs), 2), len(xs)) if xs else (None, 0)
 
 
-def report(session):
+_cache = {"ts": 0.0, "data": None}
+
+
+def report(session, max_age=600):
+    """Cached for 10 minutes — the calculation is heavy for a small server."""
+    if _cache["data"] is not None and time.time() - _cache["ts"] < max_age:
+        return _cache["data"]
+    _cache["data"], _cache["ts"] = _report(session), time.time()
+    return _cache["data"]
+
+
+def _report(session):
     from engine.everyday import brand_in
     cache = {"$bench": _series(session, "$" + BENCH, "close")}
 
@@ -343,11 +354,24 @@ def report(session):
 
     # D) forward log, with results where enough time has passed
     fwd = []
+    test_cards = set()
+    try:
+        from db.models import Spot
+        from engine.story_comments import is_moderator
+        by_card = {}
+        for sp in session.query(Spot).all():
+            by_card.setdefault(sp.card_sid, []).append(sp.user_id)
+        test_cards = {c for c, us in by_card.items() if all(is_moderator(u) for u in us)}
+    except Exception:
+        pass
     for f in session.query(ForwardLog).order_by(ForwardLog.ts.desc()).limit(60).all():
+        if f.kind == "spot" and f.sid in test_cards:
+            continue
         o = outcome(session, f.brand, f.ts, cache) if f.brand else None
         fwd.append({"ts": f.ts, "kind": f.kind, "brand": f.brand, "title": f.title, "label": f.label,
                     "fri": f.fri, "weight": f.weight, "result": o})
-    total = session.query(ForwardLog).count()
+    total = session.query(ForwardLog).count() - sum(1 for f in session.query(ForwardLog.sid).filter(ForwardLog.kind == "spot").all()
+                                                    if f[0] in test_cards)
     since = session.query(ForwardLog.ts).order_by(ForwardLog.ts).first()
 
     return {

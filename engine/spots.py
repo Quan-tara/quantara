@@ -133,7 +133,8 @@ def create(session, user_id, brand, reason, link=None):
             session.commit()
         raise SpotError(str(e))
     session.add(Spot(user_id=user_id, brand=key, card_sid=n.sid, comment_id=cid, ts=now, status="OPEN", first=first))
-    if fresh:
+    from engine.story_comments import is_moderator
+    if fresh and not is_moderator(user_id):          # test spots by moderators never enter the track record
         try:
             from db.models import ForwardLog
             session.add(ForwardLog(ts=now, kind="spot", brand=key, sid=n.sid, title=n.title))

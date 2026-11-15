@@ -220,6 +220,23 @@ class StoryComment(Base):
     ts        = Column(Float, nullable=False)
     deleted   = Column(Boolean, nullable=False, default=False)
     reports   = Column(Integer, nullable=False, default=0)
+    # evidence: which outcome the comment argues for (YES / NO), with an optional source link
+    kind      = Column(String(4), nullable=True)
+    link      = Column(Text, nullable=True)
+    useful    = Column(Integer, nullable=True, default=0)
+    called    = Column(String(4), nullable=True)        # WIN | LOSE, set when the story settles
+    lead_s    = Column(Float, nullable=True)            # how long before the result it was posted
+    bonus     = Column(Float, nullable=True)            # credits for the most useful winning evidence
+
+
+class StoryCommentVote(Base):
+    """'Useful' votes on evidence — one per player per comment, never on your own."""
+    __tablename__ = "story_comment_votes"
+
+    id         = Column(Integer, primary_key=True, autoincrement=True)
+    comment_id = Column(Integer, nullable=False, index=True)
+    user_id    = Column(BigInteger, nullable=False, index=True)
+    ts         = Column(Float, nullable=False)
 
 
 class StoryCommentReport(Base):

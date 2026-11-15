@@ -74,6 +74,24 @@ main { max-width: 1240px; margin: 0 auto; padding-top: 18px; display: grid; gap:
 .fri-v { font: 700 34px var(--mono); line-height: 1.1 } .fri-v small { font-size: 12px }
 .fri .m { font-size: 13px; color: var(--muted); padding: 2px 0 } .fri .m b { color: var(--text) } .fri .m a { color: var(--text) }
 @media (max-width: 640px) { .fri { grid-template-columns: 1fr } }
+.cases { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--border) }
+@media (max-width: 640px) { .cases { grid-template-columns: 1fr } }
+.case { border: 1px solid var(--border); border-radius: 8px; padding: 10px; display: grid; gap: 6px; align-content: start }
+.case-YES { border-top: 3px solid var(--red) } .case-NO { border-top: 3px solid var(--green) }
+.case .lbl { font: 700 10px var(--mono); letter-spacing: 1px; text-transform: uppercase; color: var(--muted) }
+.case-body { font-size: 13px; line-height: 1.45 }
+.case .m { display: flex; gap: 10px; flex-wrap: wrap; font-size: 11px; color: var(--muted) } .case .m a { color: var(--accent) }
+.ev { font: 700 10px var(--mono); padding: 2px 6px; border-radius: 4px; border: 1px solid var(--border) }
+.ev-YES { color: var(--red); border-color: var(--red) } .ev-NO { color: var(--green); border-color: var(--green) }
+.chip.on { border-color: var(--accent); color: var(--accent); opacity: 1 }
+.chip.ev-YES.on { border-color: var(--red); color: var(--red) } .chip.ev-NO.on { border-color: var(--green); color: var(--green) }
+.called { font: 700 10px var(--mono); padding: 2px 6px; border-radius: 4px }
+.called.win { color: var(--green); background: color-mix(in srgb, var(--green) 12%, transparent) }
+.called.lose { color: var(--muted) }
+.cm-link { display: inline-block; font-size: 12px; color: var(--accent); margin-top: 4px; text-decoration: none }
+.cm.is-ev { border-left: 2px solid var(--border) }
+.dc-link { width: 100%; margin-top: 6px; background: var(--s2); border: 1px solid var(--border); color: var(--text); border-radius: 6px; padding: 8px; font: 13px var(--sans) }
+.cm-act button.on { color: var(--accent) } .useful-n { font-size: 11px; color: var(--muted) }
 .chart-h { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; font-size: 12px; margin: 0 0 4px }
 .chart-h b { font-size: 13px } .chart-h span { color: var(--muted) }
 .howline { display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; padding: 12px 14px; font-size: 13px }
@@ -170,7 +188,7 @@ main { max-width: 1240px; margin: 0 auto; padding-top: 18px; display: grid; gap:
 .dc-form textarea:focus, .tp-row input:focus, .login input:focus { outline: 1px solid var(--accent); border-color: var(--accent) }
 .chips { display: flex; gap: 6px; flex-wrap: wrap; align-items: center }
 .chip { font-family: var(--mono); font-size: 10px; padding: 4px 9px; border-radius: 12px; border: 1px solid var(--border); background: transparent; color: var(--muted); cursor: pointer }
-.chip.on { color: var(--bg); border-color: transparent }
+.chip.on.REAL, .chip.on.EXAGGERATED, .chip.on.HYPE { color: var(--bg); border-color: transparent }
 .chip.on.REAL { background: var(--red) } .chip.on.EXAGGERATED { background: var(--amber) } .chip.on.HYPE { background: var(--accent) }
 .dc-foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap }
 .dc-hint { font-size: 11px; color: var(--dim) }
@@ -468,9 +486,17 @@ async function mePage() {
   if (!ME) { $("#main").innerHTML = `<section class="panel"><div class="ph"><span class="lbl">Me</span></div>${loginHtml("Log in to see your credits, positions and results. New players start with 10,000 credits.")}</section>`; return; }
   $("#main").innerHTML = `
     <section class="panel" id="mine"></section>
+    <section class="panel" id="me-called"></section>
     <section class="panel"><div class="howline"><span>Full record of every call, and how you rank against other players.</span>
       <span style="display:flex;gap:8px"><a class="btn ghost" href="/history" style="text-decoration:none">MY HISTORY</a><a class="btn ghost" href="/leaderboard" style="text-decoration:none">LEADERBOARD</a></span></div></section>`;
   myStories();
+  try {
+    const c = await (await fetch("/api/stories/called/" + encodeURIComponent(ME.id))).json();
+    $("#me-called").innerHTML = `<div class="ph"><span class="lbl">✅ Called it</span><span class="tag">${c.wins.length} of ${c.settled} evidence posts right</span></div>
+      ${c.wins.length ? `<div class="list" style="padding:0 14px">${c.wins.map(w => `<div class="li"><a href="/story/${encodeURIComponent(w.sid)}">${esc(w.title)}</a>
+        <div class="m"><span>“${esc(w.body)}”</span>${w.lead_s ? `<span>${leadTxt(w.lead_s)}</span>` : ""}<span>👍 ${w.useful}</span>${w.bonus ? `<b class="down">+${w.bonus} cr</b>` : ""}</div></div>`).join("")}</div>`
+        : `<div class="note">When you back a call with evidence and it turns out right, it shows up here.</div>`}`;
+  } catch (e) {}
 
 }
 
@@ -529,13 +555,14 @@ async function board() {
   $("#main").innerHTML = `
     <section class="panel">
       <div class="howline">
-        <span><b>How to play:</b> open a story · bet YES/NO on <b>🏳️ Will they cave?</b> · comment. Call it early, win more.</span>
+        <span><b>How to play:</b> open a story · bet YES/NO on <b>🏳️ Will they cave?</b> · back your call with evidence. Call it early, win more.</span>
         <button class="btn ghost" onclick="HOW_OPEN=!HOW_OPEN;$('#how-more').hidden=!HOW_OPEN;this.textContent=HOW_OPEN?'HIDE':'HOW IT WORKS'">HOW IT WORKS</button>
       </div>
       <div class="rules" id="how-more" hidden>
         <span>Stories are picked from US food news, Reddit and Bluesky when people are really talking about them and something is at stake: prices, safety, trust or a boycott.</span>
         <span><b>Will they cave?</b> asks whether the brand backs down within 7 days (apologises, reverses the change, brings the item back). The winner gets 100 credits per unit; prices are the chance in %. <b>⚡ Early calls</b> in a story's first 12 hours pay <b>120</b>.</span>
         <span><b>The Food Reputation Index</b> is one number for how much trouble the US food industry is in right now: half food-safety news (recalls, outbreaks), half the biggest stories here. Companies watch it and insure against it; your bets help it warn them early.</span>
+        <span><b>Evidence:</b> back your call in the discussion with a reason and a source. Others mark it useful or post a counter-argument. When the story ends, evidence on the right side gets <b>✅ called it</b>, and the most useful one earns <b>+50 credits</b>.</span>
         <span>Everyone starts with <b>10,000</b> virtual credits. Your results are under <a href="/me">Me</a>.</span>
       </div>
     </section>
@@ -816,7 +843,15 @@ async function sendIntent(v) {
 }
 
 // ── DISCUSSION ──
-let DC = null, DC_SID = null, VERDICT = null, REPLY_TO = null;
+let DC = null, DC_SID = null, VERDICT = null, REPLY_TO = null, POST_KIND = null, REPLY_COUNTER = false;
+// what YES / NO mean for this story's question
+function sideWords() {
+  const k = STORY && STORY.bet && STORY.bet.kind, co = (STORY && STORY.bet && STORY.bet.company) || "the brand";
+  return k === "cave" ? { YES: `${co} will cave`, NO: `${co} will hold` }
+    : k === "line" ? { YES: "it keeps going", NO: "it fades" }
+    : k === "outlets" ? { YES: "it spreads", NO: "it doesn't spread" } : { YES: "yes", NO: "no" };
+}
+const leadTxt = s => s == null ? "" : s >= 86400 ? `${Math.round(s / 86400)} day${Math.round(s / 86400) === 1 ? "" : "s"} early` : s < 3600 ? "under 1 h early" : `${Math.round(s / 3600)} h early`;
 const VLBL = { REAL: "Real", EXAGGERATED: "Exaggerated", HYPE: "Hype" };
 async function loadComments(sid) {
   DC_SID = sid;
@@ -830,19 +865,32 @@ function dcBusy() {      // don't redraw while someone is typing
   return !!(a && a.tagName === "TEXTAREA" && a.closest("#dc")) || [...document.querySelectorAll("#dc textarea")].some(t => t.value.trim());
 }
 function composer(parent) {
-  const k = parent ? "r" + parent : "top";
+  const k = parent ? "r" + parent : "top", W = sideWords();
+  const evid = parent ? REPLY_COUNTER : !!POST_KIND;
+  const ph = parent ? (REPLY_COUNTER ? "Why is that wrong? Give your counter-argument (a source helps)…" : "Write a reply…")
+    : POST_KIND ? `Why do you think ${W[POST_KIND]}? Give your reason — a source makes it count.` : "What do you think happens next?";
   return `<div class="dc-form" ${parent ? 'style="border-bottom:none;padding:8px 0 0"' : ""}>
-    <textarea id="ta-${k}" maxlength="${DC.rules.max_len}" placeholder="${parent ? "Write a reply…" : "Is this story real, exaggerated or hype? What do you think happens next?"}"
+    ${parent && REPLY_COUNTER ? `<div class="note" style="padding:0 0 6px">Counter-argument: you argue <b>${esc(W[(DC.comments.find(c => c.id === parent) || {}).kind === "YES" ? "NO" : "YES"])}</b>.</div>` : ""}
+    <textarea id="ta-${k}" maxlength="${DC.rules.max_len}" placeholder="${esc(ph)}"
       oninput="$('#cc-${k}').textContent=this.value.length+' / ${DC.rules.max_len}'"></textarea>
+    ${evid ? `<input class="dc-link" id="ln-${k}" maxlength="500" placeholder="Source link (optional): https://…">` : ""}
     <div class="dc-foot">
-      ${parent ? "<span></span>" : `<div class="chips"><span class="lbl">Your read</span>
-        ${Object.keys(VLBL).map(v => `<button class="chip ${v} ${VERDICT === v ? "on" : ""}" onclick="setVerdict('${v}')">${VLBL[v]}</button>`).join("")}</div>`}
+      ${parent ? "<span></span>" : `<div class="chips"><span class="lbl">Post as</span>
+        <button class="chip ${!POST_KIND ? "on" : ""}" onclick="setKind(null)">💬 Comment</button>
+        <button class="chip ev-YES ${POST_KIND === "YES" ? "on" : ""}" onclick="setKind('YES')">📎 Evidence: ${esc(W.YES)}</button>
+        <button class="chip ev-NO ${POST_KIND === "NO" ? "on" : ""}" onclick="setKind('NO')">📎 Evidence: ${esc(W.NO)}</button></div>`}
       <div class="tp-row"><span class="dc-hint" id="cc-${k}">0 / ${DC.rules.max_len}</span>
-        ${parent ? `<button class="btn ghost" onclick="REPLY_TO=null;renderComments()">CANCEL</button>` : ""}
+        ${parent ? `<button class="btn ghost" onclick="REPLY_TO=null;REPLY_COUNTER=false;renderComments()">CANCEL</button>` : ""}
         <button class="btn" onclick="postComment(${parent || "null"})">${parent ? "REPLY" : "POST"}</button></div>
     </div>
     <div class="tp-msg err" id="dm-${k}"></div>
   </div>`;
+}
+function setKind(v) {
+  const keep = $("#ta-top") ? $("#ta-top").value : "";
+  POST_KIND = v;
+  renderComments();
+  if ($("#ta-top")) { $("#ta-top").value = keep; $("#ta-top").focus(); }
 }
 function setVerdict(v) {
   const keep = $("#ta-top") ? $("#ta-top").value : "";
@@ -851,24 +899,31 @@ function setVerdict(v) {
   if ($("#ta-top")) { $("#ta-top").value = keep; $("#ta-top").focus(); }
 }
 function cmHtml(c, isReply) {
-  const lineBet = STORY && STORY.bet && STORY.bet.kind === "line";
-  const sname = c.side && lineBet ? (c.side === "GROW" ? "BEGINNING" : "FORGOTTEN") : c.side;
+  const bk = STORY && STORY.bet && STORY.bet.kind, W = sideWords();
+  const sname = !c.side ? null : bk === "line" ? (c.side === "GROW" ? "BEGINNING" : "FORGOTTEN") : bk ? (c.side === "GROW" ? "YES" : "NO") : c.side;
   const pos = c.side ? `<span class="pos ${c.side}" title="Holds this position on the story">${sname} ${c.units ?? ""}</span>` : "";
   const vd = c.verdict ? `<span class="vd v-${c.verdict}">${VLBL[c.verdict].toUpperCase()}</span>` : "";
   const body = c.body == null
     ? `<div class="cm-body gone">${c.deleted ? "Comment removed." : "Hidden after several reports — waiting for review."}</div>`
     : `<div class="cm-body ${c.deleted ? "gone" : ""}">${esc(c.body)}</div>`;
+  const lk = c.link && safeUrl(c.link) ? `<a class="cm-link" href="${esc(safeUrl(c.link))}" target="_blank" rel="noopener nofollow">🔗 ${esc(c.domain || "source")}</a>` : "";
+  const ev = c.kind ? `<span class="ev ev-${c.kind}">📎 ${isReply && c.kind ? "counter · " : ""}${esc(W[c.kind])}</span>` : "";
+  const called = c.called === "WIN" ? `<span class="called win">✅ called it${c.lead_s ? " · " + leadTxt(c.lead_s) : ""}${c.bonus ? ` · +${c.bonus} cr` : ""}</span>`
+    : c.called === "LOSE" ? `<span class="called lose">❌ wrong call</span>` : "";
   const acts = [];
-  if (ME && !isReply && !c.deleted && !DC.blocked) acts.push(`<button onclick="REPLY_TO=${c.id};renderComments();$('#ta-r${c.id}')?.focus()">Reply</button>`);
+  if (c.kind && !c.deleted) acts.push(ME && !c.mine ? `<button class="${c.voted ? "on" : ""}" onclick="cmAct(${c.id},'useful')">👍 Useful${c.useful ? " · " + c.useful : ""}</button>`
+    : `<span class="useful-n">👍 ${c.useful || 0} useful</span>`);
+  if (ME && !isReply && !c.deleted && !DC.blocked) acts.push(`<button onclick="REPLY_TO=${c.id};REPLY_COUNTER=false;renderComments();$('#ta-r${c.id}')?.focus()">Reply</button>`);
+  if (ME && !isReply && c.kind && !c.deleted && !DC.blocked && !c.called) acts.push(`<button onclick="REPLY_TO=${c.id};REPLY_COUNTER=true;renderComments();$('#ta-r${c.id}')?.focus()">⚔️ Counter</button>`);
   if (ME && !c.mine && !c.deleted) acts.push(c.reported ? `<button disabled>Reported</button>` : `<button class="danger" onclick="cmAct(${c.id},'report')">Report</button>`);
   if (DC.moderator) {
     acts.push(c.deleted || c.held ? `<button onclick="cmAct(${c.id},'restore')">Restore</button>` : `<button class="danger" onclick="cmAct(${c.id},'delete')">Delete</button>`);
     acts.push(c.author_blocked ? `<button onclick="cmAct(${c.id},'unblock')">Unblock author</button>` : `<button class="danger" onclick="cmAct(${c.id},'block')">Block author</button>`);
   }
-  return `<div class="cm ${isReply ? "reply" : ""}">
-    <div class="cm-head"><span class="who">${esc(c.name)}</span>${c.founding ? fBadge(c.founding) : ""}${pos}${vd}<span>${ago(c.ts)}</span>
+  return `<div class="cm ${isReply ? "reply" : ""} ${c.kind ? "is-ev" : ""}">
+    <div class="cm-head"><span class="who">${esc(c.name)}</span>${c.founding ? fBadge(c.founding) : ""}${ev}${pos}${vd}${called}<span>${ago(c.ts)}</span>
       ${DC.moderator && c.reports ? `<span class="mod">⚑ ${c.reports} report${c.reports > 1 ? "s" : ""}</span>` : ""}</div>
-    ${body}
+    ${body}${lk}
     ${acts.length ? `<div class="cm-act">${acts.join("")}</div>` : ""}
     ${!isReply ? c.replies.map(r => cmHtml(r, true)).join("") : ""}
     ${!isReply && REPLY_TO === c.id ? composer(c.id) : ""}
@@ -928,6 +983,16 @@ async function doDelist() {
   if (!r.ok) { $("#dl-msg").textContent = d.detail || "Could not delist"; return; }
   DL_OPEN = false; story(STORY.sid);
 }
+function caseBox() {
+  if (!DC.strongest || !STORY || !STORY.bet) return "";
+  const W = sideWords();
+  const col = k => { const x = DC.strongest[k];
+    return `<div class="case case-${k}"><div class="lbl">Strongest case: ${esc(W[k])} <span style="color:var(--dim)">· ${DC.evidence[k]} piece${DC.evidence[k] === 1 ? "" : "s"}</span></div>
+      ${x ? `<div class="case-body">“${esc(x.body.length > 220 ? x.body.slice(0, 217) + "…" : x.body)}”</div>
+        <div class="m"><span>${esc(x.name)}</span>${x.domain && safeUrl(x.link) ? `<a href="${esc(safeUrl(x.link))}" target="_blank" rel="noopener nofollow">🔗 ${esc(x.domain)}</a>` : ""}<span>👍 ${x.useful}</span>${x.called === "WIN" ? "<span>✅ called it</span>" : ""}</div>`
+        : `<div class="note" style="padding:0">No evidence yet. Post the first.</div>`}</div>`; };
+  return `<div class="cases">${col("YES")}${col("NO")}</div>`;
+}
 function renderComments() {
   renderModTools();
   const el = $("#dc"); if (!el || !DC) return;
@@ -940,17 +1005,20 @@ function renderComments() {
   el.innerHTML = `<div class="ph"><span class="lbl">Discussion</span>
       <span class="mono" style="font-size:10px;color:var(--muted)">${DC.count} comment${DC.count === 1 ? "" : "s"} · doesn't affect the score or payouts</span></div>
     ${read}
-    <div class="house"><b>House rules:</b> discuss companies, brands and public roles — not private people. Opinions are welcome; don't state accusations as facts. Comments that break these rules are removed.</div>
+    ${caseBox()}
+    <div class="house"><b>House rules:</b> discuss companies, brands and public roles, not private people. Back claims with sources; don't state accusations as facts.
+      <b>No brigading:</b> don't run campaigns, post on social media to move a story, or contact the brand. Breaking this means a ban and losing your winnings.</div>
     ${!ME ? loginHtml("Log in to join the discussion.") : DC.blocked ? `<div class="note">You can't comment right now.</div>` : composer(null)}
     ${DC.comments.length ? DC.comments.map(c => cmHtml(c, false)).join("") : `<div class="empty">No comments yet. Is this story the real thing — or overblown?</div>`}`;
 }
 async function postComment(parent) {
   const k = parent ? "r" + parent : "top", ta = $("#ta-" + k);
   const r = await fetch(`/api/stories/${encodeURIComponent(DC_SID)}/comments`, { method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ user_id: ME.id, body: ta.value, verdict: parent ? null : VERDICT, parent_id: parent }) });
+    body: JSON.stringify({ user_id: ME.id, body: ta.value, verdict: null, parent_id: parent,
+      kind: parent ? (REPLY_COUNTER ? "COUNTER" : null) : POST_KIND, link: ($("#ln-" + k) || {}).value || null }) });
   const d = await r.json().catch(() => ({}));
   if (!r.ok) { $("#dm-" + k).textContent = d.detail || "Could not post"; return; }
-  ta.value = ""; REPLY_TO = null; if (!parent) VERDICT = null;
+  ta.value = ""; REPLY_TO = null; REPLY_COUNTER = false; if (!parent) { VERDICT = null; POST_KIND = null; }
   await loadComments(DC_SID);
 }
 async function cmAct(id, action) {

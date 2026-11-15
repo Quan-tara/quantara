@@ -54,6 +54,12 @@ async def startup_event():
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS username VARCHAR(64)",
             "ALTER TABLE narratives ADD COLUMN IF NOT EXISTS arena VARCHAR(16) DEFAULT 'food'",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash VARCHAR(128)",
+            "ALTER TABLE story_comments ADD COLUMN IF NOT EXISTS kind VARCHAR(4)",
+            "ALTER TABLE story_comments ADD COLUMN IF NOT EXISTS link TEXT",
+            "ALTER TABLE story_comments ADD COLUMN IF NOT EXISTS useful INTEGER DEFAULT 0",
+            "ALTER TABLE story_comments ADD COLUMN IF NOT EXISTS called VARCHAR(4)",
+            "ALTER TABLE story_comments ADD COLUMN IF NOT EXISTS lead_s FLOAT",
+            "ALTER TABLE story_comments ADD COLUMN IF NOT EXISTS bonus FLOAT",
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username) WHERE username IS NOT NULL",
         ]
         for _sql in _migrations:
@@ -2373,6 +2379,8 @@ class StoryCommentRequest(_BM):
     body: str
     verdict: _Opt[str] = None
     parent_id: _Opt[int] = None
+    kind: _Opt[str] = None       # YES | NO (evidence) | COUNTER (reply to evidence)
+    link: _Opt[str] = None
 
 
 class StoryCommentActionRequest(_BM):
@@ -2392,7 +2400,7 @@ def api_story_comments(sid: str, user_id: str = None):
 def api_story_comment_post(sid: str, req: StoryCommentRequest):
     from engine.story_comments import post, CommentError
     try:
-        cid = post(parse_user_id(req.user_id), sid[:16], req.body, req.verdict, req.parent_id)
+        cid = post(parse_user_id(req.user_id), sid[:16], req.body, req.verdict, req.parent_id, req.kind, req.link)
         return {"status": "ok", "id": cid}
     except CommentError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -2400,15 +2408,24 @@ def api_story_comment_post(sid: str, req: StoryCommentRequest):
 
 @app.post("/api/stories/comments/{comment_id}/action")
 def api_story_comment_action(comment_id: int, req: StoryCommentActionRequest):
-    from engine.story_comments import report, moderate, CommentError
+    from engine.story_comments import report, moderate, vote_useful, CommentError
     uid = parse_user_id(req.user_id)
     try:
+        if req.action == "useful":
+            return {"status": "ok", "useful": vote_useful(uid, comment_id)}
         if req.action == "report":
             return {"status": "ok", "reports": report(uid, comment_id, req.reason)}
         moderate(uid, comment_id, req.action)
         return {"status": "ok"}
     except CommentError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/api/stories/called/{user_id_str}")
+def api_story_called(user_id_str: str):
+    """A player's evidence that turned out right ("called it")."""
+    from engine.story_comments import called_by
+    return called_by(parse_user_id(user_id_str))
 
 
 @app.get("/leaderboard")

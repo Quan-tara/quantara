@@ -151,7 +151,9 @@ def overview(session):
     for r in rows:
         if r.brand not in latest or r.ts > latest[r.brand].ts:
             latest[r.brand] = r
-    busiest = sorted(latest.values(), key=lambda r: r.posts or 0, reverse=True)[:15]
+    from engine.everyday import NON_US_BRANDS
+    busiest = sorted([r for r in latest.values() if r.brand not in NON_US_BRANDS],
+                     key=lambda r: r.posts or 0, reverse=True)[:15]
     return {"brands": len(brands()), "warmed_up": sum(1 for b in brands() if per.get(b, 0) >= MIN_HISTORY),
             "rising": rising(session),
             "busiest_now": [{"brand": r.brand, "posts_3h": r.posts, "normal": r.baseline,

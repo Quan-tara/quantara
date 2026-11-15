@@ -296,7 +296,7 @@ STAKES_LOW = ["discontinued", "bring back", "want back", "wants back", "nostalgi
 _CHANGE = r"(?:price|prices|\$\d|smaller|portion|shrink|recipe|removed|remove|discontinu|policy|fee|fees|surcharge|charge|tipping|tip |menu change|cut |cuts |downsiz|replac)"
 DEMAND_RX = re.compile(
     r"\bbring(?:s|ing)? (?:\w+ ){0,3}back\b|\b(?:want|wants|wanted|beg|begs|begging|plead\w*|demand\w*|asking|ask)\b.{0,40}\bback\b"
-    r"|\breturn of\b|\bpetition|\bboycott|\brefund|\bapolog|\bdemand(?:s|ing|ed)?\b|\bcalls? (?:on|for)\b|\burg(?:e|es|ing)\b"
+    r"|\bpetition|\bboycott|\brefund|\bapolog|\bdemand(?:s|ing|ed)?\b|\bcalls? (?:on|for)\b|\burg(?:e|es|ing)\b"
     r"|\bprotest|\bwalkout|\bwalk out\b|\bstrike\b|\blawsuit|\bclass action|\bsue[sd]?\b|\bsuing\b|\bthreaten\w* to (?:cancel|quit|boycott|leave|stop)\b"
     r"|\brevers(?:e|es|ed|al)\b|\bbacktrack|\bu-turn|\bscrap(?:s|ped)?\b|\bnever again\b|\bdone with\b|\bswitching to\b"
     r"|\b(?:price hike|price increase|raises prices|raising prices|shrinkflation|hidden fee|junk fee|fee hike|fee increase|membership fee)"
@@ -306,7 +306,9 @@ DEMAND_RX = re.compile(
 STRONG_DEMAND_RX = re.compile(r"\bpetition|\bboycott|\blawsuit|\bclass action|\bsued\b|\bwalkout|\bstrike\b", re.I)
 JOKE_RX = re.compile(r"\bjok(?:e|es|ing)\b|\broast(?:ed|ing)?\b|\bmemes?\b|\bhilarious\b|\bwheezing\b|\bwe tried\b|"
                      r"\btaste test\b|\branked\b|\breview\b|\bdisadvantages\b|\breasons? (?:why|to)\b|\bwhat,? exactly\b|"
-                     r"\bsecret menu\b|\bhacks?\b|\bis (?:the )?new .{0,60} good\b|^\d+ ", re.I)
+                     r"\bsecret menu\b|\bhacks?\b|\bis (?:the )?new .{0,60} good\b|^\d+ |"
+                     r"\bupcoming\b|\bis back\b|\bare back\b|\bmakes? (?:a|its) return\b|\breturns? (?:to|for|this)\b|"
+                     r"\bnostalgi\w*|\blaunch(?:es|ed|ing)?\b|\bdebuts?\b|\bunveil\w*|\bsneak peek\b|\bfans? (?:are )?(?:excited|thrilled|rejoice)", re.I)
 
 
 def demand(lead, others=()):

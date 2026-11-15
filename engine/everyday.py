@@ -251,12 +251,38 @@ LISTICLE_RX = re.compile(
     r"\bwe tried\b|\bi tried\b|\bbest\s+[\w\s]{0,20}\bto\s+(?:buy|try)\b|\bshopping list\b", re.I)
 
 
+# a food brand's name on a stadium, team or race ("Kroger Field", "Red Bull Salzburg")
+VENUE_RX = re.compile(r"\b(?:field|stadium|arena|center|centre|ballpark|bowl|park|garden|amphitheat(?:er|re)|speedway)\b|"
+                      r"\bred bull (?:salzburg|leipzig|racing|bragantino|ring)\b|\bny red bulls\b|\bnew york red bulls\b", re.I)
+SPORT_TERMS = ["betting tips", "betting odds", "lineups", "line-ups", "kickoff", "kick-off", "quarterback", "head coach", "coach",
+               "playoff", "playoffs", "touchdown", "nfl", "nba", "mlb", "nhl", "ncaa", "premier league", "bundesliga",
+               "champions league", "grand prix", "formula 1", "athletic director", "football", "basketball", "baseball",
+               "soccer", "hockey", "tournament", "championship", "matchday", "fixture", "sec", "ole miss",
+               "athletic", "athletics", "big ten", "big 12", "acc", "bowl game", "season opener"]
+# crimes, missing people, deaths — real private people; never something to bet on
+CRIME_TERMS = ["went missing", "goes missing", "gone missing", "reported missing", "missing driver", "missing person",
+               "missing woman", "missing man", "missing teen", "missing child", "murder", "murdered", "killed", "killing", "stabbing", "stabbed", "assault", "assaulted",
+               "arrested", "arrest", "charged with", "sentenced", "police", "homicide", "manslaughter", "kidnapped",
+               "abducted", "rape", "sexual", "body found", "funeral", "last messages", "died", "dies", "dead", "death",
+               "armed robbery", "gunman", "suspect", "victim", "court case"]
+# tech / IT news that only mentions a food brand
+OFFTOPIC_TERMS = ["payroll", "workday", "cyberattack", "cyber attack", "hackers", "data breach",
+                  "ransomware", "nvidia", "jensen huang", "openai", "chatgpt", "bitcoin", "crypto", "semiconductor"]
+
+
 def blocked_title(text, title):
-    """Shared hard filters: deals, list articles, politics, religion/ethnicity/war."""
+    """Shared hard filters: deals, list articles, politics, religion/ethnicity/war, sport, crime, tech news."""
     t = title or ""
     if DEAL_RX.search(t) or LISTICLE_RX.search(t):
         return True
-    return ni._has_any(text, A.HARD_POLITICS) or ni._has_any(text, A.SENSITIVE_TERMS)
+    if VENUE_RX.search(t) and brand_in([t]):
+        # "Kroger Field", "Pizza Hut Park" — the brand is a venue name here
+        b = brand_in([t]).lower()
+        if re.search(re.escape(b) + r"\W+(?:field|stadium|arena|center|centre|ballpark|bowl|park|garden|speedway)", t.lower()) \
+                or re.search(r"red bull (?:salzburg|leipzig|racing|bragantino|ring)|red bulls", t.lower()):
+            return True
+    return (ni._has_any(text, A.HARD_POLITICS) or ni._has_any(text, A.SENSITIVE_TERMS)
+            or ni._has_any(text, SPORT_TERMS) or ni._has_any(text, CRIME_TERMS) or ni._has_any(text, OFFTOPIC_TERMS))
 
 
 # Tagalog (Filipino) headlines and Philippine TV/showbiz pages

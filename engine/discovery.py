@@ -94,6 +94,9 @@ def run_discovery():
             rec = BrandBuzz(brand=b, ts=now)
             try:
                 res = search(f'"{b}"', hours=WINDOW_H)
+                from engine.everyday import blocked_title
+                food = [t for t in res["texts"] if not blocked_title((t or "").lower(), t or "")]
+                res["brand_total"], res["texts"] = len(food), food
                 prev = [r.posts for r in session.query(BrandBuzz)
                         .filter(BrandBuzz.brand == b, BrandBuzz.status == "OK",
                                 BrandBuzz.ts >= now - HISTORY_D * 86400).all() if r.posts is not None]

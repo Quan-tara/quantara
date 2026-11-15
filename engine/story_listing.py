@@ -225,7 +225,8 @@ def update_listings(stories, session, now=None, arena="food"):
         mine = (snap.get("company") or "").lower()
         into = next((s for s in listed_live if s["sid"] != n.sid
                      and not (mine and (s.get("company") or "").lower() and mine != (s.get("company") or "").lower())
-                     and same_event(tk, hz, set(s["tokens"]), set(s["hazards"]))), None)
+                     and (same_event(tk, hz, set(s["tokens"]), set(s["hazards"]))
+                          or (mine and mine == (s.get("company") or "").lower() and len(tk & set(s["tokens"])) >= 3))), None)
         if into:
             snap["merged_into"] = into["sid"]
             n.snapshot = json.dumps(snap)

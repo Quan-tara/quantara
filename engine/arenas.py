@@ -390,6 +390,9 @@ def same_brand_story(a, b):
         ka, kb = set(a["hazards"]) - {"backlash"}, set(b["hazards"]) - {"backlash"}
         if ka and kb and (ka & kb):          # same company, same kind of trouble
             return True
+        # same company and 2+ shared key words ("Denny's … plaque … Nvidia booth") → same story
+        if len((set(a.get("tokens") or ()) & set(b.get("tokens") or ())) - na - nb) >= 2:
+            return True
         # same company but no shared kind of trouble → only if the headlines share words
         # ("McDonald's Welsh town backlash" ≠ "McDonald's brings back old-school hospitality")
     return ni._same_story(a, b)
@@ -469,6 +472,8 @@ def collect_arena(name, profile):
         from engine.everyday import brand_in
         for a in articles:
             a["brand"] = brand_in([a.get("raw_title") or a["title"]])
+        # a Reddit post that names no food brand is a personal story ("our cat hid…"), not a company story
+        articles = [a for a in articles if a["brand"] or not (a.get("source") or "").lower().startswith("reddit")]
     if name == "brands":
         # headlines without a company word stay only if a clear company story names the same company
         strict = [a for a in articles if _strict((a.get("raw_title") or a["title"]).lower())]

@@ -63,6 +63,31 @@ BAD = [  # (headline, why it must stay out)
     ("The Internet Is Furious With Wendy’s After the Fast Food Chain Is Seemingly Caught ‘Lying’", "no concrete demand"),
 ]
 
+# The INDEX gate is broader: real pressure counts even without a named brand or an explicit demand,
+# and culture-war fights about a named food brand count (they are never shown to players).
+INDEX_GOOD = [
+    "Las Vegas steakhouse chain in crisis as restaurants shut and furious workers say they're owed wages",
+    "Bud Light sales slump as conservative boycott over transgender influencer campaign drags on",
+    "Starbucks sales fall as boycott over Israel-Gaza stance spreads in US",
+    "Cracker Barrel shares slide after backlash over new logo, boycott calls grow",
+    "Cup of woe: Starbucks unionized baristas in Manhattan call for boycott",
+    "US grocery prices jump again as shoppers cut back",
+    "Costco Kirkland Signature whipped cream recalled over possible cleaning chemical",
+    "Taco Bell customers outraged over smaller portions for the same price",
+]
+INDEX_BAD = [
+    ("5 Disadvantages Of Ordering A Sheet Cake From Costco's Bakery", "listicle"),
+    ("What, Exactly, Is In McDonald's Creamy Chili McCrispy Strip Dip?", "explainer"),
+    ("Jersey Mike's customers beg for discontinued sub back", "nostalgia"),
+    ("New Gokul chairman puts milk price hike on hold", "India"),
+    ("Two supermarkets copy Tesco's 8% price hike on essential grocery", "UK"),
+    ('"Babadook Hip": People Online Are Joking About The Starbucks Braised Short Rib Grilled Cheese Sandwich', "joke"),
+    ("Republicans and Democrats clash over food stamp cuts in Congress", "politics without a brand"),
+    ("Shooting at McDonald's in Chicago leaves two injured", "violence"),
+    ("Woke Starbucks? Conservative influencer mocks new cup design", "culture war, no stakes"),
+    ("Trader Joe's Upcoming Frozen Dessert Is Giving Fans Sweet '90s Nostalgia", "promo"),
+]
+
 fails = 0
 for t in GOOD:
     ok, why = gate(t)
@@ -74,5 +99,23 @@ for t, label in BAD:
     if ok:
         fails += 1
         print(f"SHOULD BLOCK ({label}, passed on '{why}')  {t}")
-print(f"{len(GOOD) + len(BAD) - fails}/{len(GOOD) + len(BAD)} correct")
+from engine.everyday import index_gate
+for t in INDEX_GOOD:
+    ok, why = index_gate(t)
+    if not ok:
+        fails += 1
+        print(f"INDEX SHOULD COUNT  [{why}]  {t}")
+for t, label in INDEX_BAD:
+    ok, why = index_gate(t)
+    if ok:
+        fails += 1
+        print(f"INDEX SHOULD SKIP ({label}, counted as '{why}')  {t}")
+# culture-war stories count in the index but are never shown to players
+# (Cracker Barrel's logo row has no political words, so players may get it: "Will they reverse the logo?")
+for t in INDEX_GOOD[1:3]:
+    if gate(t)[0]:
+        fails += 1
+        print(f"PLAYERS SHOULD NOT SEE (politics)  {t}")
+total = len(GOOD) + len(BAD) + len(INDEX_GOOD) + len(INDEX_BAD) + 2
+print(f"{total - fails}/{total} correct")
 sys.exit(1 if fails else 0)

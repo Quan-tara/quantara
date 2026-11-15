@@ -118,6 +118,10 @@ JARGON_WORDS = [
 # FOOD & DRINK focus — the game lists only food stories (same industry as the FSNI)
 # ─────────────────────────────────────────────
 FOOD_BRANDS = [
+    "jersey mike's", "jimmy john's", "firehouse subs", "wingstop", "raising cane's", "in-n-out", "whataburger",
+    "culver's", "zaxby's", "cracker barrel", "texas roadhouse", "red lobster", "buffalo wild wings", "chili's",
+    "outback steakhouse", "cheesecake factory", "dutch bros", "crumbl", "sweetgreen", "cava", "panda express",
+    "little caesars", "papa murphy's", "qdoba", "del taco", "carl's jr", "hardee's", "dairy queen", "baskin-robbins",
     "mcdonald's", "mcdonalds", "burger king", "kfc", "starbucks", "subway", "domino's", "dominos",
     "pizza hut", "taco bell", "chipotle", "wendy's", "greggs", "pret", "costa", "coca-cola", "coke",
     "pepsi", "red bull", "cadbury", "nestle", "nestlé", "haribo", "milka", "dunkin", "krispy kreme",

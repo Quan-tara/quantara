@@ -30,7 +30,7 @@ BACKFILL_H       = 72      # history copied from earlier readings when a story l
 MAX_ARTICLES     = 60
 
 
-_KEEP = ("bet", "short_title", "title_by", "delisted", "merged_into")
+_KEEP = ("bet", "short_title", "title_by", "title_v", "delisted", "merged_into")
 
 
 def _snapshot(s, old=None):

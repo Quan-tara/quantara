@@ -27,13 +27,21 @@ MAX_PER_RUN = 5
 MAX_LEN = 60
 _state = {"warned": False, "blocked_until": 0.0, "model": None, "last_error": None, "last_ok": None, "done": 0}
 
-PROMPT = """Rewrite this food & drink news story as a short title for a social prediction game.
+PROMPT_VERSION = 2
+PROMPT = """Write a short title for this food & drink story in a game where people bet on whether the fuss
+grows or fades. The title must show the FUSS: who is upset, mocking, begging or boycotting, and about what.
 Rules:
-- at most 7 words, plain everyday English, the way people talk
-- put the brand first if there is one
-- a question is fine if it fits
-- only use facts that are in the headlines below; do not invent anything; no accusations stated as fact
-- no quotes, no emojis, no hashtags, no full stop at the end
+- 5 to 9 words, plain everyday English, the way people talk
+- brand first if there is one
+- name the reaction (fans furious, people roast, customers quit, students boycott, fans beg) when the headlines show one
+- never turn mockery or complaints into praise; never state a claim from the story as fact
+- only facts from the headlines below; invent nothing
+- no quotes, no emojis, no hashtags, no full stop
+Examples:
+  "Taco Bell customers outraged over new packaging they say means less food" -> Taco Bell fans say they get less food
+  "People Online Are Joking About The Starbucks Braised Short Rib Grilled Cheese" -> Starbucks' short rib sandwich gets roasted online
+  "The Discontinued Jersey Mike's Sub That Customers Want Back" -> Jersey Mike's fans beg for their sub back
+  "College students rally in support of Starbucks baristas urging boycott" -> Students call for a Starbucks boycott
 Return only the title.
 
 Brand: {brand}
@@ -127,13 +135,15 @@ def run_titles():
             if len(done) >= MAX_PER_RUN:
                 break
             snap = json.loads(n.snapshot or "{}")
-            if snap.get("short_title") or snap.get("title_by") == "moderator":
+            if snap.get("title_by") == "moderator":
                 continue
+            if snap.get("short_title") and snap.get("title_v", 1) >= PROMPT_VERSION:
+                continue                       # already written with the current instructions
             heads = [n.title] + [a["title"] for a in snap.get("articles", []) if a.get("title") != n.title][:3]
             try:
                 snap["short_title"] = shorten(heads, snap.get("company"))
                 _state["last_ok"], _state["done"] = time.time(), _state["done"] + 1
-                snap["title_by"] = "ai"
+                snap["title_by"], snap["title_v"] = "ai", PROMPT_VERSION
                 n.snapshot = json.dumps(snap)
                 session.commit()
                 done.append(f"{snap['short_title']}")

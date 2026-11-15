@@ -1934,9 +1934,10 @@ def api_story_candidates(user_id: str, arena: str = "everyday", limit: int = 25)
             if x.get("list_status"):
                 why.append(f"was {x['list_status'].lower()}")
             if rules.get("demand"):
-                from engine.everyday import demand as _demand
-                if not _demand(x.get("title")):
-                    why.append("no demand on the brand")
+                from engine.everyday import gate as _gate
+                ok_, why_ = _gate(x.get("title"), [], x.get("company"))
+                if not ok_:
+                    why.append(why_)
             if rules.get("min_talk"):
                 from engine.story_listing import talk_level, TALK_MIN_VIDEOS
                 p_, v_, up_ = talk_level(session, x.get("sid"), x.get("company"))

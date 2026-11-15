@@ -1402,7 +1402,8 @@ def serve_index():
 
 @app.get("/markets")
 def serve_markets():
-    return FileResponse(os.path.join(os.path.dirname(__file__), "story.html"))
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse("/stories")
 
 
 @app.get("/me")
@@ -2117,6 +2118,7 @@ class SectorTradeReq(BaseModel):
 
 @app.post("/api/sectors/trade")
 def api_sectors_trade(req: SectorTradeReq):
+    raise HTTPException(410, "Sector trading has been retired — positions were closed at that day's price.")
     from engine.sectors import trade, SectorError
     session = SessionLocal()
     try:

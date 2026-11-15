@@ -167,12 +167,12 @@ function renderOutlook() {
   const P = d.parts || {};
   const info = {
     intent: p => p.answers >= (p.needed || 0) && p.no != null ? `${p.no} of ${p.answers} answers: "I'd stop buying"${(p.worst || []).length ? " · most: " + p.worst.map(w => w[0] + " " + w[1] + "%").join(", ") : ""}` : `needs ${p.needed || 5} answers to "Would you still buy?" (${p.answers || 0} so far)`,
-    crowd: p => p.source === "sector stocks" ? `${Math.round(p.sell_pct)}% of sector-stock shares traded in 3 days were sells ("trouble ahead") · ${p.players} player${p.players === 1 ? "" : "s"}` : p.stories ? `${p.players} players on ${p.stories} listed stories · average chance of "just the beginning" ${f1(p.grow_chance)}%` : "no listed stories yet",
+    crowd: p => p.stories ? `${p.players} players betting on ${p.stories} live stories · average chance they end badly for the brand: ${f1(p.grow_chance)}%` : "no listed stories yet",
     buzz: p => (p.rising || []).length ? `rising on Bluesky: ${p.rising.join(", ")}` : "no food brand spiking on Bluesky",
     searches: p => p.checked ? `${p.acted} of ${p.checked} checked stories show "boycott / alternative" searches` : "no search checks in the last 2 days",
     momentum: p => p.change_24h != null ? `index ${sgn(p.change_24h)} in 24 h` : "needs 24 h of readings",
   };
-  const names = { crowd: "Crowd", intent: "Intent", buzz: "Buzz", searches: "Searches", momentum: "Momentum" };
+  const names = { crowd: "Crowd", buzz: "Buzz", searches: "Searches", momentum: "Momentum" };
   el.innerHTML = `<div class="row"><span class="verdict ${cls(d.label)}">${esc(d.label || "no outlook yet")}</span>
       <span class="mono sub">${d.outlook != null ? d.outlook.toFixed(0) + " / 100" : ""}</span></div>
     ${Object.keys(names).map(k => { const p = P[k] || {}; const s = p.score;
@@ -188,10 +188,9 @@ async function renderYou() {
   let d; try { d = await (await fetch(`/api/reputation/you?sector=${encodeURIComponent(sector)}&brand=${encodeURIComponent(brand)}`)).json(); } catch (e) { return; }
   const list = sector || brand ? d.stories : (SNAP.top || []).slice(0, 5).map(s => ({ ...s, match: "all food" }));
   const sx = d.sector;
-  const sectorLine = sx && sx.price != null ? `<div class="sub">${esc(sx.label)} stock: <b class="${sx.price < 95 ? "pressure" : sx.price > 105 ? "calm" : ""}">${sx.price.toFixed(1)}</b>${sx.change_24h != null ? ` (${sgn(sx.change_24h)} in 24h)` : ""} · 100 = normal${sx.sell_pct != null ? ` · crowd <b class="${sx.sell_pct > 55 ? "pressure" : "calm"}">${Math.round(sx.sell_pct)}% selling</b>` : ""}</div>` : "";
-  const it = d.intent;
-  const intentLine = it ? `<div class="sub">Players asked "Would you still buy from ${esc(brand)}?": <b class="${it.no_pct > 30 ? "pressure" : it.no_pct > 15 ? "watch" : "calm"}">${it.no_pct}% say they'd stop</b> (${it.answers} answers, 30 days)</div>` : "";
-  el.innerHTML = sectorLine + intentLine + (list.length ? `<div class="sub"><b>${list.length}</b> live stor${list.length === 1 ? "y touches" : "ies touch"} you${list.some(s => s.match === "your brand") ? `, <b class="pressure">${list.filter(s => s.match === "your brand").length} naming your brand</b>` : ""}.</div>
+  const dev = sx && sx.price != null ? (100 - sx.price) / 2 : null;
+  const sectorLine = dev != null ? `<div class="sub">Your category, ${esc(sx.label)}: drama is <b class="${dev > 2.5 ? "pressure" : dev < -2.5 ? "calm" : ""}">${Math.abs(dev) < 0.5 ? "at its normal level" : `${Math.abs(dev).toFixed(1)} points ${dev > 0 ? "above" : "below"} its normal level`}</b> (last 7 days).</div>` : "";
+  el.innerHTML = sectorLine + (list.length ? `<div class="sub"><b>${list.length}</b> live stor${list.length === 1 ? "y touches" : "ies touch"} you${list.some(s => s.match === "your brand") ? `, <b class="pressure">${list.filter(s => s.match === "your brand").length} naming your brand</b>` : ""}.</div>
     <div class="list">${list.slice(0, 6).map(s => `<div class="li"><a href="/story/${encodeURIComponent(s.sid)}">${esc(s.title)}</a>
       <div class="m"><span class="tag ${s.match === "your brand" ? "hot" : ""}">${esc(s.match)}</span><span>score ${f1(s.score)}</span>${s.posts ? `<span>🦋 ${s.posts} posts</span>` : ""}${s.listed ? `<span class="tag on">listed</span>` : ""}</div></div>`).join("")}</div>`
     : `<div class="empty">No live stories touch ${esc(brand || sector)} right now. That's the calm case: nothing to cover against yet.</div>`);

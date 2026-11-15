@@ -97,7 +97,7 @@ ARENA_RULES = {
     "food":     {"score": LIST_SCORE, "outlets": LIST_MIN_OUTLETS, "daily_cap": None, "listing": False},
     "brands":   {"score": 40.0, "outlets": 6, "daily_cap": 5, "listing": False},
     "everyday": {"score": 30.0, "outlets": 4, "daily_cap": 5, "listing": True, "min_talk": 5,
-                 "stakes": True, "fresh_h": 12, "bet": "outlets",
+                 "stakes": True, "fresh_h": 12, "bet": "cave", "cave_days": 7,
                  "score_low": 25.0, "few_open": 3},   # fewer than 3 open stories → bar 25
 }
 
@@ -260,6 +260,16 @@ def update_listings(stories, session, now=None, arena="food"):
         else:
             inputs = _inputs_from_snapshot(snap, now)
             score = _score_from_snapshot(snap, now)
+        # "Will they cave?": flag a headline that looks like the brand backing down
+        b_ = snap.get("bet") or {}
+        if b_.get("kind") == "cave" and not b_.get("caved") and not b_.get("hint"):
+            from engine.story_market import cave_hint
+            seen = set(b_.get("dismissed") or [])
+            h = cave_hint([a.get("title") for a in snap.get("articles", []) if a.get("title") not in seen], b_.get("company"))
+            if h:
+                b_["hint"] = h
+                snap["bet"] = b_
+                print(f"🏳️ Possible cave on {n.sid} ({b_.get('company')}): {h[:80]} — waiting for a moderator")
         # exactly what this score was computed from — the story page's breakdown uses it,
         # and it stays frozen once the story closes
         snap["score_inputs"] = {**inputs, "at": now}
@@ -312,10 +322,16 @@ def update_listings(stories, session, now=None, arena="food"):
             if room <= 0:
                 break
             room -= 1
-        closes = now + LIST_WINDOW_H * 3600
+        cave = rules.get("bet") == "cave" and bool(_lead_brand(s.get("title")) or s.get("company"))
+        closes = now + (rules.get("cave_days", 7) * 86400 if cave else LIST_WINDOW_H * 3600)
         try:
-            from engine.story_market import make_line, make_outlets_bet
-            bet = make_outlets_bet(s, closes, now) if rules.get("bet") == "outlets" else make_line(session, s, closes)
+            from engine.story_market import make_line, make_outlets_bet, make_cave_bet
+            if cave:
+                bet = make_cave_bet({**s, "company": _lead_brand(s.get("title")) or s.get("company")}, closes)
+            elif rules.get("bet") in ("outlets", "cave"):
+                bet = make_outlets_bet(s, closes, now)        # no company to cave → the outlets question
+            else:
+                bet = make_line(session, s, closes)
         except Exception as e:
             print(f"⚠️ line error {s['sid']}: {e}")
             bet = None
@@ -343,6 +359,43 @@ def update_listings(stories, session, now=None, arena="food"):
         s["listed"] = bool(n and n.status == "LISTED")
         s["list_status"] = n.status if n else None
         s["closes_at"] = n.closes_at if n else None
+
+
+def confirm_cave(sid, moderator_id, caved):
+    """Moderator: caved=True → YES wins now (story closes and settles); caved=False → the
+    flagged headline wasn't a cave (hint dismissed, the bet runs on)."""
+    from db.database import SessionLocal
+    from engine.story_comments import is_moderator
+    if not is_moderator(moderator_id):
+        raise PermissionError("Moderators only")
+    session = SessionLocal()
+    try:
+        n = session.query(Narrative).filter(Narrative.sid == sid).first()
+        if not n:
+            raise LookupError("Story not found")
+        snap = json.loads(n.snapshot or "{}")
+        b = snap.get("bet") or {}
+        if b.get("kind") != "cave":
+            raise ValueError("This story has no 'Will they cave?' bet")
+        if n.status != "LISTED":
+            raise ValueError(f"Story is already {n.status.lower()}")
+        now = time.time()
+        if caved:
+            b["caved"], b["caved_at"], b["confirmed_by"] = True, now, str(moderator_id)
+            snap["bet"] = b
+            n.snapshot = json.dumps(snap)
+            n.status, n.final_score, n.closed_at = "CLOSED", n.last_score, now
+            _settle(session, sid, final=n.last_score or 0)
+            print(f"🏳️ Cave confirmed  {sid}  {b.get('company')} backed down — YES wins")
+        else:
+            if b.get("hint"):
+                b["dismissed"] = (b.get("dismissed") or []) + [b.pop("hint")]   # this headline wasn't a cave
+            snap["bet"] = b
+            n.snapshot = json.dumps(snap)
+        session.commit()
+        return {"sid": sid, "caved": bool(caved)}
+    finally:
+        session.close()
 
 
 def delist(sid, moderator_id, reason=None):

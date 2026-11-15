@@ -194,12 +194,52 @@ def make_outlets_bet(live_story, closes_at, now=None):
     return {"kind": "outlets", "target": target, "start": cur, "pace12": round(pace * 12, 1)}
 
 
+# ─────────────────────────────────────────────
+# "WILL THEY CAVE?" (food & drink stories about a company, listed from Nov 15 on)
+#   "Will <brand> back down within 7 days?" — apologise, reverse the change, bring the item back.
+#     YES (side GROW) pays 100 per unit if a moderator confirms a cave before the deadline
+#     NO  (side FADE) pays 100 per unit otherwise
+#   The news scan flags headlines that look like a cave ("apologizes", "reverses", "brings
+#   back"…) as a hint; only a moderator's confirmation settles YES (and closes it at once).
+#   Model chance: 25 % (most storms pass without the brand backing down); 60 % once a hint
+#   is flagged. The crowd moves the price from there.
+# ─────────────────────────────────────────────
+CAVE_BASE, CAVE_HINT = 0.25, 0.60
+CAVE_DAYS = 7
+import re as _re
+CAVE_RX = _re.compile(r"\b(apologi[sz]es?|apologi[sz]ed|apology|reverses?|reversed|reversing|walks? back|walked back|"
+                      r"backtracks?|backtracked|u-?turn|caves?|caved|backs? down|backed down|scraps?|scrapped|"
+                      r"pulls? the plug|drops? (?:the )?(?:plan|change|price hike|new)|brings? (?:it )?back|bringing back|"
+                      r"restores?|restored|reinstates?|reinstated|rolls? back|rolled back|reverts?|reverted|"
+                      r"listened to (?:fans|customers))\b", _re.I)
+
+
+def cave_hint(titles, company):
+    """A headline that looks like the brand backing down, or None."""
+    c = (company or "").lower().replace("’", "'")
+    for t in titles:
+        tl = (t or "").lower().replace("’", "'")
+        if c and c in tl and CAVE_RX.search(tl):
+            return t
+    return None
+
+
+def make_cave_bet(live_story, closes_at):
+    return {"kind": "cave", "company": live_story.get("company"), "deadline": closes_at, "base": CAVE_BASE}
+
+
 def line_chance(n, now=None):
-    """Model chance (0–1) that the bet's YES side wins (line or outlets bet)."""
+    """Model chance (0–1) that the bet's YES side wins (line, outlets or cave bet)."""
     now = now or time.time()
     b = bet_of(n)
     if not b:
         return None
+    if b.get("kind") == "cave":
+        if b.get("caved"):
+            return 1.0
+        if n.status != "LISTED":
+            return 0.0
+        return CAVE_HINT if b.get("hint") else CAVE_BASE
     if b.get("kind") == "outlets":
         return outlets_chance(n, now)
     if n.status != "LISTED" and n.final_score is not None:
@@ -356,7 +396,9 @@ def settle(session, sid, final=None, refund=False):
         if refund:
             pay, p.status = p.cost, "REFUNDED"
         elif bet:                                   # line / outlets bet: all or nothing
-            if bet.get("kind") == "outlets":
+            if bet.get("kind") == "cave":
+                yes = bool(bet.get("caved"))
+            elif bet.get("kind") == "outlets":
                 yes = bet["final_outlets"] >= bet["target"]
             else:
                 yes = final > bet["line"]
@@ -433,6 +475,11 @@ def _bet_view(n, now):
     if not b:
         return {"kind": "linear"}
     early_until = (n.listed_at or now) + EARLY_H * 3600
+    if b.get("kind") == "cave":
+        return {"kind": "cave", "company": b.get("company"), "deadline": b.get("deadline", n.closes_at),
+                "closes_at": n.closes_at, "hint": b.get("hint"), "caved": b.get("caved"),
+                "chance": round(100 * (line_chance(n, now) or 0), 1),
+                "early_until": early_until, "early_bonus": EARLY_BONUS}
     if b.get("kind") == "outlets":
         arts = _snap(n).get("articles")
         return {"kind": "outlets", "target": b["target"], "start": b.get("start"), "now": outlets_now(n),

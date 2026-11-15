@@ -83,6 +83,7 @@ def _social(session):
                      "sector": s.get("sector"), "listed": bool(s.get("listed")), "url": s.get("url"), "stakes": level,
                      "source": s.get("source")})
     rows.sort(key=lambda x: x["weighted"], reverse=True)
+    _social.last_rows = rows                       # all stories, for the sector stocks
     top = rows[:TOP_N]
     social = sum(x["weighted"] for x in top) / TOP_N
     return round(social, 2), rows[:15]
@@ -92,6 +93,15 @@ def _social(session):
 # OUTLOOK
 # ─────────────────────────────────────────────
 def _crowd(session):
+    """Sector stock trading first (share of shares SOLD = 'trouble ahead'); before anyone
+    trades sectors, the listed stories' bets."""
+    try:
+        from engine.sectors import mood
+        m, traders = mood(session)
+        if m is not None:
+            return m, {"source": "sector stocks", "sell_pct": m, "players": traders}
+    except Exception:
+        pass
     from engine.story_market import market_view
     rows = []
     for n in session.query(Narrative).filter(Narrative.status == "LISTED").all():
@@ -180,6 +190,11 @@ def compute_reputation():
                                    outlook=o, label=label_for(o), parts=json.dumps(parts), top=json.dumps(top)))
         session.commit()
         settle_due(session)
+        try:
+            from engine.sectors import compute_sectors
+            compute_sectors(session, getattr(_social, "last_rows", []), safety)
+        except Exception as e:
+            print(f"⚠️ sector stocks error: {e}")
         print(f"🧭 Food Reputation Index {value:.1f} (safety {safety if safety is not None else '—'} · social "
               f"{social if social is not None else '—'}) | outlook {o if o is not None else '—'} {label_for(o) or ''}")
     finally:

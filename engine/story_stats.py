@@ -146,10 +146,20 @@ def leaderboard(session, period="all", name_of=lambda uid: str(uid), limit=100):
     mods = _moderators()
     seats = founding_numbers(session)
     rows = []
-    for uid, calls in _calls(session).items():
+    try:
+        from engine.sectors import profit_by_user
+        sector_pnl = profit_by_user(session)
+    except Exception:
+        sector_pnl = {}
+    all_calls = _calls(session)
+    for uid in set(sector_pnl) - set(all_calls):
+        all_calls[uid] = []
+    for uid, calls in all_calls.items():
         if uid in mods:
             continue
         s = _summary(calls, now)
+        s["sector_profit"] = sector_pnl.get(uid, 0.0)
+        s["profit"] = round(s["profit"] + s["sector_profit"], 2)
         if period == "week" and not s["week_calls"]:
             continue
         rows.append({"user_id": str(uid), "name": name_of(uid), "founding": seats.get(uid), **s})

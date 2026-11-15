@@ -94,6 +94,12 @@ def card_for(session, key, now):
     return n, True
 
 
+def _link_in(text):
+    from engine.story_comments import URL_RX
+    m = URL_RX.search(text or "")
+    return m.group(0) if m else None
+
+
 def create(session, user_id, brand, reason, link=None):
     """A player spots trouble at a brand. Returns the card sid."""
     from engine.story_comments import post, CommentError
@@ -103,6 +109,10 @@ def create(session, user_id, brand, reason, link=None):
     reason = (reason or "").strip()
     if len(reason) < MIN_REASON:
         raise SpotError("Say what's brewing, in a sentence or two")
+    from engine.spot_check import check
+    ok, why = check(reason, (link or "").strip() or _link_in(reason), display(key))
+    if not ok:
+        raise SpotError(why)
     now = time.time()
     opened = session.query(Spot).filter(Spot.user_id == user_id, Spot.status == "OPEN").all()
     if any(s.brand == key for s in opened):

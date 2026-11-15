@@ -170,6 +170,29 @@ def trade(session, user_id, sector, action, shares):
             "received": round(credits_in, 2), "paid": round(credits_out, 2), "balance": round(acc.credits, 2)}
 
 
+def close_all(session):
+    """Sector trading is retired: close every open position at today's price (no spread)
+    and pay the value back as credits. Safe to call repeatedly."""
+    L = latest(session)
+    n = 0
+    for p in session.query(SectorPosition).filter(SectorPosition.status == "OPEN").all():
+        t = L.get(p.sector)
+        if not t or p.shares <= 0:
+            p.status = "CLOSED"; continue
+        got = _value(p, t.price)
+        acc = _account(session, p.user_id)
+        acc.credits = round(acc.credits + got, 4)
+        p.realized = round(p.realized + got - p.cost, 4)
+        session.add(SectorTrade(user_id=p.user_id, sector=p.sector, action="SELL" if p.side == "LONG" else "BUY",
+                                shares=p.shares, price=t.price, credits=round(got, 2), ts=time.time()))
+        p.shares, p.cost, p.status = 0.0, 0.0, "CLOSED"
+        n += 1
+    if n:
+        session.commit()
+        print(f"📕 sector trading retired — closed {n} open positions at today's prices")
+    return n
+
+
 def mood(session, sector=None, days=MOOD_DAYS):
     """Share (0–100) of shares SOLD in the last days — the crowd's 'trouble ahead' signal."""
     q = session.query(SectorTrade).filter(SectorTrade.ts >= time.time() - days * DAY)

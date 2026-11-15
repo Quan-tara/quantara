@@ -39,7 +39,7 @@ from db.models import (ArenaReading, BehaviourSignal, IndexTick, Narrative, Prot
 SAFETY_W, SOCIAL_W = 0.5, 0.5
 TOP_N = 5
 TALK_FULL = 40
-WEIGHTS = {"crowd": 0.30, "intent": 0.15, "buzz": 0.20, "searches": 0.15, "momentum": 0.20}
+WEIGHTS = {"crowd": 0.35, "buzz": 0.25, "searches": 0.15, "momentum": 0.25}
 PAY_PER_POINT = 0.10
 LOADING, FLOOR = 1.25, 0.01
 DAY = 86400
@@ -93,15 +93,7 @@ def _social(session):
 # OUTLOOK
 # ─────────────────────────────────────────────
 def _crowd(session):
-    """Sector stock trading first (share of shares SOLD = 'trouble ahead'); before anyone
-    trades sectors, the listed stories' bets."""
-    try:
-        from engine.sectors import mood
-        m, traders = mood(session)
-        if m is not None:
-            return m, {"source": "sector stocks", "sell_pct": m, "players": traders}
-    except Exception:
-        pass
+    """The players' bets on the listed stories (weighted by how many people trade each)."""
     from engine.story_market import market_view
     rows = []
     for n in session.query(Narrative).filter(Narrative.status == "LISTED").all():
@@ -153,9 +145,7 @@ def label_for(o):
 
 def outlook(session, value):
     parts, used = {}, {}
-    from engine.intent import outlook_part
-    for name, fn in (("crowd", lambda: _crowd(session)), ("intent", lambda: outlook_part(session)),
-                     ("buzz", lambda: _buzz(session)),
+    for name, fn in (("crowd", lambda: _crowd(session)), ("buzz", lambda: _buzz(session)),
                      ("searches", lambda: _searches(session)), ("momentum", lambda: _momentum(session, value))):
         try:
             score, info = fn()
@@ -191,8 +181,9 @@ def compute_reputation():
         session.commit()
         settle_due(session)
         try:
-            from engine.sectors import compute_sectors
-            compute_sectors(session, getattr(_social, "last_rows", []), safety)
+            from engine.sectors import compute_sectors, close_all
+            compute_sectors(session, getattr(_social, "last_rows", []), safety)   # category info for companies
+            close_all(session)                                                    # sector trading is retired
         except Exception as e:
             print(f"⚠️ sector stocks error: {e}")
         print(f"🧭 Food Reputation Index {value:.1f} (safety {safety if safety is not None else '—'} · social "

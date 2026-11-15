@@ -79,6 +79,10 @@ main { max-width: 1240px; margin: 0 auto; padding-top: 18px; display: grid; gap:
 .spot-form textarea { min-height: 70px; resize: vertical }
 .pill.spot { color: var(--amber); border-color: var(--amber) }
 .spot-card { border-style: dashed }
+.spot-list { display: grid; padding: 4px 14px 12px } .spot-list .lbl { font: 700 10px var(--mono); letter-spacing: 1px; color: var(--muted); text-transform: uppercase; padding: 6px 0 }
+.spot-row { display: flex; gap: 12px; align-items: baseline; padding: 7px 0; border-top: 1px solid var(--border); color: var(--text); text-decoration: none; font-size: 13px; flex-wrap: wrap }
+.spot-row span { color: var(--muted); font-size: 12px } .spot-row .go { margin-left: auto; color: var(--accent) }
+.reported .li { display: grid; gap: 4px }
 .spot-badge { font: 700 10px var(--mono); color: var(--amber); margin: 4px 0 }
 .spot-state { margin-top: 10px; padding: 10px; border: 1px dashed var(--border); border-radius: 6px; font-size: 13px }
 .spot-state.ok { border-color: var(--green) }
@@ -464,6 +468,23 @@ async function secTrade(sector, action) {
   const m2 = $("#sec-msg"); if (m2) { m2.className = "tp-msg"; m2.textContent = `${action === "BUY" ? "Bought" : "Sold"} ${d.shares} at ${d.price.toFixed(2)} · credits ${cr(d.balance)}`; }
 }
 
+// ── MODERATORS: only what players reported ──
+async function reportedPosts() {
+  const el = $("#reported"); if (!el || !IS_MOD || !ME) return;
+  let d; try { const r = await fetch("/api/moderation/reported?user_id=" + encodeURIComponent(ME.id)); if (!r.ok) return; d = await r.json(); } catch (e) { return; }
+  if (!d.posts.length) { el.hidden = true; return; }
+  el.hidden = false;
+  el.innerHTML = `<div class="ph"><span class="lbl">⚑ Reported by players · moderators</span><span class="tag">${d.posts.length}</span></div>
+    <div class="list" style="padding:0 14px 8px">${d.posts.map(p => `<div class="li"><a href="/story/${encodeURIComponent(p.sid)}">${esc(p.title)}</a>
+      <div style="font-size:13px">“${esc(p.body)}”</div>
+      <div class="m"><span>${esc(p.name)}</span><span>${when(p.ts)}</span><b class="up">⚑ ${p.reports}</b>${p.held ? "<span>hidden until you decide</span>" : ""}
+        <button class="btn ghost" onclick="modAct(${p.id},'delete')">DELETE</button><button class="btn ghost" onclick="modAct(${p.id},'restore')">KEEP</button></div></div>`).join("")}</div>`;
+}
+async function modAct(id, action) {
+  await fetch(`/api/stories/comments/${id}/action`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ user_id: ME.id, action }) });
+  reportedPosts();
+}
+
 // ── SPOT IT FIRST ──
 let SPOTS = null, SPOT_FORM = false;
 function spottedBadge(s) {
@@ -501,12 +522,17 @@ function spotCard(c) {
 }
 function spotsSection() {
   if (!SPOTS) return "";
-  const open = SPOTS.cards.filter(c => c.status === "SPOTTED"), done = SPOTS.cards.filter(c => c.status !== "SPOTTED");
+  const open = SPOTS.cards.filter(c => c.status === "SPOTTED").sort((a, b) => b.spotters - a.spotters || b.first_ts - a.first_ts);
+  const done = SPOTS.cards.filter(c => c.status !== "SPOTTED");
+  const big = open.filter(c => c.spotters >= 2).concat(done), small = open.filter(c => c.spotters < 2);
+  const row = c => `<a class="spot-row" href="/story/${encodeURIComponent(c.sid)}"><b>${esc(c.brand)}</b><span>${when(c.first_ts)}</span>
+      <span>${Math.max(0, Math.ceil((c.closes - Date.now() / 1000) / 86400))} days left</span>${c.mine ? "<span>· yours</span>" : ""}<span class="go">spot it too ›</span></a>`;
   return `<div class="ph"><span class="lbl">🔍 Spotted by players · before the news</span>
       ${SPOT_FORM ? "" : `<button class="btn" onclick="SPOT_FORM=true;$('#spots').innerHTML=spotsSection();$('#sp-brand').focus()">🔍 SPOT TROUBLE</button>`}</div>
     ${SPOT_FORM ? spotForm() : ""}
-    ${open.length || done.length ? `<div class="cards">${open.concat(done).map(spotCard).join("")}</div>`
-      : `<div class="note">Nothing spotted yet. Seen anger building at a brand that the news hasn't caught? Be the first to spot it.</div>`}`;
+    ${big.length ? `<div class="cards">${big.map(spotCard).join("")}</div>` : ""}
+    ${small.length ? `<div class="spot-list"><div class="lbl">Spotted by one player · join if you see it too</div>${small.map(row).join("")}</div>` : ""}
+    ${!big.length && !small.length ? `<div class="note">Nothing spotted yet. Seen anger building at a brand that the news hasn't caught? Be the first to spot it.</div>` : ""}`;
 }
 async function sendSpot() {
   const r = await fetch("/api/spots", { method: "POST", headers: { "Content-Type": "application/json" },
@@ -666,6 +692,7 @@ async function board() {
     </section>
     <section class="panel" id="fri"></section>
     <section class="panel" id="spots">${spotsSection()}</section>
+    <section class="panel reported" id="reported" hidden></section>
     <section class="panel" id="cands" hidden></section>
     <section class="panel">
       <div class="ph"><span class="lbl">Listed now</span>
@@ -680,6 +707,7 @@ async function board() {
     </section>`;
   candidates();
   friStrip();
+  reportedPosts();
 }
 let CANDS_OPEN = false;
 async function candidates() {

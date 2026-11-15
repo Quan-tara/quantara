@@ -1485,6 +1485,25 @@ def api_spot_card(sid: str, user_id: str = None):
         session.close()
 
 
+@app.get("/api/moderation/reported")
+def api_moderation_reported(user_id: str):
+    """Moderators: posts that players reported and that are still up (or held for review)."""
+    from engine.story_comments import is_moderator, REPORT_HIDE
+    from db.models import StoryComment, Narrative
+    if not is_moderator(parse_user_id(user_id)):
+        raise HTTPException(status_code=403, detail="Moderators only")
+    session = SessionLocal()
+    try:
+        rows = (session.query(StoryComment, Narrative.title).join(Narrative, Narrative.sid == StoryComment.sid)
+                .filter(StoryComment.reports > 0, StoryComment.deleted.is_(False))
+                .order_by(StoryComment.reports.desc(), StoryComment.ts.desc()).limit(50).all())
+        return {"posts": [{"id": c.id, "sid": c.sid, "title": t, "body": c.body[:300], "reports": c.reports,
+                           "held": c.reports >= REPORT_HIDE, "ts": c.ts, "name": get_display_name(c.user_id)}
+                          for c, t in rows]}
+    finally:
+        session.close()
+
+
 @app.get("/api/me/role")
 def api_me_role(user_id: str = None):
     """Is this user a moderator? (decides which technical panels the pages show)"""

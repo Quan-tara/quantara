@@ -2001,6 +2001,13 @@ def api_story_title(sid: str, req: TitleEdit):
         raise HTTPException(404, str(e))
 
 
+@app.get("/api/titles/status")
+def api_titles_status():
+    """Short titles (AI): key set? which model? last error? (never shows the key)"""
+    from engine.titles import status
+    return status()
+
+
 @app.get("/api/discovery")
 def api_discovery():
     """Food brands rising on Bluesky right now (story discovery)."""

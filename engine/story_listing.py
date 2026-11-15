@@ -87,7 +87,8 @@ def _score_from_snapshot(snap, now):
 ARENA_RULES = {
     "food":     {"score": LIST_SCORE, "outlets": LIST_MIN_OUTLETS, "daily_cap": None, "listing": False},
     "brands":   {"score": 40.0, "outlets": 6, "daily_cap": 5, "listing": False},
-    "everyday": {"score": 30.0, "outlets": 4, "daily_cap": 5, "listing": True, "min_talk": 5},
+    "everyday": {"score": 30.0, "outlets": 4, "daily_cap": 5, "listing": True, "min_talk": 5,
+                 "stakes": True, "fresh_h": 12},
 }
 
 
@@ -271,12 +272,25 @@ def update_listings(stories, session, now=None, arena="food"):
         today = _arena_filter(session.query(Narrative).filter(Narrative.listed_at >= now - 86400,
                                                               Narrative.status != "DELISTED"), arena).count()
         room = max(0, rules["daily_cap"] - today)
-    for s in sorted(stories, key=lambda x: x["story_score"], reverse=True):
+    def listing_score(s):
+        if not rules.get("stakes"):
+            return s["story_score"]
+        from engine.everyday import stakes
+        return s["story_score"] * stakes([m["title"] for m in s.get("members", [])] or [s["title"]])[1]
+
+    for s in sorted(stories, key=listing_score, reverse=True):
         if s["sid"] in known:
             continue
         eff = s.get("outlets_eff", s["outlets"])
-        if s["story_score"] < rules["score"] or eff < rules["outlets"]:
+        # damage potential: price / safety / trust / boycott stories count ×1.25, nostalgia / novelty ×0.75
+        if listing_score(s) < rules["score"] or eff < rules["outlets"]:
             continue
+        # fresh only: new coverage in the last hours, or the brand is spiking on Bluesky right now —
+        # a story that is already fading makes a one-sided bet and a late warning
+        if rules.get("fresh_h"):
+            newest = max([m.get("ts") or 0 for m in s.get("members", [])] or [s.get("ts") or 0])
+            if newest < now - rules["fresh_h"] * 3600 and not talk_level(session, s["sid"], s.get("company"))[2]:
+                continue
         # nobody talking about it → not listed, however many news sites wrote it up
         if rules.get("min_talk") and not talked_about(session, s["sid"], s.get("company"), rules["min_talk"]):
             continue

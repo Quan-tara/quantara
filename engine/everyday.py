@@ -274,6 +274,31 @@ OFFTOPIC_TERMS = ["payroll", "workday", "cyberattack", "cyber attack", "hackers"
                   "ransomware", "nvidia", "jensen huang", "openai", "chatgpt", "bitcoin", "crypto", "semiconductor"]
 
 
+# ── damage potential: can this story cost the company money? ──
+# In the 16-case back-test, money was lost through price anger, safety scares, broken trust and
+# boycotts — never through a funny new item or a nostalgic "bring it back".
+STAKES_HIGH = ["price hike", "price increase", "prices", "overpriced", "overcharg", "hidden fee", "fees", "surcharge",
+               "shrinkflation", "smaller", "less food", "portion", "rip-off", "ripoff", "scam", "boycott", "boycotting",
+               "recall", "recalled", "sick", "illness", "contaminat", "e. coli", "salmonella", "listeria", "toxic",
+               "unsafe", "health", "cancer", "chemical", "lawsuit", "sued", "class action", "lied", "lying",
+               "misleading", "deceptive", "fake", "false advertising", "strike", "walkout", "union", "layoffs",
+               "closing", "closures", "quit", "never again", "switching to", "done with"]
+STAKES_LOW = ["discontinued", "bring back", "want back", "wants back", "nostalgia", "nostalgic", "joking", "jokes",
+              "roasted", "roast", "meme", "memes", "funny", "hilarious", "wheezing", "limited edition", "limited-time",
+              "new flavor", "collab", "collaboration", "merch", "holiday menu", "taste test", "we tried", "review",
+              "ranked", "secret menu", "hack"]
+
+
+def stakes(texts):
+    """('high' | 'normal' | 'low', multiplier) for a story's headlines."""
+    t = " ".join(texts or []).lower().replace("’", "'")
+    if ni._has_any(t, STAKES_HIGH):
+        return "high", 1.25
+    if ni._has_any(t, STAKES_LOW):
+        return "low", 0.75
+    return "normal", 1.0
+
+
 def blocked_title(text, title):
     """Shared hard filters: deals, list articles, politics, religion/ethnicity/war, sport, crime, tech news."""
     t = title or ""
@@ -366,7 +391,8 @@ def _gn(q, region):
 
 
 REDDIT_SUBS = ["fastfood", "mildlyinfuriating", "shrinkflation", "Costco", "traderjoes", "starbucks",
-               "McDonalds", "Chipotle", "tacobell", "CasualUK"]
+               "McDonalds", "Chipotle", "tacobell", "kroger", "walmart", "wholefoods", "Wendys", "BurgerKing",
+               "Dunkin", "PaneraBread", "Frugal"]
 
 EVERYDAY_FEEDS = [
     _gn("fast+food+customers+furious+OR+backlash+OR+outrage", "US"),
@@ -377,9 +403,10 @@ EVERYDAY_FEEDS = [
     _gn("viral+food+OR+tiktok+food+backlash+OR+divided", "US"),
     _gn("%22ultra-processed%22+OR+%22seed+oils%22+OR+%22school+lunch%22+backlash+OR+debate", "US"),
     _gn("food+outbreak+blame+OR+denies+OR+%22families+sue%22+OR+reopens", "US"),
-    _gn("supermarket+food+prices+shoppers+fuming+OR+furious", "UK"),
-    _gn("fast+food+OR+restaurant+customers+slammed+OR+backlash", "UK"),
-    ("https://www.theguardian.com/food/rss", "UK"),
+    _gn("%22price+hike%22+restaurant+OR+%22fast+food%22+OR+grocery+customers", "US"),
+    _gn("shrinkflation+OR+%22smaller+portions%22+OR+%22less+food%22+customers", "US"),
+    _gn("food+brand+%22misleading%22+OR+lawsuit+OR+%22class+action%22+customers", "US"),
+    _gn("boycott+restaurant+OR+%22fast+food%22+OR+grocery+OR+snack+brand", "US"),
     ("https://www.eater.com/rss/index.xml", "US"),
     # sites that write up viral food drama ("fans furious", "TikToker exposes", "customers slam")
     ("https://www.thetakeout.com/feed/", "US"),
@@ -408,7 +435,7 @@ EVERYDAY_PROFILE = {
 # Google Trends daily trending searches (free RSS) — what people actually search for today
 # ─────────────────────────────────────────────
 
-TRENDS_GEOS = [("US", "US"), ("GB", "UK")]          # English only for now (German later)
+TRENDS_GEOS = [("US", "US")]                       # US focus (Nov 2026)
 TRENDS_URLS = ["https://trends.google.com/trending/rss?geo={geo}",
                "https://trends.google.com/trends/trendingsearches/daily/rss?geo={geo}"]
 

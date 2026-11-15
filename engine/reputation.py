@@ -39,7 +39,7 @@ from db.models import (ArenaReading, BehaviourSignal, IndexTick, Narrative, Prot
 SAFETY_W, SOCIAL_W = 0.5, 0.5
 TOP_N = 5
 TALK_FULL = 40
-WEIGHTS = {"crowd": 0.35, "buzz": 0.25, "searches": 0.20, "momentum": 0.20}
+WEIGHTS = {"crowd": 0.30, "intent": 0.15, "buzz": 0.20, "searches": 0.15, "momentum": 0.20}
 PAY_PER_POINT = 0.10
 LOADING, FLOOR = 1.25, 0.01
 DAY = 86400
@@ -71,13 +71,16 @@ def _social(session):
         return None, []
     stories = json.loads(r.story_index or "[]")
     talk = _talk(session, [s["sid"] for s in stories])
+    from engine.everyday import stakes
     rows = []
     for s in stories:
         posts = talk.get(s["sid"], 0)
-        w = (s.get("score") or 0) * (1 + 0.5 * min(1.0, posts / TALK_FULL))
+        level, mult = stakes([s.get("title", "")])
+        # damage potential (price / safety / trust / boycott ×1.25 · nostalgia / novelty ×0.75) and talk (up to +50%)
+        w = (s.get("score") or 0) * mult * (1 + 0.5 * min(1.0, posts / TALK_FULL))
         rows.append({"sid": s["sid"], "title": s["title"], "score": round(s.get("score") or 0, 1),
                      "weighted": round(min(100.0, w), 1), "posts": posts, "company": s.get("company"),
-                     "sector": s.get("sector"), "listed": bool(s.get("listed")), "url": s.get("url"),
+                     "sector": s.get("sector"), "listed": bool(s.get("listed")), "url": s.get("url"), "stakes": level,
                      "source": s.get("source")})
     rows.sort(key=lambda x: x["weighted"], reverse=True)
     top = rows[:TOP_N]
@@ -140,7 +143,9 @@ def label_for(o):
 
 def outlook(session, value):
     parts, used = {}, {}
-    for name, fn in (("crowd", lambda: _crowd(session)), ("buzz", lambda: _buzz(session)),
+    from engine.intent import outlook_part
+    for name, fn in (("crowd", lambda: _crowd(session)), ("intent", lambda: outlook_part(session)),
+                     ("buzz", lambda: _buzz(session)),
                      ("searches", lambda: _searches(session)), ("momentum", lambda: _momentum(session, value))):
         try:
             score, info = fn()

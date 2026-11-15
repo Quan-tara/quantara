@@ -337,7 +337,7 @@ def update_listings(stories, session, now=None, arena="food"):
     elif rules["daily_cap"]:
         # delisted stories (removed by a moderator) don't use up the day's places
         today = _arena_filter(session.query(Narrative).filter(Narrative.listed_at >= now - 86400,
-                                                              Narrative.status != "DELISTED"), arena).count()
+                                                              Narrative.status.notin_(["DELISTED", "SPOTTED", "CONFIRMED", "EXPIRED"])), arena).count()
         room = max(0, rules["daily_cap"] - today)
     def listing_score(s):
         if not rules.get("stakes"):

@@ -197,6 +197,12 @@ def compute_reputation():
             reality.collect_in_background()          # pageviews + share prices, once a day
         except Exception as e:
             print(f"⚠️ reality check error: {e}")
+        try:
+            from engine.spots import resolve
+            resolve(session, getattr(_social, "last_rows", []))   # did a spotted brand make the news?
+        except Exception as e:
+            session.rollback()
+            print(f"⚠️ spots error: {e}")
         print(f"🧭 Food Reputation Index {value:.1f} (safety {safety if safety is not None else '—'} · social "
               f"{social if social is not None else '—'}) | outlook {o if o is not None else '—'} {label_for(o) or ''}")
     finally:

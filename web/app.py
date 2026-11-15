@@ -1674,6 +1674,8 @@ def api_narrative_listed(days: float = 14.0):
         import sqlalchemy as _sa
         ccount = dict(session.execute(_sa.text(
             "SELECT sid, count(*) FROM story_comments WHERE NOT deleted GROUP BY sid")).fetchall())
+        from engine.intent import tallies
+        intents = tallies(session, sids)
         for n in rows:
             d = _narr_row(n)
             d["spark"] = pts.get(n.sid, [])[-60:]
@@ -1683,6 +1685,7 @@ def api_narrative_listed(days: float = 14.0):
             d["bet"] = {"kind": "line", "line": b_["line"]} if b_ else {"kind": "linear"}
             d["trading_open"] = trading_state(n)[0]
             d["comments"] = ccount.get(n.sid, 0)
+            d["intent"] = intents.get(n.sid)
             out.append(d)
         from engine.story_listing import ARENA_RULES
         from engine.arenas import ARENA_LABELS
@@ -1935,7 +1938,9 @@ def api_reputation_you(sector: str = None, brand: str = None):
     from engine.reputation import for_company
     session = SessionLocal()
     try:
-        return {"stories": for_company(session, sector, (brand or "")[:60])}
+        from engine.intent import for_brand
+        return {"stories": for_company(session, sector, (brand or "")[:60]),
+                "intent": for_brand(session, (brand or "")[:60])}
     finally:
         session.close()
 
@@ -2006,6 +2011,36 @@ def api_titles_status():
     """Short titles (AI): key set? which model? last error? (never shows the key)"""
     from engine.titles import status
     return status()
+
+
+class IntentAnswer(BaseModel):
+    user_id: str
+    still_buy: bool
+
+
+@app.post("/api/stories/{sid}/intent")
+def api_intent_answer(sid: str, req: IntentAnswer):
+    """'Would you still buy from <brand>?' — Yes/No (can be changed)."""
+    from engine.intent import answer
+    session = SessionLocal()
+    try:
+        return answer(session, sid[:16], parse_user_id(req.user_id), req.still_buy)
+    except LookupError as e:
+        raise HTTPException(404, str(e))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    finally:
+        session.close()
+
+
+@app.get("/api/stories/{sid}/intent")
+def api_intent_get(sid: str, user_id: str = None):
+    from engine.intent import tally
+    session = SessionLocal()
+    try:
+        return tally(session, sid[:16], parse_user_id(user_id) if user_id else None)
+    finally:
+        session.close()
 
 
 @app.get("/api/discovery")

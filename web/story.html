@@ -62,6 +62,15 @@ main { max-width: 1240px; margin: 0 auto; padding-top: 18px; display: grid; gap:
 .card-top { display: flex; align-items: center; gap: 6px; flex-wrap: wrap }
 .card-title { font-size: 13px; font-weight: 600; line-height: 1.4; text-wrap: balance }
 .card-title.short { font-size: 17px; font-weight: 700; line-height: 1.25 }
+.ask { font-size: 12px; color: var(--text); display: flex; gap: 8px; flex-wrap: wrap; align-items: baseline }
+.ask b { font-family: var(--mono); font-size: 11px }
+.ask .y { color: var(--green) } .ask .n { color: var(--red) }
+.intent-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px }
+.intent-btns button { font: 700 13px var(--sans); padding: 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--s2); color: var(--text); cursor: pointer }
+.intent-btns button.on.y { border-color: var(--green); color: var(--green) }
+.intent-btns button.on.n { border-color: var(--red); color: var(--red) }
+.ibar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; background: var(--s3) }
+.ibar i { display: block; height: 100% }
 .orig { font-size: 11px; color: var(--muted); line-height: 1.4 }
 .ttl-edit { display: flex; gap: 6px; flex-wrap: wrap; align-items: center }
 .ttl-edit input { flex: 1 1 240px; min-width: 0; background: var(--s2); color: var(--text); border: 1px solid var(--border); border-radius: 4px; padding: 6px 9px; font: 13px var(--sans) }
@@ -388,6 +397,9 @@ async function board() {
       ${s.company ? `<div class="co">${esc(s.company)}</div>` : ""}
       ${s.short_title ? `<div class="card-title short">${esc(s.short_title)}</div><div class="orig">${esc(s.title)}</div>` : `<div class="card-title">${esc(s.title)}</div>`}
       ${trendTag(s.trending)}
+      ${s.company && isOpen ? `<div class="ask">Would you still buy from ${esc(s.company)}?
+        ${s.intent && s.intent.total ? `<b class="y">👍 ${100 - s.intent.no_pct}%</b><b class="n">👎 ${s.intent.no_pct}%</b><span class="mono" style="font-size:10px;color:var(--muted)">${s.intent.total} answer${s.intent.total === 1 ? "" : "s"}</span>`
+          : `<span class="mono" style="font-size:10px;color:var(--accent)">answer ›</span>`}</div>` : ""}
       <div class="card-row">
         <div><div class="lbl">${isOpen ? "Score now" : "Final score"}</div>
           <div class="card-score" style="color:${scoreColor(v || 0)}">${(v ?? 0).toFixed(1)}
@@ -628,6 +640,40 @@ async function story(sid) {
   STORY = d;
   if (d.status !== "WATCHING") { loadMarket(d.sid); loadComments(d.sid); }
   loadBuzz(d.sid);
+  loadIntent(d);
+}
+
+// ── "WOULD YOU STILL BUY FROM <BRAND>?" ──
+async function loadIntent(d) {
+  if (!d.company || d.status !== "LISTED") return;
+  const q = ME ? "?user_id=" + encodeURIComponent(ME.id) : "";
+  let t; try { t = await (await fetch(`/api/stories/${encodeURIComponent(d.sid)}/intent${q}`)).json(); } catch (e) { return; }
+  renderIntent(d, t);
+}
+function renderIntent(d, t) {
+  const side = document.querySelector(".side"); if (!side) return;
+  let sec = document.getElementById("intent");
+  if (!sec) { sec = document.createElement("section"); sec.className = "panel"; sec.id = "intent"; side.insertBefore(sec, side.firstChild); }
+  const yesPct = t.total ? 100 - t.no_pct : 0;
+  sec.innerHTML = `<div class="ph"><span class="lbl">Your call</span><span class="tag">one tap · changeable</span></div>
+    <div class="tp">
+      <div style="font-size:16px;font-weight:700">Would you still buy from ${esc(d.company)}?</div>
+      ${ME ? `<div class="intent-btns">
+          <button class="y ${t.mine === true ? "on" : ""}" onclick="sendIntent(true)">👍 Yes, still buying</button>
+          <button class="n ${t.mine === false ? "on" : ""}" onclick="sendIntent(false)">👎 No, I'd stop</button></div>`
+        : loginHtml("Log in to answer.")}
+      ${t.total ? `<div class="ibar"><i style="width:${yesPct}%;background:var(--green)"></i><i style="width:${t.no_pct}%;background:var(--red)"></i></div>
+        <div class="m"><span>👍 ${yesPct}% still buying</span><span>👎 ${t.no_pct}% would stop</span><span>${t.total} answer${t.total === 1 ? "" : "s"}</span></div>`
+        : `<div class="note" style="padding:0">Be the first to answer.</div>`}
+      <div class="bd-note">Separate from your bet: this is what you'd actually do. It never changes the score or payouts.</div>
+    </div>`;
+}
+async function sendIntent(v) {
+  if (!ME || !STORY) return;
+  const r = await fetch(`/api/stories/${encodeURIComponent(STORY.sid)}/intent`, { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user_id: ME.id, still_buy: v }) });
+  const t = await r.json().catch(() => ({}));
+  if (r.ok) renderIntent(STORY, t);
 }
 
 // ── DISCUSSION ──

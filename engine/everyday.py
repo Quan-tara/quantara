@@ -382,7 +382,7 @@ def gate(title, others=(), company=None):
             return False, "off-topic (deal, list, sport, crime, politics, tech…)"
     if POSITIVE_RX.search(title) and not ni._has_any(low, NEGATIVE_HINT):
         return False, "praise, not pressure"
-    if FOREIGN_RX.search(title):
+    if FOREIGN_RX.search(title) and not US_RX.search(title):     # "U.S. and Canada" is still about the US
         return False, "not about the US"
     named = brand_in([title]) or company
     if named and named.lower().replace("’", "'") in NON_US_BRANDS:

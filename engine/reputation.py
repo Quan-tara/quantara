@@ -191,6 +191,12 @@ def compute_reputation():
             close_all(session)                                                    # sector trading is retired
         except Exception as e:
             print(f"⚠️ sector stocks error: {e}")
+        try:
+            from engine import reality
+            reality.log_signals(session, getattr(_social, "last_rows", []), value, o, label_for(o))
+            reality.collect_in_background()          # pageviews + share prices, once a day
+        except Exception as e:
+            print(f"⚠️ reality check error: {e}")
         print(f"🧭 Food Reputation Index {value:.1f} (safety {safety if safety is not None else '—'} · social "
               f"{social if social is not None else '—'}) | outlook {o if o is not None else '—'} {label_for(o) or ''}")
     finally:

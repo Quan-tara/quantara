@@ -354,6 +354,11 @@ def update_listings(stories, session, now=None, arena="food"):
         session.add(NarrativePoint(sid=s["sid"], ts=now, score=s["story_score"]))
         _price_point(session, n, now)
         known[s["sid"]] = n
+        try:
+            from engine.reality import log_listed
+            log_listed(session, s["sid"], s["title"], (bet or {}).get("company") or s.get("company"))
+        except Exception:
+            pass
         print(f"📌 Story listed  {s['sid']}  score {s['story_score']:.1f}  "
               f"[{s['outlets']} outlets]  {s['title'][:70]}")
 

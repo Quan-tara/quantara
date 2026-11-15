@@ -1604,6 +1604,12 @@ def serve_story(sid: str):
     return FileResponse(os.path.join(os.path.dirname(__file__), "story.html"))
 
 
+def _story_brand(n, snap):
+    """Brand named in the story's main headline first (fixes old labels like 'Starbucks' on a Jersey Mike's story)."""
+    from engine.story_listing import _lead_brand
+    return _lead_brand(n.title) or snap.get("company")
+
+
 def _narr_row(n, with_snap=False):
     import json as _json
     import time as _time
@@ -1616,7 +1622,7 @@ def _narr_row(n, with_snap=False):
          "outlets": snap.get("outlets", 0), "articles": len(snap.get("articles", [])),
          "regions": snap.get("regions", []), "categories": snap.get("categories", []),
          "merged_into": snap.get("merged_into"),
-         "arena": n.arena or "food", "company": snap.get("company"),
+         "arena": n.arena or "food", "company": _story_brand(n, snap),
          "sector": snap.get("sector"), "trending": snap.get("trending"),
          "short_title": snap.get("short_title"), "title_by": snap.get("title_by")}
     if with_snap:

@@ -419,6 +419,18 @@ def settle(session, sid, final=None, refund=False):
         account(session, p.user_id).credits += pay
         p.payout, p.settled_at = round(pay, 4), now
         n += 1
+    if bet and not refund:
+        try:                                         # evidence comments: "called it" or not
+            if bet.get("kind") == "cave":
+                yes = bool(bet.get("caved"))
+            elif bet.get("kind") == "outlets":
+                yes = (bet.get("final_outlets") or 0) >= bet["target"]
+            else:
+                yes = final is not None and final > bet["line"]
+            from engine.story_comments import call_it
+            call_it(session, sid, "YES" if yes else "NO", now)
+        except Exception as e:
+            print(f"⚠️ called-it error {sid}: {e}")
     m.status = "REFUNDED" if refund else "SETTLED"
     m.final = None if refund else final
     m.updated_at = now

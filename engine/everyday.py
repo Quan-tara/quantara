@@ -382,6 +382,8 @@ def gate(title, others=(), company=None):
             return False, "off-topic (deal, list, sport, crime, politics, tech…)"
     if POSITIVE_RX.search(title) and not ni._has_any(low, NEGATIVE_HINT):
         return False, "praise, not pressure"
+    if QUOTE_PAGE_RX.search(title):
+        return False, "finance quote page"
     if FOREIGN_RX.search(title) and not US_RX.search(title):     # "U.S. and Canada" is still about the US
         return False, "not about the US"
     named = brand_in([title]) or company
@@ -441,9 +443,19 @@ NEGATIVE_HINT = ["furious", "outrage", "outraged", "backlash", "boycott", "angry
                  "worst", "terrible", "not worth", "price hike", "swearing off", "quit", "ditch"]
 
 
+# finance pages that only name a brand ("Tesco PLC (TSCO.L) stock price, news, quote and history")
+QUOTE_PAGE_RX = re.compile(r"\bstock (?:price|quote)s?\b.{0,40}\b(?:news|history|quote|chart)\b|\bquote and history\b|"
+                           r"\(\s*[A-Z]{1,5}\.[A-Z]{1,2}\s*\)|\b(?:NYSE|NASDAQ|LSE|LON)\s*:\s*[A-Z]{1,5}\b.{0,30}\b(?:price|quote)\b")
+
+
 def _everyday_relevant(text, title):
     if not english_only(title) or blocked_title(text, title):
         return False
+    if QUOTE_PAGE_RX.search(title or ""):
+        return False
+    b = brand_in([title or ""])
+    if b and b.lower().replace("’", "'") in NON_US_BRANDS and not US_RX.search(title or ""):
+        return False                       # UK / foreign brands: not our market, don't spend checks on them
     if POSITIVE_RX.search(title or "") and not ni._has_any((title or "").lower(), NEGATIVE_HINT):
         return False
     if ni._has_any(text, A.EXCLUDE_TERMS):

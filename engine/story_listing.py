@@ -33,6 +33,14 @@ MAX_ARTICLES     = 60
 _KEEP = ("bet", "short_title", "title_by", "title_v", "delisted", "merged_into")
 
 
+def _lead_brand(title):
+    try:
+        from engine.everyday import brand_in
+        return brand_in([title or ""])
+    except Exception:
+        return None
+
+
 def _snapshot(s, old=None):
     """What we keep about a story so its page and its score survive after it leaves the news.
     Keys set once (the bet line, the short title, moderator flags) are carried over."""
@@ -54,7 +62,8 @@ def _snapshot(s, old=None):
         "tokens": list(s.get("tokens") or (old or {}).get("tokens", []))[:40],
         "hazards": list(s.get("hazards") or (old or {}).get("hazards", [])),
         "ts": max(float((old or {}).get("ts", 0)), float(s.get("ts") or 0)),
-        "company": s.get("company") or (old or {}).get("company"),
+        # the brand named in the story's own main headline wins (a group can contain other brands' articles)
+        "company": _lead_brand(s.get("title")) or s.get("company") or (old or {}).get("company"),
         "sector": s.get("sector") or (old or {}).get("sector"),
         "trending": s.get("trending") or (old or {}).get("trending"),
         "outlets_eff": s.get("outlets_eff", (old or {}).get("outlets_eff")),

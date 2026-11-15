@@ -21,7 +21,8 @@ def answer(session, sid, user_id, still_buy):
     n = session.query(Narrative).filter(Narrative.sid == sid).first()
     if not n:
         raise LookupError("Story not found")
-    company = (json.loads(n.snapshot or "{}") or {}).get("company")
+    from engine.story_listing import _lead_brand
+    company = _lead_brand(n.title) or (json.loads(n.snapshot or "{}") or {}).get("company")
     if not company:
         raise ValueError("This story isn't about a company")
     r = session.query(StoryIntent).filter(StoryIntent.sid == sid, StoryIntent.user_id == user_id).first()

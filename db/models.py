@@ -464,3 +464,24 @@ class ForwardLog(Base):
     weight  = Column(Float, nullable=True)                     # how much the story pushed the index
     result  = Column(Text, nullable=True)                      # JSON, filled in once enough time has passed
     checked = Column(Float, nullable=True)
+
+
+class Spot(Base):
+    """A player's early call: 'trouble is brewing at <brand>' — before the news has it.
+    Wins automatically if a real story about the brand (one that passes the gate) appears
+    within SPOT_DAYS. The spotted brand has one shared card (a Narrative with status SPOTTED)."""
+    __tablename__ = "spots"
+
+    id         = Column(Integer, primary_key=True, autoincrement=True)
+    user_id    = Column(BigInteger, nullable=False, index=True)
+    brand      = Column(String(40), nullable=False, index=True)      # normalised key, e.g. "chipotle"
+    card_sid   = Column(String(16), nullable=False, index=True)
+    comment_id = Column(Integer, nullable=True)                      # the reason, posted as evidence on the card
+    ts         = Column(Float, nullable=False, index=True)
+    status     = Column(String(8), nullable=False, default="OPEN")   # OPEN | WON | EXPIRED
+    story_sid  = Column(String(16), nullable=True)                   # the real story that confirmed it
+    story_title = Column(Text, nullable=True)
+    lead_s     = Column(Float, nullable=True)                        # how long before the news it was spotted
+    payout     = Column(Float, nullable=True)
+    first      = Column(Boolean, nullable=False, default=False)      # first spotter of this card
+    resolved_at = Column(Float, nullable=True)

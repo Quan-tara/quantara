@@ -25,7 +25,7 @@ from db.models import Narrative, NarrativePoint
 
 LIST_SCORE       = 30.0
 LIST_MIN_OUTLETS = 4
-LIST_WINDOW_H    = 72
+LIST_WINDOW_H    = 48          # 2 days: quicker answers, more reasons to come back
 BACKFILL_H       = 72      # history copied from earlier readings when a story lists
 MAX_ARTICLES     = 60
 
@@ -97,7 +97,8 @@ ARENA_RULES = {
     "food":     {"score": LIST_SCORE, "outlets": LIST_MIN_OUTLETS, "daily_cap": None, "listing": False},
     "brands":   {"score": 40.0, "outlets": 6, "daily_cap": 5, "listing": False},
     "everyday": {"score": 30.0, "outlets": 4, "daily_cap": 5, "listing": True, "min_talk": 5,
-                 "stakes": True, "fresh_h": 12},
+                 "stakes": True, "fresh_h": 12, "bet": "outlets",
+                 "score_low": 25.0, "few_open": 3},   # fewer than 3 open stories → bar 25
 }
 
 
@@ -287,12 +288,16 @@ def update_listings(stories, session, now=None, arena="food"):
         from engine.everyday import stakes
         return s["story_score"] * stakes([m["title"] for m in s.get("members", [])] or [s["title"]])[1]
 
+    # a near-empty board lowers the bar a little, so there is always something to play
+    bar = rules["score"]
+    if rules.get("score_low") and len([n for n in active if n.status == "LISTED"]) < rules.get("few_open", 3):
+        bar = rules["score_low"]
     for s in sorted(stories, key=listing_score, reverse=True):
         if s["sid"] in known:
             continue
         eff = s.get("outlets_eff", s["outlets"])
         # damage potential: price / safety / trust / boycott stories count ×1.25, nostalgia / novelty ×0.75
-        if listing_score(s) < rules["score"] or eff < rules["outlets"]:
+        if listing_score(s) < bar or eff < rules["outlets"]:
             continue
         # fresh only: new coverage in the last hours, or the brand is spiking on Bluesky right now —
         # a story that is already fading makes a one-sided bet and a late warning
@@ -309,8 +314,8 @@ def update_listings(stories, session, now=None, arena="food"):
             room -= 1
         closes = now + LIST_WINDOW_H * 3600
         try:
-            from engine.story_market import make_line
-            bet = make_line(session, s, closes)
+            from engine.story_market import make_line, make_outlets_bet
+            bet = make_outlets_bet(s, closes, now) if rules.get("bet") == "outlets" else make_line(session, s, closes)
         except Exception as e:
             print(f"⚠️ line error {s['sid']}: {e}")
             bet = None

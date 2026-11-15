@@ -29,7 +29,9 @@ START_CREDITS     = 10000.0
 IMPACT            = 0.10    # price points per unit traded
 MAX_UNITS_TRADE   = 50
 MAX_UNITS_STORY   = 100     # per user, per story, per side
-TRADING_STOP_H    = 6       # trading stops this long before the window closes
+TRADING_STOP_H    = 4       # trading stops this long before the window closes
+EARLY_H           = 12      # units bought in the first 12 h of a listing are "early calls"
+EARLY_BONUS       = 20.0    # an early unit that wins pays 120 instead of 100
 PRICE_MIN, PRICE_MAX = 1.0, 99.0
 OFFSET_LIMIT      = 40.0
 SIDES = ("GROW", "FADE")
@@ -97,7 +99,7 @@ def calibrate_k(session):
     ks = []
     for m in session.query(Narrative).filter(Narrative.status == "CLOSED").all():
         b = bet_of(m)
-        if not b or m.final_score is None:
+        if not b or b.get("kind") != "line" or m.final_score is None:
             continue
         den = (m.list_score or 0) - b.get("quiet0", 0)
         if den > 3:
@@ -124,12 +126,82 @@ def expected_close(n, now=None, k=None):
     return quiet + k * max(0.0, cur - quiet), quiet
 
 
+# ─────────────────────────────────────────────
+# THE OUTLETS BET (food & drink stories listed from Nov 15 on) — a tangible question:
+#   "Will at least <target> news outlets cover this by <close>?"
+#     YES (side GROW) pays 100 per unit if the story reaches the target by the close
+#     NO  (side FADE) pays 100 per unit if it doesn't
+#   Outlets only ever go up, and they come from news sites (hard to fake with posts).
+#   Target at listing = outlets now + the new outlets expected at the current pace
+#   (at least 2), so both sides start near 50 %. Chance = Poisson chance of reaching the
+#   target at the pace of the last 12 h, slowing as the story ages.
+# ─────────────────────────────────────────────
+PACE_DECAY = 0.6
+
+
+def _snap(n):
+    try:
+        return _json.loads(n.snapshot or "{}") or {}
+    except Exception:
+        return {}
+
+
+def outlets_now(n):
+    s = _snap(n)
+    return int(max(s.get("outlets") or 0, len(s.get("outlet_names") or [])))
+
+
+def new_outlets(articles, since):
+    """Outlets whose FIRST article came after `since`."""
+    first = {}
+    for a in articles or []:
+        src, ts = (a.get("source") or "").strip().lower(), a.get("ts") or 0
+        if src:
+            first[src] = min(first.get(src, ts), ts)
+    return sum(1 for t in first.values() if t >= since)
+
+
+def _poisson_at_least(k, lam):
+    if k <= 0:
+        return 1.0
+    p, term = 0.0, _math.exp(-lam)
+    for i in range(k):
+        p += term
+        term *= lam / (i + 1)
+    return max(0.0, 1.0 - p)
+
+
+def outlets_chance(n, now=None):
+    now = now or time.time()
+    b = bet_of(n) or {}
+    cur = outlets_now(n)
+    if n.status != "LISTED":
+        return 1.0 if b.get("final_outlets", cur) >= b["target"] else 0.0
+    need = b["target"] - cur
+    if need <= 0:
+        return 0.99                                      # reached — it can't go back down
+    pace = new_outlets(_snap(n).get("articles"), now - 12 * 3600) / 12.0     # outlets per hour
+    hours = max(0.0, (n.closes_at - now) / 3600)
+    return max(0.03, min(0.97, _poisson_at_least(need, pace * hours * PACE_DECAY)))
+
+
+def make_outlets_bet(live_story, closes_at, now=None):
+    now = now or time.time()
+    cur = int(max(live_story.get("outlets") or 0, len(live_story.get("all_outlets") or [])))
+    pace = new_outlets(live_story.get("members"), now - 12 * 3600) / 12.0
+    expected = pace * max(0.0, (closes_at - now) / 3600) * PACE_DECAY
+    target = cur + max(2, int(round(expected)))
+    return {"kind": "outlets", "target": target, "start": cur, "pace12": round(pace * 12, 1)}
+
+
 def line_chance(n, now=None):
-    """Model chance (0–1) that the story ends above its line."""
+    """Model chance (0–1) that the bet's YES side wins (line or outlets bet)."""
     now = now or time.time()
     b = bet_of(n)
     if not b:
         return None
+    if b.get("kind") == "outlets":
+        return outlets_chance(n, now)
     if n.status != "LISTED" and n.final_score is not None:
         return 1.0 if n.final_score > b["line"] else 0.0
     exp, _ = expected_close(n, now)
@@ -274,14 +346,31 @@ def settle(session, sid, final=None, refund=False):
     nar = session.query(Narrative).filter(Narrative.sid == sid).first()
     bet = bet_of(nar) if nar else None
     n = 0
+    if bet and bet.get("kind") == "outlets" and not refund and nar:
+        bet["final_outlets"] = outlets_now(nar)               # frozen for the page
+        snap = _snap(nar)
+        snap["bet"] = bet
+        nar.snapshot = _json.dumps(snap)
     for p in session.query(StoryPosition).filter(StoryPosition.sid == sid,
                                                  StoryPosition.status == "OPEN").all():
         if refund:
             pay, p.status = p.cost, "REFUNDED"
-        elif bet:                                   # line bet: all or nothing
-            above = final > bet["line"]
-            per = 100.0 if (p.side == "GROW") == above else 0.0
-            pay, p.status = round(per * p.units, 4), "SETTLED"
+        elif bet:                                   # line / outlets bet: all or nothing
+            if bet.get("kind") == "outlets":
+                yes = bet["final_outlets"] >= bet["target"]
+            else:
+                yes = final > bet["line"]
+            won = (p.side == "GROW") == yes
+            per = 100.0 if won else 0.0
+            pay = per * p.units
+            if won and nar and nar.listed_at:
+                # early call: units bought in the first EARLY_H hours pay a bonus
+                early = sum(t.units if t.action == "OPEN" else -t.units for t in
+                            session.query(StoryTrade).filter(StoryTrade.sid == sid, StoryTrade.user_id == p.user_id,
+                                                             StoryTrade.side == p.side,
+                                                             StoryTrade.ts <= nar.listed_at + EARLY_H * 3600).all())
+                pay += EARLY_BONUS * max(0.0, min(p.units, early))
+            pay, p.status = round(pay, 4), "SETTLED"
         else:
             per = final if p.side == "GROW" else 100 - final
             pay, p.status = round(per * p.units, 4), "SETTLED"
@@ -343,10 +432,17 @@ def _bet_view(n, now):
     b = bet_of(n)
     if not b:
         return {"kind": "linear"}
+    early_until = (n.listed_at or now) + EARLY_H * 3600
+    if b.get("kind") == "outlets":
+        arts = _snap(n).get("articles")
+        return {"kind": "outlets", "target": b["target"], "start": b.get("start"), "now": outlets_now(n),
+                "final_outlets": b.get("final_outlets"), "new_24h": new_outlets(arts, now - 86400),
+                "chance": round(100 * (outlets_chance(n, now) or 0), 1), "closes_at": n.closes_at,
+                "early_until": early_until, "early_bonus": EARLY_BONUS}
     exp, quiet = expected_close(n, now)
     return {"kind": "line", "line": round(b["line"], 1), "expected": round(exp, 1),
             "quiet": round(quiet, 1), "chance": round(100 * (line_chance(n, now) or 0), 1),
-            "k": b.get("k"), "closes_at": n.closes_at}
+            "k": b.get("k"), "closes_at": n.closes_at, "early_until": early_until, "early_bonus": EARLY_BONUS}
 
 
 def make_line(session, live_story, closes_at):

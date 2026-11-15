@@ -96,8 +96,10 @@ def _calls(session, user_ids=None):
         status = "OPEN" if not finished else (c["status"] or "CLOSED")
         end_ts = (c["settled_at"] or c["last_ts"]) if finished else None
         profit = c["closed_for"] + c["payout"] + open_val - c["paid"]
+        from engine.story_market import EARLY_H
+        early = bool(n and n.listed_at and c["first_ts"] <= n.listed_at + EARLY_H * 3600)
         out[uid].append({
-            "sid": sid, "title": n.title if n else sid, "side": side, "status": status,
+            "sid": sid, "title": n.title if n else sid, "side": side, "status": status, "early": early,
             "story_status": n.status if n else None,
             "bought": c["bought"], "sold": c["sold"], "held": c["held"],
             "avg_price": round(c["paid"] / c["bought"], 2) if c["bought"] else None,
@@ -115,6 +117,7 @@ def _calls(session, user_ids=None):
 def _summary(calls, now):
     done = [c for c in calls if c["status"] != "OPEN" and c["status"] != "REFUNDED"]
     wins = [c for c in done if c["profit"] > 0]
+    early_wins = [c for c in wins if c.get("early")]
     week = [c for c in done if c["end_ts"] and c["end_ts"] >= now - WEEK_S]
     best = max(done, key=lambda c: c["profit"], default=None)
     return {
@@ -122,7 +125,7 @@ def _summary(calls, now):
         "profit_week": round(sum(c["profit"] for c in week), 2),
         "stories": len({c["sid"] for c in calls}),
         "calls": len(calls), "finished": len(done), "open": sum(1 for c in calls if c["status"] == "OPEN"),
-        "wins": len(wins), "win_rate": round(100 * len(wins) / len(done)) if done else None,
+        "wins": len(wins), "early_wins": len(early_wins), "win_rate": round(100 * len(wins) / len(done)) if done else None,
         "week_calls": len(week),
         "best": ({"sid": best["sid"], "title": best["title"], "side": best["side"],
                   "profit": best["profit"]} if best and best["profit"] > 0 else None),

@@ -361,3 +361,16 @@ class ProtectionPosition(Base):
     average  = Column(Float, nullable=True)
     payout   = Column(Float, nullable=True)
     settled_at = Column(Float, nullable=True)
+
+
+class StoryIntent(Base):
+    """'Would you still buy from <brand>?' — one answer per player per story (can be changed).
+    The share of NO answers is the platform's direct measure of whether talk turns into lost purchases."""
+    __tablename__ = "story_intents"
+
+    id        = Column(Integer, primary_key=True, autoincrement=True)
+    sid       = Column(String(16), nullable=False, index=True)
+    user_id   = Column(BigInteger, nullable=False, index=True)
+    still_buy = Column(Boolean, nullable=False)
+    company   = Column(String(60), nullable=True, index=True)
+    ts        = Column(Float, nullable=False)

@@ -30,7 +30,7 @@ BACKFILL_H       = 72      # history copied from earlier readings when a story l
 MAX_ARTICLES     = 60
 
 
-_KEEP = ("bet", "short_title", "title_by", "title_v", "delisted", "merged_into")
+_KEEP = ("bet", "short_title", "title_by", "title_v", "delisted", "merged_into", "lead_brand")
 
 
 def _lead_brand(title):
@@ -41,18 +41,32 @@ def _lead_brand(title):
         return None
 
 
-def _snapshot(s, old=None):
+def _same_brand(a, b):
+    return (a or "").lower().replace("’", "'") == (b or "").lower().replace("’", "'")
+
+
+def _snapshot(s, old=None, lead=None):
     """What we keep about a story so its page and its score survive after it leaves the news.
-    Keys set once (the bet line, the short title, moderator flags) are carried over."""
+    Keys set once (the bet line, the short title, moderator flags, the story's brand) are carried over.
+    `lead`: the brand the story is about. Articles that name a DIFFERENT brand are never kept."""
     kept = {k: (old or {})[k] for k in _KEEP if k in (old or {})}
-    arts = {(a["title"], a["source"]): a for a in (old or {}).get("articles", [])}
+    lead = kept.get("lead_brand") or lead or _lead_brand(s.get("title"))
+    if lead:
+        kept["lead_brand"] = lead
+    other = lambda a: lead and _lead_brand(a.get("title")) and not _same_brand(_lead_brand(a.get("title")), lead)
+    arts = {(a["title"], a["source"]): a for a in (old or {}).get("articles", []) if not other(a)}
     for a in s.get("members", []):
-        arts[(a["title"], a["source"])] = a
+        if not other(a):
+            arts[(a["title"], a["source"])] = a
+    dropped = any(other(a) for a in (old or {}).get("articles", []) + list(s.get("members", [])))
     arts = sorted(arts.values(), key=lambda a: a["ts"], reverse=True)[:MAX_ARTICLES]
-    outlets = sorted(set((old or {}).get("outlet_names", [])) | set(s.get("all_outlets") or []))
+    if dropped:          # rebuild the outlet list from the articles we really keep
+        outlets = sorted({a["source"] for a in arts})
+    else:
+        outlets = sorted(set((old or {}).get("outlet_names", [])) | set(s.get("all_outlets") or []))
     return {
         **kept,
-        "outlets": max(len(outlets), s.get("outlets", 0)),
+        "outlets": len(outlets) if dropped else max(len(outlets), s.get("outlets", 0)),
         "outlet_names": outlets,
         "articles": arts,
         # current regions only (older readings may carry tags from before the outlet-based fix)
@@ -63,7 +77,7 @@ def _snapshot(s, old=None):
         "hazards": list(s.get("hazards") or (old or {}).get("hazards", [])),
         "ts": max(float((old or {}).get("ts", 0)), float(s.get("ts") or 0)),
         # the brand named in the story's own main headline wins (a group can contain other brands' articles)
-        "company": _lead_brand(s.get("title")) or s.get("company") or (old or {}).get("company"),
+        "company": lead or _lead_brand(s.get("title")) or s.get("company") or (old or {}).get("company"),
         "sector": s.get("sector") or (old or {}).get("sector"),
         "trending": s.get("trending") or (old or {}).get("trending"),
         "outlets_eff": s.get("outlets_eff", (old or {}).get("outlets_eff")),
@@ -176,7 +190,8 @@ def listed_for_matching(session, arena="food"):
         snap = json.loads(n.snapshot or "{}")
         out.append({"sid": n.sid, "first_seen": n.first_seen, "score": n.last_score,
                     "tokens": snap.get("tokens", []), "hazards": snap.get("hazards", []),
-                    "company": snap.get("company")})
+                    "company": snap.get("lead_brand") or _lead_brand(n.title) or snap.get("company"),
+                    "title": n.title})
     return out
 
 
@@ -251,8 +266,11 @@ def update_listings(stories, session, now=None, arena="food"):
     for n in active:
         snap = json.loads(n.snapshot or "{}")
         s = live.get(n.sid)
+        lead = snap.get("lead_brand") or _lead_brand(n.title) or snap.get("company")
+        if s and lead and _lead_brand(s.get("title")) and not _same_brand(_lead_brand(s.get("title")), lead):
+            s = None                       # this reading's group is about another brand — keep our own record
         if s:
-            snap = _snapshot(s, snap)
+            snap = _snapshot(s, snap, lead)
             score = s["story_score"]
             inputs = _inputs_from_live(s)
             n.title, n.url, n.source = s["title"], s["url"], s["source"]

@@ -42,13 +42,39 @@ def is_moderator(user_id):
     return user_id in (ADMIN_ID, MM_USER_ID)
 
 
+URL_RX = re.compile(r"https?://[^\s<>\"')\]]+", re.I)
+_TRACKING = re.compile(r"^(utm_\w+|fbclid|gclid|dclid|msclkid|igshid|mc_cid|mc_eid|ref|ref_src|si|s|t|smid|cmpid)$", re.I)
+
+
+def _strip_tracking(link):
+    """Drop tracking bits (?utm_source=…, fbclid…) so links stay short and honest."""
+    from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode
+    try:
+        u = urlsplit(link)
+        q = [(k, v) for k, v in parse_qsl(u.query, keep_blank_values=True) if not _TRACKING.match(k)]
+        return urlunsplit((u.scheme, u.netloc, u.path, urlencode(q), ""))
+    except Exception:
+        return link
+
+
 def _clean_link(link):
-    link = (link or "").strip()
+    link = (link or "").strip().rstrip(".,;:!?")
     if not link:
         return None
     if len(link) > 500 or not re.match(r"^https?://[^\s/$.?#][^\s]*$", link, re.I):
         raise CommentError("The link must be a full web address (https://…)")
-    return link
+    return _strip_tracking(link)
+
+
+def _link_from_body(body):
+    """No link given? Take the first web address written in the text, and take it out of the text."""
+    m = URL_RX.search(body or "")
+    if not m:
+        return body, None
+    url = m.group(0).rstrip(".,;:!?")
+    rest = (body[:m.start()] + body[m.start() + len(url):]).strip()
+    rest = re.sub(r"[ \t]+\n", "\n", re.sub(r"\n{3,}", "\n\n", rest))
+    return (rest or body), url
 
 
 def domain(link):
@@ -62,6 +88,8 @@ def domain(link):
 def post(user_id, sid, body, verdict=None, parent_id=None, kind=None, link=None):
     """kind: 'YES' / 'NO' for evidence, 'COUNTER' on a reply to evidence (takes the other side)."""
     body = (body or "").strip()
+    if not (link or "").strip():
+        body, link = _link_from_body(body)
     link = _clean_link(link)
     kind = (kind or "").upper() or None
     if kind and kind not in KINDS + ("COUNTER",):
@@ -250,8 +278,15 @@ def thread(sid, viewer_id=None, name_of=lambda uid: str(uid)):
                  "reported": c.id in mine_reported, "replies": [],
                  "kind": c.kind, "useful": c.useful or 0, "voted": c.id in mine_voted,
                  "called": c.called, "lead_s": c.lead_s, "bonus": c.bonus}
-            d["body"] = None if (hidden and not mod) else c.body
-            d["link"] = None if (hidden and not mod) else c.link
+            body, link = c.body, c.link
+            if not link:                                 # older posts: link written inside the text
+                try:
+                    body, raw = _link_from_body(c.body)
+                    link = _clean_link(raw) if raw else None
+                except Exception:
+                    body, link = c.body, None
+            d["body"] = None if (hidden and not mod) else body
+            d["link"] = None if (hidden and not mod) else link
             d["domain"] = domain(c.link) if d["link"] else None
             if mod:
                 d.update({"reports": c.reports, "author_blocked": c.user_id in blocked})

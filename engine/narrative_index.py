@@ -750,6 +750,15 @@ def _same_story_over_time(new, old):
     return len(b) == 1 and len(a) <= 3                 # tiny one-word stories, only if still tiny
 
 
+def _headline_brand(title):
+    try:
+        from engine.everyday import brand_in
+        b = brand_in([title or ""])
+        return b.lower().replace("’", "'") if b else None
+    except Exception:
+        return None
+
+
 def assign_story_ids(stories, session, now=None, arena="food"):
     """Give each story a stable sid, first_seen, score, and the score change over TREND_HOURS."""
     import hashlib
@@ -775,6 +784,9 @@ def assign_story_ids(stories, session, now=None, arena="food"):
                 continue
             pc, mc = (p.get("company") or "").lower(), (s.get("company") or "").lower()
             if pc and mc and pc != mc:                    # a story never changes brand
+                continue
+            pb, mb = _headline_brand(p.get("title")), _headline_brand(s.get("title"))
+            if pb and mb and pb != mb:                    # …judged by the brand in each main headline too
                 continue
             shared = len(me["tokens"] & p["tokens"])
             # most shared words wins (so when two stories merge, the bigger one keeps its

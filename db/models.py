@@ -417,3 +417,33 @@ class SectorTrade(Base):
     price   = Column(Float, nullable=False)
     credits = Column(Float, nullable=False)
     ts      = Column(Float, nullable=False, index=True)
+
+
+class RealityDaily(Base):
+    """What really happened, per brand per day: Wikipedia pageviews and the share's closing price.
+    Used to check the index against reality (brand '^GSPC' holds the S&P 500)."""
+    __tablename__ = "reality_daily"
+
+    id    = Column(Integer, primary_key=True, autoincrement=True)
+    brand = Column(String(40), nullable=False, index=True)
+    day   = Column(String(10), nullable=False, index=True)     # YYYY-MM-DD
+    views = Column(Integer, nullable=True)                     # English Wikipedia, human readers
+    close = Column(Float, nullable=True)                       # adjusted close of the brand's share
+
+
+class ForwardLog(Base):
+    """Every warning, written down when it happens — checked later against what really followed."""
+    __tablename__ = "forward_log"
+
+    id      = Column(Integer, primary_key=True, autoincrement=True)
+    ts      = Column(Float, nullable=False, index=True)
+    kind    = Column(String(16), nullable=False, index=True)   # signal | listed | outlook
+    brand   = Column(String(40), nullable=True, index=True)
+    sid     = Column(String(16), nullable=True, index=True)
+    title   = Column(Text, nullable=True)
+    fri     = Column(Float, nullable=True)
+    outlook = Column(Float, nullable=True)
+    label   = Column(String(24), nullable=True)
+    weight  = Column(Float, nullable=True)                     # how much the story pushed the index
+    result  = Column(Text, nullable=True)                      # JSON, filled in once enough time has passed
+    checked = Column(Float, nullable=True)

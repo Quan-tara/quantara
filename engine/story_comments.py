@@ -287,7 +287,7 @@ def thread(sid, viewer_id=None, name_of=lambda uid: str(uid)):
                     body, link = c.body, None
             d["body"] = None if (hidden and not mod) else body
             d["link"] = None if (hidden and not mod) else link
-            d["domain"] = domain(c.link) if d["link"] else None
+            d["domain"] = domain(link) if d["link"] else None
             if mod:
                 d.update({"reports": c.reports, "author_blocked": c.user_id in blocked})
             return d

@@ -45,6 +45,32 @@ def _same_brand(a, b):
     return (a or "").lower().replace("’", "'") == (b or "").lower().replace("’", "'")
 
 
+def _clean_snapshot(snap, lead):
+    """Drop articles that name a different brand from a stored story (also when the story is
+    no longer in the news), and fix its outlet list and brand. Returns True if anything changed."""
+    if not lead:
+        return False
+    arts = snap.get("articles", [])
+    keep = [a for a in arts if not (_lead_brand(a.get("title")) and not _same_brand(_lead_brand(a.get("title")), lead))]
+    changed = len(keep) != len(arts) or not _same_brand(snap.get("company"), lead) or snap.get("lead_brand") != lead
+    if changed:
+        snap["articles"] = keep
+        if len(keep) != len(arts):
+            snap["outlet_names"] = sorted({a["source"] for a in keep})
+            snap["outlets"] = len(snap["outlet_names"])
+            if any(a.get("region") for a in keep):
+                snap["regions"] = sorted({a["region"] for a in keep if a.get("region")})
+            si = snap.get("score_inputs")
+            if isinstance(si, dict):
+                si["outlets"] = snap["outlets"]
+                if "outlets_eff" in si:
+                    si["outlets_eff"] = min(si.get("outlets_eff") or 0, snap["outlets"])
+            if snap.get("outlets_eff") is not None:
+                snap["outlets_eff"] = min(snap["outlets_eff"], snap["outlets"])
+        snap["company"], snap["lead_brand"] = lead, lead
+    return changed
+
+
 def _snapshot(s, old=None, lead=None):
     """What we keep about a story so its page and its score survive after it leaves the news.
     Keys set once (the bet line, the short title, moderator flags, the story's brand) are carried over.
@@ -269,6 +295,9 @@ def update_listings(stories, session, now=None, arena="food"):
         lead = snap.get("lead_brand") or _lead_brand(n.title) or snap.get("company")
         if s and lead and _lead_brand(s.get("title")) and not _same_brand(_lead_brand(s.get("title")), lead):
             s = None                       # this reading's group is about another brand — keep our own record
+        if not s and _clean_snapshot(snap, lead):    # not in the news right now: still clean the record
+            n.snapshot = json.dumps(snap)
+            print(f"🧹 Story {n.sid}: kept only {lead} articles ({snap['outlets']} outlets)")
         if s:
             snap = _snapshot(s, snap, lead)
             score = s["story_score"]

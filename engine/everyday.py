@@ -367,6 +367,37 @@ def us_brand(titles):
     return "" if b.lower().replace("’", "'") in NON_US_BRANDS else b
 
 
+# ── STAKES: only stories where something real is on the line ──
+# money (prices, fees, portions), safety (illness, contamination), workers (pay, union, strikes)
+# or a boycott / broken trust. "Bring back my favourite sub" is nostalgia: nothing at stake.
+STAKE_RX = {
+    "money":   re.compile(r"\bprices?\b|\bpric(?:ing|ed)\b|\$\d|\bfees?\b|\bsurcharge|\bovercharg|\btip(?:s|ping)?\b|"
+                          r"\bshrinkflation|\bsmaller\b|\bportions?\b|\bdownsiz|\bcost(?:s|ly)?\b|\bexpensive\b|"
+                          r"\brip-?off\b|\bdiscount\b|\bmembership\b|\brefund|\bcharg(?:e|es|ed|ing)\b|\bdeal\b.{0,20}\b(?:cut|end|scrap)", re.I),
+    "safety":  re.compile(r"\brecall|\bsick\b|\billness|\bpoison|\bcontaminat|\boutbreak|\be\.? ?coli\b|\bsalmonella|"
+                          r"\blisteria|\btoxic|\bunsafe\b|\bhospitali|\ballerg|\bchemical|\bcancer\b|\bmold\b|\bforeign object", re.I),
+    "workers": re.compile(r"\bunion|\bbaristas?\b|\bworkers?\b|\bemployees?\b|\bstaff\b|\bstrike\b|\bwalk ?out|\bwages?\b|"
+                          r"\bpay\b|\blayoffs?\b|\bcontract\b|\bfranchisees?\b", re.I),
+    "boycott / trust": re.compile(r"\bboycott|\bpetition|\blied\b|\blying\b|\bmisleading|\bdeceptive|\bfake\b|\bfalse advertising|"
+                                  r"\blawsuit|\bsue[sd]?\b|\bsuing\b|\bclass action|\bscandal|\bcover-?up|\bpolicy\b|\bnever again\b|"
+                                  r"\bdone with\b|\bswitching to\b|\bcancel(?:s|led|ing)? (?:their|my|our)?\s*(?:membership|subscription|order)", re.I),
+}
+NOSTALGIA_RX = re.compile(r"\bdiscontinued\b|\bbring(?:s|ing)? (?:\w+ ){0,3}back\b|\bwants? .{0,30}\bback\b|\bbeg\w*\b.{0,40}\bback\b|"
+                          r"\bnostalgi|\bmissing\b.{0,20}\bmenu\b|\bcomeback\b", re.I)
+
+
+def stake_of(title, others=()):
+    """'money' / 'safety' / 'workers' / 'boycott / trust' — what is on the line ('' if nothing).
+    Petitions to bring back a discontinued item are nostalgia, not a boycott."""
+    t = (title or "").replace("’", "'")
+    nost = bool(NOSTALGIA_RX.search(t))
+    for cat, rx in STAKE_RX.items():
+        m = rx.search(t)
+        if m and not (nost and cat == "boycott / trust" and m.group(0).lower().startswith("petition")):
+            return cat
+    return ""
+
+
 def gate(title, others=(), company=None):
     """(ok, reason) — is this real pressure on a US food or drink brand?
     ok=False comes with the first rule it failed, in plain words."""
@@ -395,7 +426,12 @@ def gate(title, others=(), company=None):
     d = demand(title, others)
     if not d:
         return False, "no demand on the brand"
-    return True, d
+    cat = stake_of(title, others)
+    if not cat:
+        if NOSTALGIA_RX.search(title):
+            return False, "nostalgia, nothing at stake"
+        return False, "no real stakes (money, safety, workers or boycott)"
+    return True, f"{d} · {cat}"
 
 
 def stakes(texts):

@@ -191,7 +191,9 @@ async function renderYou() {
   const sx = d.sector;
   const dev = sx && sx.price != null ? (100 - sx.price) / 2 : null;
   const sectorLine = dev != null ? `<div class="sub">Your category, ${esc(sx.label)}: drama is <b class="${dev > 2.5 ? "pressure" : dev < -2.5 ? "calm" : ""}">${Math.abs(dev) < 0.5 ? "at its normal level" : `${Math.abs(dev).toFixed(1)} points ${dev > 0 ? "above" : "below"} its normal level`}</b> (last 7 days).</div>` : "";
-  el.innerHTML = sectorLine + (list.length ? `<div class="sub"><b>${list.length}</b> live stor${list.length === 1 ? "y touches" : "ies touch"} you${list.some(s => s.match === "your brand") ? `, <b class="pressure">${list.filter(s => s.match === "your brand").length} naming your brand</b>` : ""}.</div>
+  const sp = d.spots;
+  const spotLine = sp && sp.spotters ? `<div class="sub">🔍 <b class="${sp.open ? "watch" : ""}">${sp.spotters} player${sp.spotters === 1 ? "" : "s"}</b> spotted trouble brewing at ${esc(brand)} in the last 14 days${sp.card_sid ? ` · <a href="/story/${encodeURIComponent(sp.card_sid)}">see why</a>` : ""}</div>` : "";
+  el.innerHTML = sectorLine + spotLine + (list.length ? `<div class="sub"><b>${list.length}</b> live stor${list.length === 1 ? "y touches" : "ies touch"} you${list.some(s => s.match === "your brand") ? `, <b class="pressure">${list.filter(s => s.match === "your brand").length} naming your brand</b>` : ""}.</div>
     <div class="list">${list.slice(0, 6).map(s => `<div class="li"><a href="/story/${encodeURIComponent(s.sid)}">${esc(s.title)}</a>
       <div class="m"><span class="tag ${s.match === "your brand" ? "hot" : ""}">${esc(s.match)}</span><span>score ${f1(s.score)}</span>${s.posts ? `<span>🦋 ${s.posts} posts</span>` : ""}${s.listed ? `<span class="tag on">listed</span>` : ""}</div></div>`).join("")}</div>`
     : `<div class="empty">No live stories touch ${esc(brand || sector)} right now. That's the calm case: nothing to cover against yet.</div>`);

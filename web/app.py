@@ -1439,6 +1439,52 @@ def api_reality_collect(user_id: str):
     return {"started": True, "running": _state["running"], "last": _state["msg"]}
 
 
+class SpotRequest(BaseModel):
+    user_id: str
+    brand: str
+    reason: str
+    link: "str | None" = None
+
+
+@app.get("/api/spots")
+def api_spots(user_id: str = None):
+    """Spotted cards (open + decided in the last days), the viewer's spots and the brand list."""
+    from engine.spots import board
+    session = SessionLocal()
+    try:
+        return board(session, parse_user_id(user_id) if user_id else None)
+    finally:
+        session.close()
+
+
+@app.post("/api/spots")
+def api_spot_create(req: SpotRequest):
+    from engine.spots import create, SpotError
+    session = SessionLocal()
+    try:
+        return {"status": "ok", "sid": create(session, parse_user_id(req.user_id), req.brand, req.reason, req.link)}
+    except SpotError as e:
+        session.rollback()
+        msg, _, sid = str(e).partition("|")
+        raise HTTPException(status_code=400, detail={"message": msg, "story": sid or None})
+    finally:
+        session.close()
+
+
+@app.get("/api/spots/card/{sid}")
+def api_spot_card(sid: str, user_id: str = None):
+    from engine.spots import view_card, CARD_STATES
+    from db.models import Narrative
+    session = SessionLocal()
+    try:
+        n = session.query(Narrative).filter(Narrative.sid == sid[:16], Narrative.status.in_(CARD_STATES)).first()
+        if not n:
+            raise HTTPException(status_code=404, detail="No such spotted card")
+        return view_card(session, n, parse_user_id(user_id) if user_id else None)
+    finally:
+        session.close()
+
+
 @app.get("/api/me/role")
 def api_me_role(user_id: str = None):
     """Is this user a moderator? (decides which technical panels the pages show)"""
@@ -1740,7 +1786,7 @@ def api_narrative_listed(days: float = 14.0):
     try:
         since = _time.time() - days * 86400
         rows = session.query(Narrative).filter(Narrative.listed_at >= since,
-                                               Narrative.status.notin_(["MERGED", "DELISTED"])).all()
+                                               Narrative.status.notin_(["MERGED", "DELISTED", "SPOTTED", "CONFIRMED", "EXPIRED"])).all()
         rows.sort(key=lambda n: (n.status != "LISTED", -(n.last_score or 0) if n.status == "LISTED" else -(n.closed_at or 0)))
         sids = [n.sid for n in rows]
         pts = {}
@@ -1830,7 +1876,7 @@ def api_narrative_story(sid: str):
                                    "tokens": set(x.get("tokens", [])), "hazards": set(x.get("hazards", []))}
         import json as _json
         for m in session.query(Narrative).filter(Narrative.listed_at >= now - 30 * 86400).all():
-            if m.sid == sid or m.status in ("MERGED", "DELISTED"):
+            if m.sid == sid or m.status in ("MERGED", "DELISTED", "SPOTTED", "CONFIRMED", "EXPIRED"):
                 continue
             sn = _json.loads(m.snapshot or "{}")
             cands[m.sid] = {"sid": m.sid, "title": m.title, "score": m.final_score if m.status == "CLOSED" else m.last_score,
@@ -2027,8 +2073,10 @@ def api_reputation_you(sector: str = None, brand: str = None):
         from engine.intent import for_brand
         from engine.sectors import board as _sb
         sec = next((x for x in _sb(session)["sectors"] if x["sector"] == sector), None) if sector else None
+        from engine.spots import for_brand as _spots_for
         return {"stories": for_company(session, sector, (brand or "")[:60]),
-                "intent": for_brand(session, (brand or "")[:60]), "sector": sec}
+                "intent": for_brand(session, (brand or "")[:60]), "sector": sec,
+                "spots": _spots_for(session, brand) if brand else None}
     finally:
         session.close()
 
@@ -2380,7 +2428,7 @@ class StoryCommentRequest(_BM):
     verdict: _Opt[str] = None
     parent_id: _Opt[int] = None
     kind: _Opt[str] = None       # YES | NO (evidence) | COUNTER (reply to evidence)
-    link: _Opt[str] = None
+    link: "str | None" = None
 
 
 class StoryCommentActionRequest(_BM):

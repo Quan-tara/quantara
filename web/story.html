@@ -74,6 +74,14 @@ main { max-width: 1240px; margin: 0 auto; padding-top: 18px; display: grid; gap:
 .fri-v { font: 700 34px var(--mono); line-height: 1.1 } .fri-v small { font-size: 12px }
 .fri .m { font-size: 13px; color: var(--muted); padding: 2px 0 } .fri .m b { color: var(--text) } .fri .m a { color: var(--text) }
 @media (max-width: 640px) { .fri { grid-template-columns: 1fr } }
+.spot-form { display: grid; gap: 8px; padding: 12px 14px }
+.spot-form input, .spot-form textarea { background: var(--s2); border: 1px solid var(--border); color: var(--text); border-radius: 6px; padding: 8px; font: 13px var(--sans) }
+.spot-form textarea { min-height: 70px; resize: vertical }
+.pill.spot { color: var(--amber); border-color: var(--amber) }
+.spot-card { border-style: dashed }
+.spot-badge { font: 700 10px var(--mono); color: var(--amber); margin: 4px 0 }
+.spot-state { margin-top: 10px; padding: 10px; border: 1px dashed var(--border); border-radius: 6px; font-size: 13px }
+.spot-state.ok { border-color: var(--green) }
 .cases { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--border) }
 @media (max-width: 640px) { .cases { grid-template-columns: 1fr } }
 .case { border: 1px solid var(--border); border-radius: 8px; padding: 10px; display: grid; gap: 6px; align-content: start }
@@ -456,6 +464,84 @@ async function secTrade(sector, action) {
   const m2 = $("#sec-msg"); if (m2) { m2.className = "tp-msg"; m2.textContent = `${action === "BUY" ? "Bought" : "Sold"} ${d.shares} at ${d.price.toFixed(2)} · credits ${cr(d.balance)}`; }
 }
 
+// ── SPOT IT FIRST ──
+let SPOTS = null, SPOT_FORM = false;
+function spottedBadge(s) {
+  if (!SPOTS || !s.company) return "";
+  const c = SPOTS.cards.find(c => c.status === "CONFIRMED" && c.confirmed_by && (c.confirmed_by.sid === s.sid || (c.brand || "").toLowerCase() === s.company.toLowerCase()));
+  if (!c) return "";
+  const lead = Math.max(...c.won.map(w => w.lead_s || 0), 0);
+  return `<div class="spot-badge">🔍 spotted by ${c.won.length} player${c.won.length === 1 ? "" : "s"}${lead ? " · " + leadTxt(lead) : ""}</div>`;
+}
+function spotForm(brand) {
+  if (!ME) return loginHtml("Log in to spot trouble.");
+  const R = SPOTS.rules;
+  if (SPOTS.open >= R.max_open) return `<div class="note">You have ${R.max_open} open spots. Wait until one is decided.</div>`;
+  return `<div class="spot-form">
+    <input id="sp-brand" list="sp-brands" placeholder="Brand, e.g. Chipotle" value="${esc(brand || "")}" ${brand ? "readonly" : ""} autocomplete="off">
+    <datalist id="sp-brands">${SPOTS.brands.map(b => `<option value="${esc(b.name)}">`).join("")}</datalist>
+    <textarea id="sp-why" maxlength="600" placeholder="What's brewing? e.g. people on TikTok are furious about smaller bowls, a petition is growing…"></textarea>
+    <input id="sp-link" maxlength="500" placeholder="Source link (optional): https://…">
+    <div class="tp-row"><button class="btn" id="sp-go" onclick="sendSpot()">🔍 SPOT IT</button>
+      ${brand ? "" : `<button class="btn ghost" onclick="SPOT_FORM=false;$('#spots').innerHTML=spotsSection()">CANCEL</button>`}
+      <span class="tp-msg err" id="sp-msg"></span></div>
+    <div class="note" style="padding:0">Wins if a real story about this brand appears within ${R.days} days: ${R.base} credits + ${R.per_day} for every day early (+${R.first_bonus} if you're first). Nothing to lose. No campaigns: don't start what you spot.</div>
+  </div>`;
+}
+function spotCard(c) {
+  const left = c.closes - Date.now() / 1000;
+  const st = c.status === "CONFIRMED" ? `<span class="pill LISTED">CONFIRMED</span>` : c.status === "EXPIRED" ? `<span class="pill CLOSED">NOTHING HAPPENED</span>` : `<span class="pill spot">🔍 SPOTTED</span>`;
+  return `<a class="card spot-card" href="/story/${encodeURIComponent(c.sid)}">
+    <div class="card-top">${st}</div>
+    <div class="card-title">${esc(c.title)}</div>
+    <div class="m">${c.spotters} player${c.spotters === 1 ? "" : "s"} · first spotted ${when(c.first_ts)}
+      ${c.status === "SPOTTED" ? ` · ${Math.max(0, Math.ceil(left / 86400))} days left` : c.confirmed_by ? ` · news: ${esc((c.confirmed_by.title || "").slice(0, 60))}` : ""}</div>
+    ${c.mine ? `<div class="m"><b>You spotted it</b>${c.mine.payout ? ` · <b class="down">+${Math.round(c.mine.payout)} cr</b>` : ""}</div>` : ""}
+  </a>`;
+}
+function spotsSection() {
+  if (!SPOTS) return "";
+  const open = SPOTS.cards.filter(c => c.status === "SPOTTED"), done = SPOTS.cards.filter(c => c.status !== "SPOTTED");
+  return `<div class="ph"><span class="lbl">🔍 Spotted by players · before the news</span>
+      ${SPOT_FORM ? "" : `<button class="btn" onclick="SPOT_FORM=true;$('#spots').innerHTML=spotsSection();$('#sp-brand').focus()">🔍 SPOT TROUBLE</button>`}</div>
+    ${SPOT_FORM ? spotForm() : ""}
+    ${open.length || done.length ? `<div class="cards">${open.concat(done).map(spotCard).join("")}</div>`
+      : `<div class="note">Nothing spotted yet. Seen anger building at a brand that the news hasn't caught? Be the first to spot it.</div>`}`;
+}
+async function sendSpot() {
+  const r = await fetch("/api/spots", { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user_id: ME.id, brand: $("#sp-brand").value, reason: $("#sp-why").value, link: $("#sp-link").value || null }) });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) {
+    const det = d.detail || {}, m = typeof det === "string" ? det : det.message;
+    $("#sp-msg").innerHTML = esc(m || "Could not save") + (det.story ? ` <a href="/story/${encodeURIComponent(det.story)}">Open that story ›</a>` : "");
+    return;
+  }
+  location.href = "/story/" + encodeURIComponent(d.sid);
+}
+async function spotPage(sid) {
+  let c;
+  try { const r = await fetch("/api/spots/card/" + encodeURIComponent(sid) + (ME ? "?user_id=" + encodeURIComponent(ME.id) : "")); if (!r.ok) throw 0; c = await r.json(); }
+  catch (e) { $("#main").innerHTML = `<div class="empty">This spotted card doesn't exist. <a href="/stories">Back to stories</a>.</div>`; return; }
+  try { SPOTS = await (await fetch("/api/spots" + (ME ? "?user_id=" + encodeURIComponent(ME.id) : ""))).json(); } catch (e) {}
+  document.title = c.title + " — Quantara";
+  STORY = { sid: c.sid, status: "SPOT", bet: { kind: "spot", company: c.brand } };
+  const left = c.closes - Date.now() / 1000;
+  const state = c.status === "CONFIRMED"
+    ? `<div class="spot-state ok">✅ <b>Confirmed.</b> The news caught up: ${c.confirmed_by && c.confirmed_by.sid ? `<a href="/story/${encodeURIComponent(c.confirmed_by.sid)}">${esc(c.confirmed_by.title || "the story")}</a>` : esc((c.confirmed_by || {}).title || "")}. ${c.won.length} spotter${c.won.length === 1 ? "" : "s"} won.</div>`
+    : c.status === "EXPIRED" ? `<div class="spot-state">Nothing happened within 14 days. No one lost anything.</div>`
+    : `<div class="spot-state">Waiting for the news: <b>${Math.max(0, Math.ceil(left / 86400))} days left</b>. If a real story about ${esc(c.brand)} appears (US, a real demand, real stakes: money, safety, workers or a boycott), every spotter wins, and the earlier the more.</div>`;
+  $("#main").innerHTML = `
+    <section class="panel"><div style="padding:14px;display:grid;gap:4px">
+      <div class="card-top"><span class="pill spot">🔍 SPOTTED BY PLAYERS</span></div>
+      <h1 style="font-size:24px;margin:8px 0 4px">${esc(c.title)}</h1>
+      <div class="m">${c.spotters} player${c.spotters === 1 ? "" : "s"} spotted it · first ${when(c.first_ts)}${c.mine ? " · <b>you're one of them</b>" + (c.mine.payout ? ` · <b class="down">+${Math.round(c.mine.payout)} cr</b>` : "") : ""}</div>
+      ${state}</div></section>
+    ${c.status === "SPOTTED" && !c.mine ? `<section class="panel"><div class="ph"><span class="lbl">Spot it too</span></div>${SPOTS ? spotForm(c.brand) : ""}</section>` : ""}
+    <section class="panel" id="dc"></section>`;
+  loadComments(c.sid);
+}
+
 // ── WHO IS LOOKING (moderators see the technical panels) ──
 let IS_MOD = false, HOW_OPEN = false;
 async function loadRole() {
@@ -486,10 +572,20 @@ async function mePage() {
   if (!ME) { $("#main").innerHTML = `<section class="panel"><div class="ph"><span class="lbl">Me</span></div>${loginHtml("Log in to see your credits, positions and results. New players start with 10,000 credits.")}</section>`; return; }
   $("#main").innerHTML = `
     <section class="panel" id="mine"></section>
+    <section class="panel" id="me-spots"></section>
     <section class="panel" id="me-called"></section>
     <section class="panel"><div class="howline"><span>Full record of every call, and how you rank against other players.</span>
       <span style="display:flex;gap:8px"><a class="btn ghost" href="/history" style="text-decoration:none">MY HISTORY</a><a class="btn ghost" href="/leaderboard" style="text-decoration:none">LEADERBOARD</a></span></div></section>`;
   myStories();
+  try {
+    const sp = await (await fetch("/api/spots?user_id=" + encodeURIComponent(ME.id))).json();
+    const won = sp.mine.filter(x => x.status === "WON");
+    $("#me-spots").innerHTML = `<div class="ph"><span class="lbl">🔍 My spots</span><span class="tag">${sp.open} open · ${won.length} won${won.length ? " · +" + Math.round(won.reduce((a, x) => a + (x.payout || 0), 0)) + " cr" : ""}</span></div>
+      ${sp.mine.length ? `<div class="list" style="padding:0 14px">${sp.mine.map(x => `<div class="li"><a href="/story/${encodeURIComponent(x.card_sid)}">${esc(x.brand)}</a>
+        <div class="m"><span>${when(x.ts)}</span>${x.status === "OPEN" ? `<span>${Math.max(0, Math.ceil((x.expires - Date.now() / 1000) / 86400))} days left</span>`
+          : x.status === "WON" ? `<b class="down">✅ +${Math.round(x.payout)} cr · ${leadTxt(x.lead_s)}</b>${x.story_sid ? ` <a href="/story/${encodeURIComponent(x.story_sid)}">the story</a>` : ""}` : "<span>nothing happened</span>"}</div></div>`).join("")}</div>`
+        : `<div class="note">You haven't spotted anything yet. <a href="/stories">Spot trouble</a> at a brand before the news does.</div>`}`;
+  } catch (e) {}
   try {
     const c = await (await fetch("/api/stories/called/" + encodeURIComponent(ME.id))).json();
     $("#me-called").innerHTML = `<div class="ph"><span class="lbl">✅ Called it</span><span class="tag">${c.wins.length} of ${c.settled} evidence posts right</span></div>
@@ -506,6 +602,7 @@ async function board() {
   let d;
   try { d = await (await fetch("/api/narrative/listed")).json(); }
   catch (e) { $("#main").innerHTML = `<div class="empty">Could not load stories.</div>`; return; }
+  try { SPOTS = await (await fetch("/api/spots" + (ME ? "?user_id=" + encodeURIComponent(ME.id) : ""))).json(); } catch (e) { SPOTS = null; }
   const keyOf = s => s.sector || ARENA_NAME[s.arena || "food"] || "other";
   const inArena = s => BOARD_ARENA === "all" || keyOf(s) === BOARD_ARENA;
   const open = d.stories.filter(s => s.status === "LISTED" && inArena(s));
@@ -522,7 +619,7 @@ async function board() {
       <div class="card-top"><span class="pill ${s.status}">${s.status}</span>${s.sector ? sectorTag(s.sector) : arenaTag(s.arena)}
         ${(s.regions || []).map(x => `<span class="tag">${esc(x)}</span>`).join("")}
         ${(s.categories || []).filter(x => x !== s.sector).slice(0, 2).map(x => `<span class="tag">${esc(x)}</span>`).join("")}</div>
-      ${s.company ? `<div class="co">${esc(s.company)}</div>` : ""}
+      ${s.company ? `<div class="co">${esc(s.company)}</div>` : ""}${spottedBadge(s)}
       ${s.short_title ? `<div class="card-title short">${esc(s.short_title)}</div><div class="orig">${esc(s.title)}</div>` : `<div class="card-title">${esc(s.title)}</div>`}
       ${trendTag(s.trending)}
 
@@ -555,18 +652,20 @@ async function board() {
   $("#main").innerHTML = `
     <section class="panel">
       <div class="howline">
-        <span><b>How to play:</b> open a story · bet YES/NO on <b>🏳️ Will they cave?</b> · back your call with evidence. Call it early, win more.</span>
+        <span><b>How to play:</b> <b>🔍 Spot it</b> — flag trouble at a brand before the news has it · <b>🏳️ Call it</b> — will they cave? · <b>📎 Prove it</b> — back your call with evidence.</span>
         <button class="btn ghost" onclick="HOW_OPEN=!HOW_OPEN;$('#how-more').hidden=!HOW_OPEN;this.textContent=HOW_OPEN?'HIDE':'HOW IT WORKS'">HOW IT WORKS</button>
       </div>
       <div class="rules" id="how-more" hidden>
         <span>Stories are picked from US food news, Reddit and Bluesky when people are really talking about them and something is at stake: prices, safety, trust or a boycott.</span>
         <span><b>Will they cave?</b> asks whether the brand backs down within 7 days (apologises, reverses the change, brings the item back). The winner gets 100 credits per unit; prices are the chance in %. <b>⚡ Early calls</b> in a story's first 12 hours pay <b>120</b>.</span>
         <span><b>The Food Reputation Index</b> is one number for how much trouble the US food industry is in right now: half food-safety news (recalls, outbreaks), half the biggest stories here. Companies watch it and insure against it; your bets help it warn them early.</span>
+        <span><b>🔍 Spot it:</b> think trouble is brewing at a brand (anger online, a price change, a staff dispute) that the news hasn't picked up yet? Spot it, with a reason. If a real story about that brand appears within 14 days, you win <b>100 credits + 20 for every day you were early</b> (+50 if you were first). If nothing happens, you lose nothing. Up to 3 open spots at a time.</span>
         <span><b>Evidence:</b> back your call in the discussion with a reason and a source. Others mark it useful or post a counter-argument. When the story ends, evidence on the right side gets <b>✅ called it</b>, and the most useful one earns <b>+50 credits</b>.</span>
         <span>Everyone starts with <b>10,000</b> virtual credits. Your results are under <a href="/me">Me</a>.</span>
       </div>
     </section>
     <section class="panel" id="fri"></section>
+    <section class="panel" id="spots">${spotsSection()}</section>
     <section class="panel" id="cands" hidden></section>
     <section class="panel">
       <div class="ph"><span class="lbl">Listed now</span>
@@ -847,7 +946,8 @@ let DC = null, DC_SID = null, VERDICT = null, REPLY_TO = null, POST_KIND = null,
 // what YES / NO mean for this story's question
 function sideWords() {
   const k = STORY && STORY.bet && STORY.bet.kind, co = (STORY && STORY.bet && STORY.bet.company) || "the brand";
-  return k === "cave" ? { YES: `${co} will cave`, NO: `${co} will hold` }
+  return k === "spot" ? { YES: `trouble is coming for ${co}`, NO: `nothing will happen` }
+    : k === "cave" ? { YES: `${co} will cave`, NO: `${co} will hold` }
     : k === "line" ? { YES: "it keeps going", NO: "it fades" }
     : k === "outlets" ? { YES: "it spreads", NO: "it doesn't spread" } : { YES: "yes", NO: "no" };
 }
@@ -1243,7 +1343,7 @@ const m = location.pathname.match(/^\/story\/([^/]+)/);
 const PATH = location.pathname;
 const PAGE = m ? "story" : PATH.startsWith("/leaderboard") ? "lb" : PATH.startsWith("/history") ? "hist"
   : PATH.startsWith("/me") ? "me" : "board";
-const RENDER = () => m ? story(decodeURIComponent(m[1])) : PAGE === "lb" ? leaderboardPage() : PAGE === "hist" ? historyPage()
+const RENDER = () => m ? (decodeURIComponent(m[1]).startsWith("sp") ? spotPage(decodeURIComponent(m[1])) : story(decodeURIComponent(m[1]))) : PAGE === "lb" ? leaderboardPage() : PAGE === "hist" ? historyPage()
   : PAGE === "me" ? mePage() : board();
 loadRole().then(RENDER);
 setInterval(() => { if (!document.hidden && !(m && (dcBusy() || REPLY_TO != null))) RENDER(); }, 5 * 60 * 1000);

@@ -25,7 +25,7 @@ from db.models import Narrative
 
 MAX_PER_RUN = 5
 MAX_LEN = 60
-_state = {"warned": False, "blocked_until": 0.0}
+_state = {"warned": False, "blocked_until": 0.0, "model": None, "last_error": None, "last_ok": None, "done": 0}
 
 PROMPT = """Rewrite this food & drink news story as a short title for a social prediction game.
 Rules:
@@ -45,20 +45,42 @@ def configured():
     return bool(os.getenv("GEMINI_API_KEY") or os.getenv("GROQ_API_KEY"))
 
 
+GEMINI = "https://generativelanguage.googleapis.com/v1beta"
+
+
+def _gemini_models(key):
+    """Ask Google which models this key can use; newest 'flash' model first.
+    (Model names are retired over time, so they are never hard-coded.)"""
+    r = requests.get(f"{GEMINI}/models", params={"key": key, "pageSize": 200}, timeout=20)
+    if r.status_code != 200:
+        raise RuntimeError(f"gemini models HTTP {r.status_code}: {r.text[:120]}")
+    names = [m["name"].split("/", 1)[1] for m in r.json().get("models", [])
+             if "generateContent" in (m.get("supportedGenerationMethods") or [])]
+    flash = [n for n in names if "flash" in n and "thinking" not in n and "image" not in n
+             and "tts" not in n and "live" not in n and "exp" not in n]
+    lite = [n for n in flash if "lite" in n]
+    ranked = sorted(lite, reverse=True) + sorted([n for n in flash if n not in lite], reverse=True)
+    return ranked or names
+
+
 def _gemini(prompt):
     key = os.getenv("GEMINI_API_KEY", "").strip()
-    for model in [os.getenv("GEMINI_MODEL", "gemini-2.0-flash"), "gemini-1.5-flash"]:
-        r = requests.post(f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
-                          params={"key": key}, timeout=30,
+    wanted = os.getenv("GEMINI_MODEL")
+    tried = []
+    models = ([wanted] if wanted else []) + ([_state["model"]] if _state["model"] else []) + _gemini_models(key)[:4]
+    for model in dict.fromkeys(m for m in models if m):
+        tried.append(model)
+        r = requests.post(f"{GEMINI}/models/{model}:generateContent", params={"key": key}, timeout=30,
                           json={"contents": [{"parts": [{"text": prompt}]}],
-                                "generationConfig": {"temperature": 0.4, "maxOutputTokens": 40}})
-        if r.status_code == 404:
-            continue                                   # model name retired → try the next one
+                                "generationConfig": {"temperature": 0.4, "maxOutputTokens": 60}})
+        if r.status_code in (404, 400) and "not found" in r.text.lower():
+            continue                                   # retired model → next one
         if r.status_code != 200:
-            raise RuntimeError(f"gemini HTTP {r.status_code}")
+            raise RuntimeError(f"gemini {model} HTTP {r.status_code}: {r.text[:150]}")
+        _state["model"] = model
         parts = ((r.json().get("candidates") or [{}])[0].get("content") or {}).get("parts") or [{}]
-        return parts[0].get("text", "")
-    raise RuntimeError("gemini: no model available")
+        return "".join(p.get("text", "") for p in parts)
+    raise RuntimeError(f"gemini: none of these models answered: {', '.join(tried)}")
 
 
 def _groq(prompt):
@@ -110,12 +132,14 @@ def run_titles():
             heads = [n.title] + [a["title"] for a in snap.get("articles", []) if a.get("title") != n.title][:3]
             try:
                 snap["short_title"] = shorten(heads, snap.get("company"))
+                _state["last_ok"], _state["done"] = time.time(), _state["done"] + 1
                 snap["title_by"] = "ai"
                 n.snapshot = json.dumps(snap)
                 session.commit()
                 done.append(f"{snap['short_title']}")
             except Exception as e:
                 print(f"⚠️ short title failed for {n.sid}: {e}")
+                _state["last_error"] = f"{time.strftime('%Y-%m-%d %H:%M UTC', time.gmtime())}: {str(e)[:250]}"
                 if "429" in str(e) or "403" in str(e) or "401" in str(e):
                     _state["blocked_until"] = time.time() + 3600
                     break
@@ -147,3 +171,19 @@ def set_title(sid, moderator_id, title):
         return {"sid": sid, "short_title": snap.get("short_title"), "title_by": snap.get("title_by")}
     finally:
         session.close()
+
+
+def status():
+    """For /api/titles/status — is the AI working? (never shows the key)"""
+    session = SessionLocal()
+    try:
+        listed = session.query(Narrative).filter(Narrative.status == "LISTED").all()
+        with_t = sum(1 for n in listed if json.loads(n.snapshot or "{}").get("short_title"))
+    finally:
+        session.close()
+    return {"key_set": {"GEMINI_API_KEY": bool(os.getenv("GEMINI_API_KEY")), "GROQ_API_KEY": bool(os.getenv("GROQ_API_KEY"))},
+            "provider": "gemini" if os.getenv("GEMINI_API_KEY") else "groq" if os.getenv("GROQ_API_KEY") else None,
+            "model_in_use": _state["model"], "titles_written_since_restart": _state["done"],
+            "paused_minutes_left": max(0, int((_state["blocked_until"] - time.time()) / 60)),
+            "last_error": _state["last_error"],
+            "listed_stories": len(listed), "listed_with_short_title": with_t}

@@ -43,10 +43,10 @@ _EXTRA = ["heinz ketchup", "monster energy drink", "prime drink"]
 
 
 def brands():
-    from engine.everyday import FOOD_BRANDS, GROCERS
+    from engine.everyday import FOOD_BRANDS, GROCERS, NON_US_BRANDS
     out = []
     for b in FOOD_BRANDS + GROCERS + _EXTRA:
-        if b not in _AMBIGUOUS and b not in out:
+        if b not in _AMBIGUOUS and b not in out and b not in NON_US_BRANDS:   # US brands only
             out.append(b)
     return out
 
@@ -130,8 +130,9 @@ def rising(session, hours=RISING_KEEP_H):
     rows = (session.query(BrandBuzz).filter(BrandBuzz.spike.is_(True), BrandBuzz.ts >= time.time() - hours * 3600)
             .order_by(BrandBuzz.ts.desc()).all())
     out, seen = [], set()
+    from engine.everyday import NON_US_BRANDS
     for r in rows:
-        if r.brand in seen:
+        if r.brand in seen or r.brand in NON_US_BRANDS:
             continue
         seen.add(r.brand)
         out.append({"brand": r.brand, "ts": r.ts, "posts": r.posts, "baseline": r.baseline,

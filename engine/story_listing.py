@@ -317,8 +317,8 @@ def update_listings(stories, session, now=None, arena="food"):
                 continue
         # nobody is asking the brand for anything → nothing to cave to, and usually fluff
         if rules.get("demand"):
-            from engine.everyday import demand
-            if not demand(s.get("title"), [m.get("title") for m in s.get("members", [])]):
+            from engine.everyday import gate
+            if not gate(s.get("title"), [m.get("title") for m in s.get("members", [])], s.get("company"))[0]:
                 continue
         # nobody talking about it → not listed, however many news sites wrote it up
         if rules.get("min_talk") and not talked_about(session, s["sid"], s.get("company"), rules["min_talk"]):

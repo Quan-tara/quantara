@@ -297,9 +297,9 @@ _CHANGE = r"(?:price|prices|\$\d|smaller|portion|shrink|recipe|removed|remove|di
 DEMAND_RX = re.compile(
     r"\bbring(?:s|ing)? (?:\w+ ){0,3}back\b|\b(?:want|wants|wanted|beg|begs|begging|plead\w*|demand\w*|asking|ask)\b.{0,40}\bback\b"
     r"|\breturn of\b|\bpetition|\bboycott|\brefund|\bapolog|\bdemand(?:s|ing|ed)?\b|\bcalls? (?:on|for)\b|\burg(?:e|es|ing)\b"
-    r"|\bprotest|\bwalkout|\bwalk out\b|\bstrike\b|\blawsuit|\bclass action|\bsued\b|\bsuing\b"
+    r"|\bprotest|\bwalkout|\bwalk out\b|\bstrike\b|\blawsuit|\bclass action|\bsue[sd]?\b|\bsuing\b|\bthreaten\w* to (?:cancel|quit|boycott|leave|stop)\b"
     r"|\brevers(?:e|es|ed|al)\b|\bbacktrack|\bu-turn|\bscrap(?:s|ped)?\b|\bnever again\b|\bdone with\b|\bswitching to\b"
-    r"|\b(?:price hike|price increase|raises prices|raising prices|shrinkflation|hidden fee|junk fee)"
+    r"|\b(?:price hike|price increase|raises prices|raising prices|shrinkflation|hidden fee|junk fee|fee hike|fee increase|membership fee)"
     r"|\b(?:backlash|outrage\w*|furious|angry|anger|slam\w*|complain\w*|fume\w*|livid|blast\w*|rip-?off)\b.{0,60}" + _CHANGE
     + r"|" + _CHANGE + r".{0,60}\b(?:backlash|outrage\w*|furious|angry|anger|slam\w*|complain\w*|fume\w*|livid|blast\w*)\b",
     re.I)
@@ -325,6 +325,73 @@ def demand(lead, others=()):
         if m:
             return m.group(0).strip()[:60]
     return ""
+
+
+# ── ONE GATE ──────────────────────────────────────────────────────────────
+# Every rule that decides whether a story is "real US food-brand pressure" lives here, and the
+# same function is used for listing, for the Food Reputation Index and for the moderator list.
+# Change a rule here and it changes everywhere; tests/test_gate.py holds every headline we have
+# argued about, good and bad — run it after any change.
+NON_US_BRANDS = ["greggs", "pret", "costa", "nando's", "wetherspoons", "gail's", "itsu", "wagamama", "leon",
+                 "pizza express", "frankie & benny's", "harvester", "toby carvery", "tesco", "sainsbury's", "asda",
+                 "morrisons", "waitrose", "m&s", "marks & spencer", "co-op", "iceland", "ocado", "walkers",
+                 "deliveroo", "just eat", "milka", "innocent", "rewe", "edeka", "carrefour", "woolworths", "coles",
+                 "gokul", "amul", "jollibee", "loblaws", "metro", "migros", "mercadona"]
+FOREIGN_RX = re.compile(
+    r"£|€|₹|\bA\$|\bC\$|\buk\b|\bu\.k\.|\bbritain\b|\bbritish\b|\bengland\b|\benglish\b|\blondon\b|\bscotland\b|"
+    r"\bscottish\b|\bwales\b|\bwelsh\b|\bireland\b|\birish\b|\bnhs\b|\bcouncil\b|\bhigh street\b|\bcrisps\b|"
+    r"\baustralia\w*|\baussie\b|\bnew zealand\b|\bcanad\w+|\bontario\b|\btoronto\b|\bphilippine\w*|\bmanila\b|"
+    r"\beurope\w*|\bgerman\w*|\bfrance\b|\bfrench\b|\bital(?:y|ian)\b|\bspain\b|\bspanish\b|\bdutch\b|\bswiss\b|"
+    r"\bjapan\w*|\bchina\b|\bchinese\b|\bkorea\w*|\bsingapore\b|\bmalaysia\w*|\bindonesia\w*|\bpakistan\w*|"
+    r"\bnigeria\w*|\bkenya\w*|\bsouth africa\w*|\bdubai\b|\bsaudi\b|\bmexico\b|\bbrazil\w*|\bsalzburg\b|\bcortina\b|"
+    r"\bchairman\b.{0,30}\bmilk\b|\bdairy (?:co-?op|union|federation)\b",
+    re.I)
+US_RX = re.compile(
+    r"\$\d|\bu\.s\.|(?-i:\bUS\b)(?! Open)|(?-i:\bUSA\b)|\bamerica\w*|\bfda\b|\busda\b|\bftc\b|\bcongress\b|\bwhite house\b|"
+    r"\b(?:alabama|alaska|arizona|arkansas|california|colorado|connecticut|delaware|florida|georgia|hawaii|idaho|"
+    r"illinois|indiana|iowa|kansas|kentucky|louisiana|maine|maryland|massachusetts|michigan|minnesota|mississippi|"
+    r"missouri|montana|nebraska|nevada|new hampshire|new jersey|new mexico|new york|north carolina|north dakota|"
+    r"ohio|oklahoma|oregon|pennsylvania|rhode island|south carolina|south dakota|tennessee|texas|utah|vermont|"
+    r"virginia|washington|west virginia|wisconsin|wyoming|chicago|los angeles|manhattan|brooklyn|houston|"
+    r"atlanta|seattle|boston|philadelphia|phoenix|dallas|miami|denver|detroit|nyc)\b",
+    re.I)
+
+
+def us_brand(titles):
+    """The brand named, if it is one sold in the US ('' for none / a UK-only brand)."""
+    b = brand_in(titles)
+    if not b:
+        return ""
+    return "" if b.lower().replace("’", "'") in NON_US_BRANDS else b
+
+
+def gate(title, others=(), company=None):
+    """(ok, reason) — is this real pressure on a US food or drink brand?
+    ok=False comes with the first rule it failed, in plain words."""
+    title = (title or "").strip()
+    texts = [title] + [t for t in (others or []) if t]
+    low = title.lower()
+    if not english_only(title):
+        return False, "not English / not a US audience"
+    if blocked_title(low, title):
+        # a "deal" / "discount" word alone must not hide real anger ("removes discount, customers fume")
+        only_deal = DEAL_RX.search(title) and not blocked_title(low, DEAL_RX.sub(" ", title))
+        if not (only_deal and demand(title)):
+            return False, "off-topic (deal, list, sport, crime, politics, tech…)"
+    if POSITIVE_RX.search(title) and not ni._has_any(low, NEGATIVE_HINT):
+        return False, "praise, not pressure"
+    if FOREIGN_RX.search(title):
+        return False, "not about the US"
+    named = brand_in([title]) or company
+    if named and named.lower().replace("’", "'") in NON_US_BRANDS:
+        return False, f"{named} is not a US brand"
+    if not (us_brand([title]) or (company and company.lower() not in NON_US_BRANDS and brand_in([company]))
+            or US_RX.search(title)):
+        return False, "no US brand or US place named"
+    d = demand(title, others)
+    if not d:
+        return False, "no demand on the brand"
+    return True, d
 
 
 def stakes(texts):

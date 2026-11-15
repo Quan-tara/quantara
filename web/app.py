@@ -1604,6 +1604,20 @@ def serve_story(sid: str):
     return FileResponse(os.path.join(os.path.dirname(__file__), "story.html"))
 
 
+def _bet_card(n, b_):
+    """Short bet summary for a story card (line bet, outlets bet or the old linear one)."""
+    import time as _t
+    if not b_:
+        return {"kind": "linear"}
+    if b_.get("kind") == "outlets":
+        from engine.story_market import outlets_now, new_outlets, _snap, EARLY_H
+        return {"kind": "outlets", "target": b_["target"], "now": outlets_now(n),
+                "final_outlets": b_.get("final_outlets"),
+                "new_24h": new_outlets(_snap(n).get("articles"), _t.time() - 86400),
+                "closes_at": n.closes_at, "early_until": (n.listed_at or 0) + EARLY_H * 3600}
+    return {"kind": "line", "line": b_["line"]}
+
+
 def _story_brand(n, snap):
     """Brand named in the story's main headline first (fixes old labels like 'Starbucks' on a Jersey Mike's story)."""
     from engine.story_listing import _lead_brand
@@ -1688,7 +1702,7 @@ def api_narrative_listed(days: float = 14.0):
             m = mk.get(n.sid)
             d["price"] = round(grow_price(base_for(n), m.crowd_offset if m else 0), 2)
             b_ = bet_of(n)
-            d["bet"] = {"kind": "line", "line": b_["line"]} if b_ else {"kind": "linear"}
+            d["bet"] = _bet_card(n, b_)
             d["trading_open"] = trading_state(n)[0]
             d["comments"] = ccount.get(n.sid, 0)
             d["intent"] = intents.get(n.sid)
@@ -1833,7 +1847,7 @@ def api_narrative_story(sid: str):
             d["delisted"] = _json.loads(n.snapshot or "{}").get("delisted")
             from engine.story_market import bet_of
             b_ = bet_of(n)
-            d["bet"] = {"kind": "line", "line": b_["line"]} if b_ else {"kind": "linear"}
+            d["bet"] = _bet_card(n, b_)
         return d
 
 

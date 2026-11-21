@@ -401,6 +401,49 @@ def stake_of(title, others=()):
     return ""
 
 
+# ── NOT THE BRAND'S TROUBLE ──
+# The brand is only a prop ("AI mistook a Doritos bag for a gun", "students sue school"), the story is
+# an obituary ("Pizza Hut co-founder passes away"), or it is an investor piece ("Is Kroger undervalued?",
+# "$1000 invested 20 years ago", securities class-action ads). Nothing the brand could back down on.
+PROP_RX = re.compile(r"\bmist(?:ook|aken|akes?|aking)\b|\bconfused (?:\w+ ){0,3}(?:for|with)\b|"
+                     r"\bfor a (?:gun|weapon|firearm|bomb)\b|\bthought (?:it )?was a (?:gun|weapon|bomb)\b", re.I)
+SUE_OTHER_RX = re.compile(r"\bsu(?:e|es|ed|ing)\b (?:the |their |a )?(?:\w+ ){0,2}(?:school|district|police|cops|officers?|"
+                          r"city|county|state|university|college|hospital|airline|landlord|employer|teacher|principal)\b", re.I)
+# "a bag of Doritos" / "Doritos bag" at the centre of a security / police incident
+_OBJECT_RX = re.compile(r"\b(?:bag|can|bottle|box|wrapper|packet|carton|cup)s? of [A-Z]|"
+                        r"\b[A-Z][\w'’-]+ (?:bag|can|bottle|wrapper|packet|carton)s?\b(?! (?:fee|policy|ban|price|size))")
+_INCIDENT_RX = re.compile(r"\b(?:AI|security|surveillance|police|cops|officers|gun|weapon|alert|handcuffed|arrested|swat)\b")
+OBIT_RX = re.compile(r"\b(?:passe[sd] away|obituary|funeral|in memoriam|laid to rest)\b|"
+                     r"\b(?:founder|co-?founder|creator|inventor|ceo|chairman|executive|former|legend|icon|mascot|actor|star)\b"
+                     r".{0,60}\b(?:dies|died|dead)\b|\b(?:dies|died)\b.{0,15}\bat (?:age )?\d+|\b(?:dies|died)\b,? (?:aged|at) ", re.I)
+INVESTOR_RX = re.compile(r"\bundervalued\b|\bovervalued\b|\bprice target\b|\bstock (?:forecast|rating|split|pick)|"
+                         r"\b(?:buy|sell),? (?:sell,? )?or hold\b|\binvested in\b|\$\d[\d,]* invested\b|\bwould be worth\b|"
+                         r"\bcash flow\b|\bvaluation\b|\bdividend|\bearnings (?:preview|call|estimate|beat|miss)|\bEPS\b|"
+                         r"\bshares? (?:rise|rises|rose|fall|falls|fell|jump|jumps|jumped|drop|drops|dropped|slip|slips|climb|climbs)\b|"
+                         r"\bstock (?:drop|decline|falls?|plunge)|\b\d+(?:\.\d+)?% stock\b|\bsecurities (?:fraud|class action|litigation)|"
+                         r"\blead plaintiff\b|\binvestors? (?:may|should|who|are encouraged|know)\b|\bhedge fund|\bstake in\b", re.I)
+_SECURITIES_RX = re.compile(r"\bsecurities (?:fraud|class action|litigation)|\blead plaintiff\b|\binvestors? (?:may|should|are encouraged|who (?:lost|bought|purchased))\b|"
+                            r"\b(?:law (?:firm|offices?)|esq\.?|llp)\b.{0,80}\b(?:investors?|shareholders?|stock)\b", re.I)
+_TICKER_RX = re.compile(r"\(\s*(?:NYSE|NASDAQ)?\s*:?\s*(?!(?:FDA|USDA|CDC|FTC|UFCW|SEIU|AI|US|USA|UK|PHOTOS?|VIDEO|WATCH)\s*\))[A-Z]{1,5}\s*\)")
+
+
+def not_their_trouble(title):
+    """Why the named brand is not the one under pressure ('' if it is)."""
+    t = (title or "").replace("’", "'")
+    if _SECURITIES_RX.search(t):
+        return "investor article, not public pressure"
+    if INVESTOR_RX.search(t) or _TICKER_RX.search(t):
+        # "shares fall after boycott / recall / strike" is still public pressure; a valuation piece is not
+        if not any(STAKE_RX[k].search(t) for k in ("safety", "workers", "boycott / trust")) \
+                and not re.search(r"\b(?:backlash|outrage|furious|angry|slam\w*|fume\w*)\b", t, re.I):
+            return "investor article, not public pressure"
+    if OBIT_RX.search(t) and not STAKE_RX["safety"].search(t):
+        return "obituary, nothing the brand could back down on"
+    if PROP_RX.search(t) or SUE_OTHER_RX.search(t) or (_OBJECT_RX.search(t) and _INCIDENT_RX.search(t)):
+        return "the brand is a bystander, someone else is blamed"
+    return ""
+
+
 def gate(title, others=(), company=None):
     """(ok, reason) — is this real pressure on a US food or drink brand?
     ok=False comes with the first rule it failed, in plain words."""
@@ -418,6 +461,9 @@ def gate(title, others=(), company=None):
         return False, "praise, not pressure"
     if QUOTE_PAGE_RX.search(title):
         return False, "finance quote page"
+    why = not_their_trouble(title)
+    if why:
+        return False, why
     if FOREIGN_RX.search(title) and not US_RX.search(title):     # "U.S. and Canada" is still about the US
         return False, "not about the US"
     named = brand_in([title]) or company
@@ -452,6 +498,9 @@ def index_gate(title, others=(), company=None):
             return False, "off-topic (deal, list, sport, crime, tech…)"
     if QUOTE_PAGE_RX.search(title):
         return False, "finance quote page"
+    why = not_their_trouble(title)
+    if why:
+        return False, why
     if POSITIVE_RX.search(title) and not ni._has_any(low, NEGATIVE_HINT):
         return False, "praise, not pressure"
     if JOKE_RX.search(title) and not STRONG_DEMAND_RX.search(title):

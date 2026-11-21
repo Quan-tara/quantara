@@ -309,10 +309,17 @@ def update_listings(stories, session, now=None, arena="food"):
             score = _score_from_snapshot(snap, now)
         # "Will they cave?": flag a headline that looks like the brand backing down
         b_ = snap.get("bet") or {}
+        if b_.get("kind") == "cave" and not b_.get("caved") and b_.get("hint"):
+            from engine.story_market import cave_hint
+            if not cave_hint([b_["hint"]], b_.get("company"), topic=n.title):
+                print(f"🏳️ Dropped cave hint on {n.sid}: not about this story — {b_['hint'][:80]}")
+                b_.pop("hint", None)      # an older, looser hint about another topic
+                snap["bet"] = b_
         if b_.get("kind") == "cave" and not b_.get("caved") and not b_.get("hint"):
             from engine.story_market import cave_hint
             seen = set(b_.get("dismissed") or [])
-            h = cave_hint([a.get("title") for a in snap.get("articles", []) if a.get("title") not in seen], b_.get("company"))
+            h = cave_hint([a.get("title") for a in snap.get("articles", []) if a.get("title") not in seen], b_.get("company"),
+                          topic=n.title)
             if h:
                 b_["hint"] = h
                 snap["bet"] = b_

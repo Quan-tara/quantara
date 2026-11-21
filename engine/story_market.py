@@ -214,13 +214,31 @@ CAVE_RX = _re.compile(r"\b(apologi[sz]es?|apologi[sz]ed|apology|reverses?|revers
                       r"listened to (?:fans|customers))\b", _re.I)
 
 
-def cave_hint(titles, company):
-    """A headline that looks like the brand backing down, or None."""
+_HINT_GENERIC = set("""customers customer fans fan people menu item items beloved claim claims says said after over
+new chain fast food restaurant restaurants change changes changed brand company back down this that with from their
+they have just will what when about into been more than some your report reports internet online viral""".split())
+
+
+def _topic_words(text, company):
+    cw = set(_re.findall(r"[a-z]+", (company or "").lower()))
+    return {w.rstrip("s") for w in _re.findall(r"[a-z][a-z']{3,}", (text or "").lower().replace("’", "'"))
+            if w not in _HINT_GENERIC and w not in cw}
+
+
+def cave_hint(titles, company, topic=None):
+    """A headline that looks like the brand backing down ON THIS STORY, or None.
+    With the story's own headline as topic, the cave headline must share a real word with it
+    ("nachos", "portion", "union"…): "Pizza Hut brings back the Big New Yorker" is not a cave on
+    an obituary, and "Taco Bell restores the Mexican Pizza" is not a cave on smaller nachos."""
     c = (company or "").lower().replace("’", "'")
+    want = _topic_words(topic, company) if topic else None
     for t in titles:
         tl = (t or "").lower().replace("’", "'")
-        if c and c in tl and CAVE_RX.search(tl):
-            return t
+        if not (c and c in tl and CAVE_RX.search(tl)):
+            continue
+        if want is not None and not (want & _topic_words(tl, company)):
+            continue
+        return t
     return None
 
 

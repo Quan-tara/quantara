@@ -10,7 +10,7 @@ posts about it (40 posts in 24 h = the full +50%).
 
 OUTLOOK (0–100) — where the index is likely heading, from four early signals:
   crowd     35%  players' bets: average chance they give "just the beginning" on listed stories
-  buzz      25%  food brands spiking on Bluesky right now (each brand = 25)
+  buzz      25%  food brands with a spike of COMPLAINTS on Bluesky right now (each brand = 25)
   searches  20%  share of checked stories where people search "boycott / cancel / alternative"
   momentum  20%  how fast the index rose over the last 24 h (+10 points = 100)
 Parts without data are left out and the others re-weighted.
@@ -112,6 +112,9 @@ def _crowd(session):
         rows.append((v["price"], v["traders"]))
     if not rows:
         return None, {"stories": 0, "players": 0}
+    if not sum(t for _, t in rows):
+        # nobody is betting yet: the prices are only our own starting chances, so leave the part out
+        return None, {"stories": len(rows), "players": 0}
     w = sum(1 + t for _, t in rows)
     grow = sum(p * (1 + t) for p, t in rows) / w
     return max(0.0, min(100.0, (grow - 50) * 2 + 50)), {"stories": len(rows), "players": sum(t for _, t in rows),
@@ -124,7 +127,10 @@ def _buzz(session):
         r = rising(session)
     except Exception:
         return None, {}
-    return min(100.0, 25.0 * len(r)), {"rising": [x["brand"] for x in r][:6]}
+    # only a spike of COMPLAINTS counts; a spike of chatter ("custard after dinner") is not pressure
+    bad = [x for x in r if x.get("trouble")]
+    return min(100.0, 25.0 * len(bad)), {"rising": [x["brand"] for x in bad][:6],
+                                         "chatter": [x["brand"] for x in r if not x.get("trouble")][:6]}
 
 
 def _searches(session):

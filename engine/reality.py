@@ -295,11 +295,22 @@ def report(session, max_age=600):
     return _cache["data"]
 
 
+def _counts_today(title):
+    try:
+        from engine.everyday import index_gate
+        return index_gate(title or "")[0]
+    except Exception:
+        return True
+
+
 def _report(session):
     from engine.everyday import brand_in
     cache = {"$bench": _series(session, "$" + BENCH, "close")}
 
     # A) past listings (stories players could bet on), matched to a tracked brand
+    # Warnings whose headline today's rules would not count (jokes, obituaries, investor pieces…)
+    # are left out of every test, so a rule fixed later also cleans the record.
+    left_out = {"past": 0, "forward": 0}
     past = []
     for n in session.query(Narrative).filter(Narrative.status.in_(["LISTED", "CLOSED"])).all():
         snap = {}
@@ -309,6 +320,9 @@ def _report(session):
             pass
         b = brand_key((snap.get("bet") or {}).get("company")) or brand_key(brand_in([n.title or ""]))
         if not b:
+            continue
+        if not _counts_today(n.title):
+            left_out["past"] += 1
             continue
         o = outcome(session, b, n.first_seen or n.listed_at, cache)
         if o:
@@ -377,11 +391,15 @@ def _report(session):
     for f in session.query(ForwardLog).order_by(ForwardLog.ts.desc()).limit(2000).all():
         if f.kind == "spot" and f.sid in test_cards:
             continue
+        if f.kind in ("signal", "spread", "listed") and f.title and not _counts_today(f.title):
+            left_out["forward"] += 1
+            continue
         o = outcome(session, f.brand, f.ts, cache) if f.brand else None
         fwd.append({"ts": f.ts, "kind": f.kind, "brand": f.brand, "title": f.title, "label": f.label,
                     "fri": f.fri, "weight": f.weight, "result": o})
     total = session.query(ForwardLog).count() - sum(1 for f in session.query(ForwardLog.sid).filter(ForwardLog.kind == "spot").all()
                                                     if f[0] in test_cards)
+    total -= left_out["forward"]
     since = session.query(ForwardLog.ts).order_by(ForwardLog.ts).first()
 
     kinds = {}
@@ -412,4 +430,5 @@ def _report(session):
             "cases": sorted(past, key=lambda p: p["listed_day"], reverse=True)[:40],
         },
         "forward": {"since": since[0] if since else None, "entries": total, "latest": fwd[:60], "by_kind": by_kind},
+        "left_out": left_out,
     }

@@ -62,6 +62,22 @@ know think see say said look looks thing things way day days week ever never alw
 """.split())
 
 
+# a post that complains about the brand (not just mentions it: "custard at Culver's after dinner")
+COMPLAINT_RX = re.compile(
+    r"\bboycott|\bnever again\b|\bdone with\b|\bnever (?:going|eating|buying|ordering)\b|\bstop (?:buying|eating|going)\b|"
+    r"\bdisgust|\bgross\b|\bsick\b|food poisoning|\bundercooked\b|\braw\b|\bhair in\b|\bbug in\b|\bmold|\brecall|"
+    r"\boverpriced\b|\brip-?off\b|\bripoff\b|\btoo expensive\b|\bprices? (?:went|are|is) (?:up|insane|crazy|ridiculous)|"
+    r"\bshrinkflation|\bsmaller\b|\bscam\b|\bworst\b|\bterrible\b|\bawful\b|\bhorrible\b|\bfurious\b|\boutrage|"
+    r"\bpissed\b|\bangry\b|\bfuck(?:ing)? (?:you|off|them)\b|\bshame on\b|\brude\b|\blawsuit\b|\bsued?\b|"
+    r"\bstrike\b|\bunion[- ]?bust|\blayoffs?\b|\bfired\b|\bunderpa(?:y|id)\b|\bcancel(?:led|ing)? my\b|\bwent downhill\b|"
+    r"\bnot worth\b|\bwhat happened to\b|\bruin(?:ed|s)?\b", re.I)
+COMPLAINT_SHARE, COMPLAINT_MIN = 0.25, 5
+
+
+def complaints(texts):
+    return sum(1 for t in texts if COMPLAINT_RX.search(t or ""))
+
+
 def _topic(texts, brand):
     """Most common words in the posts besides the brand → what people are talking about."""
     from engine.everyday import BUZZ_GENERIC, _norm_word
@@ -102,6 +118,7 @@ def run_discovery():
                                 BrandBuzz.ts >= now - HISTORY_D * 86400).all() if r.posts is not None]
                 base = statistics.median(prev) if len(prev) >= MIN_HISTORY else None
                 rec.posts, rec.baseline = res["brand_total"], base
+                rec.complaints = complaints(food)
                 rec.spike = bool(base is not None and res["brand_total"] >= SPIKE_MIN
                                  and res["brand_total"] >= SPIKE_X * max(base, 3))
                 if rec.spike or res["brand_total"] >= SPIKE_MIN:
@@ -138,7 +155,10 @@ def rising(session, hours=RISING_KEEP_H):
         out.append({"brand": r.brand, "ts": r.ts, "posts": r.posts, "baseline": r.baseline,
                     "x": round(r.posts / max(r.baseline or 0, 3), 1),
                     "words": json.loads(r.words or "[]"),
-                    "top_post": json.loads(r.top_post) if r.top_post else None})
+                    "top_post": json.loads(r.top_post) if r.top_post else None,
+                    "complaints": r.complaints,
+                    "trouble": bool(r.complaints is not None and r.complaints >= COMPLAINT_MIN
+                                    and r.complaints >= COMPLAINT_SHARE * (r.posts or 0))})
     return out
 
 

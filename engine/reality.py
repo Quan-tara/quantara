@@ -183,7 +183,7 @@ MARGIN = 3.0
 
 def _features(r):
     """What we knew about the story when the warning was made (test features, judged by the track record)."""
-    f = {k: r.get(k) for k in ("voices", "concentration", "platforms") if r.get(k) is not None}
+    f = {k: r.get(k) for k in ("voices", "concentration", "platforms", "comment_complaints") if r.get(k) is not None}
     return json.dumps(f) if f else None
 
 
@@ -613,7 +613,7 @@ def _report(session):
         g["range"] = wilson(g["spikes"], g["checked"])
     # feature splits (test): do warnings with many independent voices / several platforms hit more often?
     from engine.voices import BROAD_AUTHORS, CONCENTRATED
-    feature_splits = {"voices": {}, "platforms": {}}
+    feature_splits = {"voices": {}, "platforms": {}, "comments": {}}
     for f in fwd:
         if f.get("previous") or f["kind"] not in ("signal", "spread"):
             continue
@@ -624,6 +624,8 @@ def _report(session):
             groups.append(("voices", "broad" if broad else "narrow"))
         if ft.get("platforms") is not None:
             groups.append(("platforms", "several" if ft["platforms"] >= 2 else "news only"))
+        if ft.get("comment_complaints") is not None:
+            groups.append(("comments", "angry" if ft["comment_complaints"] >= 0.3 else "calm"))
         o = f.get("result") or {}
         for name, bucket in groups:
             g = feature_splits[name].setdefault(bucket, {"entries": 0, "checked": 0, "spikes": 0})

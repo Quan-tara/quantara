@@ -265,7 +265,17 @@ def board(session, hours=72):
     row = lambda i: {"kind": i.kind, "brand": i.brand, "title": i.title, "url": i.url, "size": i.size,
                      "source": i.source, "ts": i.ts}
     watch = (session.query(LearnedBrand).order_by(LearnedBrand.last_seen.desc()).limit(12).all())
-    return {"videos": [row(i) for i in pick("video", lambda i: -(i.size or 0))],
+    picked = pick("video", lambda i: -(i.size or 0))
+    vids = [row(i) for i in picked]
+    try:
+        from engine.comments import for_videos
+        ids = [(i.key or "")[3:] for i in picked]
+        cm = for_videos(session, ids)
+        for v, vid in zip(vids, ids):
+            v["comments"] = cm.get(vid)
+    except Exception:
+        pass
+    return {"videos": vids,
             "ridicule": [row(i) for i in pick("ridicule", lambda i: -(i.size or 0))],
             "new_brands": [row(i) for i in pick("new brand", lambda i: -i.ts)],
             "watch": [{"name": b.shown or b.name, "hits": b.hits, "status": b.status, "example": b.example,

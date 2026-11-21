@@ -100,6 +100,9 @@ def _social(session):
         from engine.voices import run_checks, attach
         run_checks(session, rows)
         attach(session, rows)
+        from engine import comments as YC
+        YC.run(session, rows)                      # what people write under the videos (every 2 h)
+        YC.attach(session, rows)
     except Exception as e:
         session.rollback()
         print(f"⚠️ voices error: {e}")

@@ -174,6 +174,11 @@ def record(session, rows, now=None):
         if after["status"] in ("rising", "back") and before["status"] not in ("rising", "back"):
             _log(session, k, a, after["status"])
     session.commit()
+    try:
+        record_emerging(session, rows, tags)
+    except Exception as e:
+        session.rollback()
+        print(f"⚠️ emerging narratives: {e}")
     return states
 
 
@@ -261,14 +266,18 @@ def board(session, now=None):
         series = [[h.ts, h.strength] for h in _history(session, k, now + 1, 7)]
         out.append({"key": k, "label": LABELS[k], "strength": t.strength, "stories": t.stories,
                     "brands": json.loads(t.brands or "[]"), "top": json.loads(t.top or "[]"), "ts": t.ts, **st,
-                    "series": series[-168:]})
+                    "series": series[-168:], "curve": phase(series)})
     out.sort(key=lambda x: -x["strength"])
     try:
         from engine.attention import method_start
         ticks = session.query(ThemeTick.ts).filter(ThemeTick.ts >= method_start(session)).distinct().count()
     except Exception:
         ticks = session.query(ThemeTick.ts).distinct().count()
-    return {"narratives": out, "hours": ticks, "needed": HISTORY_MIN_TICKS}
+    from db.models import AttentionItem
+    em = (session.query(AttentionItem).filter(AttentionItem.kind == "emerging", AttentionItem.ts >= now - 7 * DAY)
+          .order_by(AttentionItem.ts.desc()).limit(8).all())
+    return {"narratives": out, "hours": ticks, "needed": HISTORY_MIN_TICKS,
+            "emerging": [{"title": e.title, "brands": e.brand, "words": e.source, "size": e.size, "ts": e.ts} for e in em]}
 
 
 def for_titles(session, titles):
@@ -276,3 +285,146 @@ def for_titles(session, titles):
     rows = session.query(ThemeTag).filter(ThemeTag.title.in_([t[:300] for t in titles if t])).all() if titles else []
     got = {r.title: json.loads(r.themes or "[]") for r in rows}
     return {t: [LABELS[k] for k in (got.get(t[:300]) if t[:300] in got else tag_rules(t))] for t in titles if t}
+
+
+# ─────────────────────────────────────────────
+# EMERGING NARRATIVES — let the data find themes our 7 don't cover (test, recorded only)
+#   Headlines that no narrative recognises are compared across DIFFERENT brands: two stories that share
+#   2+ distinctive words are linked; a group spanning 2+ brands is an emerging narrative. Named by the
+#   AI once (cached), else by its shared words. Recorded in the attention layer.
+# ─────────────────────────────────────────────
+EMERGE_MIN_SHARED = 2
+_EM_EXTRA_STOP = set("""says said after over amid with from into about their they will would could
+customers customer fans fan people menu item items brand brands chain company new news report reports
+online viral internet video week today year""".split())
+
+
+def _em_words(title, brand):
+    from engine.discovery import _STOP
+    from engine.everyday import BUZZ_GENERIC
+    bw = set(re.findall(r"[a-z]+", (brand or "").lower()))
+    return {w.rstrip("s") for w in re.findall(r"[a-z][a-z'-]{3,}", (title or "").lower().replace("’", "'"))
+            if w not in _STOP and w not in BUZZ_GENERIC and w not in bw and w not in _EM_EXTRA_STOP}
+
+
+def emerging(session, rows, tags):
+    """Groups of untagged stories across 2+ brands sharing 2+ distinctive words → [{name, words, brands, titles, size}]."""
+    from engine.everyday import brand_in
+    items = []
+    for r in rows:
+        if tags.get(r.get("title")) or (r.get("score") or 0) < 8:
+            continue
+        b = (r.get("company") or brand_in([r.get("title") or ""]) or "").strip()
+        if not b:
+            continue
+        items.append({"title": r["title"], "brand": b, "w": _em_words(r["title"], b),
+                      "size": r.get("weighted") or r.get("score") or 0})
+    parent = list(range(len(items)))
+
+    def find(i):
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+    for i in range(len(items)):
+        for j in range(i + 1, len(items)):
+            if items[i]["brand"].lower() != items[j]["brand"].lower() and len(items[i]["w"] & items[j]["w"]) >= EMERGE_MIN_SHARED:
+                parent[find(i)] = find(j)
+    groups = {}
+    for i in range(len(items)):
+        groups.setdefault(find(i), []).append(items[i])
+    out = []
+    for g in groups.values():
+        brands = sorted({x["brand"] for x in g}, key=str.lower)
+        if len(brands) < 2:
+            continue
+        common = set.intersection(*[x["w"] for x in g]) if len(g) > 1 else set()
+        words = sorted(common or set.union(*[x["w"] for x in g]))[:4]
+        out.append({"words": words, "brands": brands, "titles": [x["title"] for x in g][:4],
+                    "size": round(sum(x["size"] for x in g), 1)})
+    return out
+
+
+def _name_emerging(words, titles):
+    got = ask_json('These US food & drink headlines share a theme. Name it in 2-5 plain words, like a news '
+                   'narrative (e.g. "seed oil fears", "tipping backlash"). Headlines:\n' +
+                   "\n".join("- " + t[:160] for t in titles[:4]) + '\nAnswer JSON only: {"name": "..."}', 30)
+    n = (got or {}).get("name")
+    return n.strip()[:60] if isinstance(n, str) and n.strip() else " · ".join(words) or "unnamed theme"
+
+
+def record_emerging(session, rows, tags):
+    from db.models import AttentionItem
+    found = emerging(session, rows, tags)
+    for e in found:
+        key = "em:" + "|".join(sorted(b.lower() for b in e["brands"]))[:110]
+        old = session.query(AttentionItem).filter(AttentionItem.key == key).first()
+        if old:
+            old.size = max(old.size or 0, e["size"])
+            continue
+        name = _name_emerging(e["words"], e["titles"])
+        session.add(AttentionItem(ts=time.time(), kind="emerging", brand=", ".join(e["brands"])[:60],
+                                  title=f"{name} — " + " | ".join(e["titles"])[:420], size=e["size"],
+                                  source=" · ".join(e["words"])[:80], key=key))
+        print(f"🌱 Emerging narrative: {name} ({', '.join(e['brands'][:5])})")
+    session.commit()
+    return found
+
+
+# ─────────────────────────────────────────────
+# EPIDEMIC CURVE — where is a narrative in its life? (test, recorded only)
+#   A narrative's strength works like the number of "infected": it rises, peaks, fades. The running total
+#   (strength × hours) is fitted with a logistic curve, the simplest epidemic model: its midpoint is the
+#   peak of the strength. Needs ≥ 24 hourly readings and a strength that reached RISE_MIN.
+# ─────────────────────────────────────────────
+import math
+
+
+def phase(series):
+    """series: [[ts, strength], …] hourly → {phase, peak_eta_h, growth} or {phase: 'too little data'}."""
+    pts = [(t, max(0.0, v)) for t, v in series]
+    if len(pts) < 24 or max(v for _, v in pts) < RISE_MIN:
+        return {"phase": "too little data"}
+    last6 = sum(v for _, v in pts[-6:]) / 6
+    prev6 = sum(v for _, v in pts[-12:-6]) / 6
+    growth = round((last6 + 1) / (prev6 + 1), 2)
+    t0 = pts[0][0]
+    hours = [(t - t0) / 3600 for t, _ in pts]
+    cum, c = [], 0.0
+    for v in (v for _, v in pts):
+        c += v
+        cum.append(c)
+    now_c, now_h = cum[-1], hours[-1]
+    best = None
+    for i in range(30):                       # K from 1.05× to ~20× today's running total
+        K = now_c * 1.05 * (1.11 ** i)
+        xs, ys = [], []
+        for h, cv in zip(hours, cum):
+            if 0 < cv < K:
+                xs.append(h)
+                ys.append(math.log(K / cv - 1))
+        if len(xs) < 12:
+            continue
+        mx, my = sum(xs) / len(xs), sum(ys) / len(ys)
+        sxx = sum((x - mx) ** 2 for x in xs)
+        if sxx <= 0:
+            continue
+        slope = sum((x - mx) * (y - my) for x, y in zip(xs, ys)) / sxx
+        ss = sum((y - my) ** 2 for y in ys) or 1e-9
+        res = sum((y - (my + slope * (x - mx))) ** 2 for x, y in zip(xs, ys))
+        r2 = 1 - res / ss
+        if slope < 0 and (best is None or r2 > best[0]):
+            best = (r2, -slope, mx - my / slope)   # y = 0 where C = K/2: the curve's midpoint = the peak
+    eta = None
+    if best and best[0] >= 0.8:
+        eta = round(best[2] - now_h, 1)       # hours until the fitted peak (negative = already past)
+    if growth >= 1.2:
+        ph = "growing"                        # early in a rise the fit can't place the peak reliably
+        eta = eta if eta is not None and eta > 0 else None
+    elif growth <= 0.8:
+        ph = "fading"
+    elif eta is not None and abs(eta) <= 12:
+        ph = "near peak"
+    else:
+        ph = "steady"
+    return {"phase": ph, "peak_eta_h": eta, "growth": growth}

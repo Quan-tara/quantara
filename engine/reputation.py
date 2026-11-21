@@ -96,6 +96,13 @@ def _social(session):
             x["tone"] = tn.get(x["title"])
     except Exception as e:
         print(f"⚠️ tone error: {e}")
+    try:                                           # who spreads it + on how many platforms (test, recorded only)
+        from engine.voices import run_checks, attach
+        run_checks(session, rows)
+        attach(session, rows)
+    except Exception as e:
+        session.rollback()
+        print(f"⚠️ voices error: {e}")
     _social.last_rows = rows                       # all stories, for the sector stocks
     top = rows[:TOP_N]
     social = sum(x["weighted"] for x in top) / TOP_N

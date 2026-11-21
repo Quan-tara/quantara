@@ -181,6 +181,12 @@ BASELINE_OUTLETS = 5
 MARGIN = 3.0
 
 
+def _features(r):
+    """What we knew about the story when the warning was made (test features, judged by the track record)."""
+    f = {k: r.get(k) for k in ("voices", "concentration", "platforms") if r.get(k) is not None}
+    return json.dumps(f) if f else None
+
+
 def sticky_label(prev, value):
     """The outlook level, with a buffer around the lines so it doesn't flip every reading."""
     if value is None:
@@ -225,7 +231,8 @@ def log_signals(session, rows, fri, outlook, label):
                 continue
             known.add(k)
             session.add(ForwardLog(ts=now, kind="signal", brand=b, sid=r.get("sid"), title=(r.get("title") or "")[:300],
-                                   fri=fri, outlook=outlook, label=label, weight=r.get("weighted"), tone=r.get("tone")))
+                                   fri=fri, outlook=outlook, label=label, weight=r.get("weighted"), tone=r.get("tone"),
+                                   features=_features(r)))
         # 'spread': a counting story is spreading (R ≥ 1.3, 3+ new articles in 24 h) — once per brand per week,
         # so later we can see whether spreading stories really hit brands more often than the rest
         spread_known = recent("spread")
@@ -239,7 +246,7 @@ def log_signals(session, rows, fri, outlook, label):
                 spread_known.add(k)
                 session.add(ForwardLog(ts=now, kind="spread", brand=b, sid=r.get("sid"), title=(r.get("title") or "")[:300],
                                        fri=fri, outlook=outlook, label=f"R {sr.get('r')}", weight=r.get("weighted"),
-                                       tone=r.get("tone")))
+                                       tone=r.get("tone"), features=_features(r)))
         # 'baseline': the naive rule our warnings must beat — a tracked brand in BASELINE_OUTLETS+ outlets in this
         # reading (all its stories together), no gate, no score, no AI. Same checks, same one-per-brand-per-week.
         per_brand = {}
@@ -560,7 +567,8 @@ def _report(session):
         if prev:
             left_out["previous"] += 1
         fwd.append({"ts": f.ts, "kind": f.kind, "brand": f.brand, "title": f.title, "label": f.label,
-                    "fri": f.fri, "weight": f.weight, "result": o, "previous": prev, "tone": f.tone})
+                    "fri": f.fri, "weight": f.weight, "result": o, "previous": prev, "tone": f.tone,
+                    "features": json.loads(f.features) if f.features else {}})
     total = session.query(ForwardLog).count() - sum(1 for f in session.query(ForwardLog.sid).filter(ForwardLog.kind == "spot").all()
                                                     if f[0] in test_cards)
     total = max(0, total - left_out["forward"] - len(repeat_ids) - left_out["previous"])
@@ -595,6 +603,30 @@ def _report(session):
     for g in tone_split.values():
         g["spike_rate"] = round(100 * g["spikes"] / g["checked"], 1) if g["checked"] else None
         g["range"] = wilson(g["spikes"], g["checked"])
+    # feature splits (test): do warnings with many independent voices / several platforms hit more often?
+    from engine.voices import BROAD_AUTHORS, CONCENTRATED
+    feature_splits = {"voices": {}, "platforms": {}}
+    for f in fwd:
+        if f.get("previous") or f["kind"] not in ("signal", "spread"):
+            continue
+        ft = f.get("features") or {}
+        groups = []
+        if ft.get("voices") is not None:
+            broad = ft["voices"] >= BROAD_AUTHORS and (ft.get("concentration") or 0) < CONCENTRATED
+            groups.append(("voices", "broad" if broad else "narrow"))
+        if ft.get("platforms") is not None:
+            groups.append(("platforms", "several" if ft["platforms"] >= 2 else "news only"))
+        o = f.get("result") or {}
+        for name, bucket in groups:
+            g = feature_splits[name].setdefault(bucket, {"entries": 0, "checked": 0, "spikes": 0})
+            g["entries"] += 1
+            if o.get("spike") is not None:
+                g["checked"] += 1
+                g["spikes"] += 1 if o["spike"] else 0
+    for split in feature_splits.values():
+        for g in split.values():
+            g["spike_rate"] = round(100 * g["spikes"] / g["checked"], 1) if g["checked"] else None
+            g["range"] = wilson(g["spikes"], g["checked"])
     by_kind = {k: {"entries": v["entries"], "checked": v["checked"],
                    "spike_rate": round(100 * v["spikes"] / v["checked"], 1) if v["checked"] else None,
                    "excess_30d": round(sum(v["ex30"]) / len(v["ex30"]), 2) if v["ex30"] else None,
@@ -624,4 +656,5 @@ def _report(session):
         "forward": {"since": max(since[0], rules_since) if since else None, "rules_since": rules_since, "needed": needed(base_rate), "entries": total, "latest": fwd[:60], "by_kind": by_kind},
         "left_out": left_out,
         "tone_split": tone_split,
+        "feature_splits": feature_splits,
     }

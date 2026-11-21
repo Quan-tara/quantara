@@ -466,6 +466,7 @@ class ForwardLog(Base):
     result  = Column(Text, nullable=True)                      # JSON, filled in once enough time has passed
     checked = Column(Float, nullable=True)
     tone    = Column(Float, nullable=True)                     # headline tone -1…+1 at the time (test)
+    features = Column(Text, nullable=True)                     # JSON: voices, concentration, platforms at the time (test)
 
 
 class Spot(Base):
@@ -573,3 +574,18 @@ class HeadlineTone(Base):
     title = Column(String(300), nullable=False, index=True)
     tone  = Column(Float, nullable=True)
     ts    = Column(Float, nullable=False)
+
+
+class StoryVoices(Base):
+    """Who spreads a story on Bluesky (test): how many different accounts, and how much of the engagement
+    the 3 biggest accounts carry. Many independent voices = more likely real and lasting."""
+    __tablename__ = "story_voices"
+
+    id            = Column(Integer, primary_key=True, autoincrement=True)
+    sid           = Column(String(16), nullable=False, index=True)
+    ts            = Column(Float, nullable=False, index=True)
+    posts         = Column(Integer, nullable=True)
+    authors       = Column(Integer, nullable=True)
+    concentration = Column(Float, nullable=True)     # share of engagement from the top 3 accounts, 0…1
+    top_handle    = Column(String(120), nullable=True)
+    status        = Column(String(12), nullable=False, default="OK")

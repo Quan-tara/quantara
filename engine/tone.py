@@ -50,6 +50,7 @@ def tones(session, titles):
                 session.add(HeadlineTone(title=t[:300], tone=v, ts=now))
                 out[t] = v
             session.commit()
+            print(f"🎨 tone: {len(new)} new headlines scored")
     return out
 
 

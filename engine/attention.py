@@ -40,7 +40,7 @@ YT_QUERIES = [
     "MrBeast Feastables Lunchly", "Prime drink controversy", "restaurant chain backlash", "worst fast food experience",
     "food recall viral", "fast food worker viral video", "grocery store prices viral", "drink brand lawsuit",
 ]
-RIDICULE_RX = re.compile(r"\broast(?:ed|ing|s)?\b|\bjok(?:e|es|ing)\b|\bmemes?\b|\bmock(?:ed|ing|s)?\b|\bridicul|"
+RIDICULE_RX = re.compile(r"\broast(?:ed|ing|s)?\b|\bjok(?:e|es|ing)\b|\bmemes?\b|\bmock(?:ed|ing|s)?\b|\bridicul(?:ed|ing)\b|"
                          r"\bclowned\b|\bdragged\b|\btrolled\b|\blaughing at\b|\bwheezing\b|\bcan'?t stop (?:laughing|joking)|"
                          r"\bhilarious\b|\bcursed\b|\bcringe\b|\bembarrass|\bpeople online are\b|\binternet (?:is|can'?t)\b", re.I)
 _method = {}

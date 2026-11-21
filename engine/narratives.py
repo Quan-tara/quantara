@@ -75,6 +75,9 @@ automation (AI, kiosks, robots replacing staff).
 Answer JSON only: {{"themes": [zero, one or two of the keys above]}}"""
 
 
+_ask_state = {"ok": 0, "last_error": None}
+
+
 def ask_json(prompt, max_tokens=80):
     """One Gemini call → parsed JSON dict, or None (no key, no model found yet, quota, error).
     Uses the model the spot check / short-title job already found, so no extra discovery calls."""
@@ -92,6 +95,14 @@ def ask_json(prompt, max_tokens=80):
     except Exception:
         pass
     models = [m for m in dict.fromkeys(models) if m]
+    if not models:                       # nobody has looked the model up since the restart: do it once here
+        if "list" not in _model:
+            try:
+                from engine.titles import _gemini_models
+                _model["list"] = _gemini_models(key)[:3]
+            except Exception:
+                _model["list"] = []
+        models = list(_model.get("list") or [])
     for m in models:
         try:
             r = requests.post(f"{GEMINI}/models/{m}:generateContent", params={"key": key}, timeout=8,
@@ -101,11 +112,16 @@ def ask_json(prompt, max_tokens=80):
         except Exception:
             return None
         if r.status_code != 200:
+            _ask_state["last_error"] = f"{m}: HTTP {r.status_code}"
             continue
+        if not _model.get("name"):
+            print(f"🤖 AI helper working (model {m}): tone, narrative tags, brand learning")
+        _model["name"] = _model.get("name") or m
         try:
             parts = ((r.json().get("candidates") or [{}])[0].get("content") or {}).get("parts") or [{}]
             txt = "".join(p.get("text", "") for p in parts)
             mm = re.search(r"\{.*\}", txt, re.S)
+            _ask_state["ok"] += 1
             return json.loads(mm.group(0)) if mm else None
         except Exception:
             return None

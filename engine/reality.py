@@ -317,6 +317,39 @@ def excess_return(closes, bench, day0, days):
     return round(100 * ((a1 / a0) - (b1 / b0)), 2)
 
 
+BETA_WINDOW = (150, 30)      # beta from daily returns 150…30 days before the warning (before any story effect)
+BETA_MIN_DAYS = 60
+
+
+def _beta(closes, bench, day0):
+    """How strongly the share normally moves with the S&P 500 (slope of daily returns), or None."""
+    lo, hi = day0 - timedelta(days=BETA_WINDOW[0]), day0 - timedelta(days=BETA_WINDOW[1])
+    days = sorted(k for k in closes if k in bench and lo <= _d(k) <= hi)
+    xs, ys = [], []
+    for a, b in zip(days, days[1:]):
+        if closes[a] and bench[a]:
+            ys.append(closes[b] / closes[a] - 1)
+            xs.append(bench[b] / bench[a] - 1)
+    if len(xs) < BETA_MIN_DAYS:
+        return None
+    mx, my = sum(xs) / len(xs), sum(ys) / len(ys)
+    vx = sum((x - mx) ** 2 for x in xs)
+    return None if vx <= 0 else sum((x - mx) * (y - my) for x, y in zip(xs, ys)) / vx
+
+
+def abnormal_return(closes, bench, day0, days, beta=None):
+    """Event-study style: the share's return minus what the market move explains for THIS share
+    (beta × S&P 500 return), day0 → day0+days, in %. None if not there yet or no beta."""
+    end = day0 + timedelta(days=days)
+    if not closes or end > date.today() - timedelta(days=1):
+        return None
+    beta = _beta(closes, bench, day0) if beta is None else beta
+    a0, a1, b0, b1 = _close_on(closes, day0), _close_on(closes, end), _close_on(bench, day0), _close_on(bench, end)
+    if beta is None or None in (a0, a1, b0, b1):
+        return None
+    return round(100 * ((a1 / a0 - 1) - beta * (b1 / b0 - 1)), 2)
+
+
 def outcome(session, brand, ts, cache):
     if brand not in BRANDS:
         return None
@@ -328,9 +361,13 @@ def outcome(session, brand, ts, cache):
         cache["$bench"] = _series(session, "$" + BENCH, "close")
     views, closes = cache[brand]
     x, pday = attention(views, day0)
+    beta = _beta(closes, cache["$bench"], day0) if closes else None
     return {"attention_x": x, "spike": None if x is None else x >= SPIKE_X, "peak_day": pday,
             "excess_30d": excess_return(closes, cache["$bench"], day0, 30),
-            "excess_90d": excess_return(closes, cache["$bench"], day0, 90), "listed_day": day0.isoformat()}
+            "excess_90d": excess_return(closes, cache["$bench"], day0, 90),
+            "beta": None if beta is None else round(beta, 2),
+            "abnormal_30d": abnormal_return(closes, cache["$bench"], day0, 30, beta),
+            "abnormal_90d": abnormal_return(closes, cache["$bench"], day0, 90, beta), "listed_day": day0.isoformat()}
 
 
 # ─────────────────────────────────────────────
@@ -344,6 +381,40 @@ def _rate(xs):
 def _mean(xs):
     xs = [x for x in xs if x is not None]
     return (round(sum(xs) / len(xs), 2), len(xs)) if xs else (None, 0)
+
+
+def wilson(k, n, z=1.96):
+    """95% range for a hit rate of k out of n (Wilson score interval), in %; (None, None) when n = 0."""
+    if not n:
+        return None, None
+    p = k / n
+    den = 1 + z * z / n
+    mid = (p + z * z / (2 * n)) / den
+    half = z * ((p * (1 - p) / n + z * z / (4 * n * n)) ** 0.5) / den
+    return round(100 * max(0.0, mid - half), 1), round(100 * min(1.0, mid + half), 1)
+
+
+def mean_range(xs, z=1.96):
+    """95% range for an average (normal approximation), or (None, None) with fewer than 3 values."""
+    xs = [x for x in xs if x is not None]
+    if len(xs) < 3:
+        return None, None
+    m = sum(xs) / len(xs)
+    sd = (sum((x - m) ** 2 for x in xs) / (len(xs) - 1)) ** 0.5
+    h = z * sd / len(xs) ** 0.5
+    return round(m - h, 2), round(m + h, 2)
+
+
+def needed(base_pct, lift=3.0):
+    """Checked warnings needed to show a hit rate LIFT× the ordinary-day rate (95% confidence, 80% power)."""
+    if not base_pct:
+        return None
+    p0 = base_pct / 100
+    p1 = min(0.95, p0 * lift)
+    if p1 <= p0:
+        return None
+    n = ((1.96 * (p0 * (1 - p0)) ** 0.5 + 0.84 * (p1 * (1 - p1)) ** 0.5) / (p1 - p0)) ** 2
+    return int(n + 0.999)
 
 
 _cache = {"ts": 0.0, "data": None}
@@ -411,7 +482,8 @@ def _report(session):
                 x, _ = attention(views, d)
                 if x is not None:
                     controls.append({"brand": b, "attention_x": x, "spike": x >= SPIKE_X,
-                                     "excess_30d": excess_return(closes, cache.get("$bench", {}), d, 30)})
+                                     "excess_30d": excess_return(closes, cache.get("$bench", {}), d, 30),
+                                     "abnormal_30d": abnormal_return(closes, cache.get("$bench", {}), d, 30)})
             d += timedelta(days=7)
 
     # C) recall: big attention jumps (≥3× normal) since our first listing — did we warn first?
@@ -437,6 +509,8 @@ def _report(session):
     base_rate, n_ctl = _rate([c["spike"] for c in controls])
     ex_w, n_ex_w = _mean([p["excess_30d"] for p in past])
     ex_c, n_ex_c = _mean([c["excess_30d"] for c in controls])
+    ab_w, n_ab_w = _mean([p.get("abnormal_30d") for p in past])
+    ab_c, n_ab_c = _mean([c.get("abnormal_30d") for c in controls])
 
     # D) forward log, with results where enough time has passed
     fwd = []
@@ -496,7 +570,7 @@ def _report(session):
     for f in fwd:
         if f.get("previous"):
             continue
-        k = kinds.setdefault(f["kind"], {"entries": 0, "checked": 0, "spikes": 0, "ex30": []})
+        k = kinds.setdefault(f["kind"], {"entries": 0, "checked": 0, "spikes": 0, "ex30": [], "ab30": []})
         k["entries"] += 1
         o = f.get("result") or {}
         if o.get("spike") is not None:
@@ -504,6 +578,8 @@ def _report(session):
             k["spikes"] += 1 if o["spike"] else 0
         if o.get("excess_30d") is not None:
             k["ex30"].append(o["excess_30d"])
+        if o.get("abnormal_30d") is not None:
+            k["ab30"].append(o["abnormal_30d"])
     # tone split (test): story warnings with a clearly negative headline vs the rest
     from engine.tone import NEGATIVE
     tone_split = {}
@@ -518,9 +594,13 @@ def _report(session):
             g["spikes"] += 1 if o["spike"] else 0
     for g in tone_split.values():
         g["spike_rate"] = round(100 * g["spikes"] / g["checked"], 1) if g["checked"] else None
+        g["range"] = wilson(g["spikes"], g["checked"])
     by_kind = {k: {"entries": v["entries"], "checked": v["checked"],
                    "spike_rate": round(100 * v["spikes"] / v["checked"], 1) if v["checked"] else None,
-                   "excess_30d": round(sum(v["ex30"]) / len(v["ex30"]), 2) if v["ex30"] else None}
+                   "excess_30d": round(sum(v["ex30"]) / len(v["ex30"]), 2) if v["ex30"] else None,
+                   "range": wilson(v["spikes"], v["checked"]),
+                   "abnormal_30d": round(sum(v["ab30"]) / len(v["ab30"]), 2) if v["ab30"] else None,
+                   "n_abnormal": len(v["ab30"]), "abnormal_range": mean_range(v["ab30"])}
                for k, v in kinds.items()}
     return {
         "collector": _state["msg"],
@@ -528,6 +608,12 @@ def _report(session):
                            f"{WINDOW_D} days after", "normal": "median of days −45…−15"},
         "past_test": {
             "warnings": n_hit, "hit_rate": hit, "controls": n_ctl, "base_rate": base_rate,
+            "hit_range": wilson(sum(1 for p in past if p.get("spike")), n_hit),
+            "base_range": wilson(sum(1 for c in controls if c.get("spike")), n_ctl),
+            "needed": needed(base_rate),
+            "abnormal_30d_after_warning": ab_w, "n_abnormal_warning": n_ab_w,
+            "abnormal_30d_range": mean_range([p.get("abnormal_30d") for p in past]),
+            "abnormal_30d_ordinary_days": ab_c, "n_abnormal_ordinary": n_ab_c,
             "lift": round(hit / base_rate, 1) if hit is not None and base_rate else None,
             "excess_30d_after_warning": ex_w, "n_excess_warning": n_ex_w,
             "excess_30d_ordinary_days": ex_c, "n_excess_ordinary": n_ex_c,
@@ -535,7 +621,7 @@ def _report(session):
             "missed": [x for x in big if not x["warned"]][-12:],
             "cases": sorted(past, key=lambda p: p["listed_day"], reverse=True)[:40],
         },
-        "forward": {"since": max(since[0], rules_since) if since else None, "rules_since": rules_since, "entries": total, "latest": fwd[:60], "by_kind": by_kind},
+        "forward": {"since": max(since[0], rules_since) if since else None, "rules_since": rules_since, "needed": needed(base_rate), "entries": total, "latest": fwd[:60], "by_kind": by_kind},
         "left_out": left_out,
         "tone_split": tone_split,
     }

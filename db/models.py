@@ -589,3 +589,21 @@ class StoryVoices(Base):
     concentration = Column(Float, nullable=True)     # share of engagement from the top 3 accounts, 0…1
     top_handle    = Column(String(120), nullable=True)
     status        = Column(String(12), nullable=False, default="OK")
+
+
+class VideoComments(Base):
+    """What people say under a YouTube video about a brand (test): comments read, how many complain,
+    how many joke. One row per video per check."""
+    __tablename__ = "video_comments"
+
+    id         = Column(Integer, primary_key=True, autoincrement=True)
+    video_id   = Column(String(20), nullable=False, index=True)
+    sid        = Column(String(16), nullable=True, index=True)       # the story it belongs to, if any
+    brand      = Column(String(60), nullable=True, index=True)
+    ts         = Column(Float, nullable=False, index=True)
+    title      = Column(Text, nullable=True)
+    comments   = Column(Integer, nullable=True)
+    complaints = Column(Integer, nullable=True)
+    jokes      = Column(Integer, nullable=True)
+    sample     = Column(Text, nullable=True)      # JSON: a few complaining comments (moderators only)
+    status     = Column(String(12), nullable=False, default="OK")

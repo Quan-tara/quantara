@@ -138,7 +138,8 @@ def _searches(session):
                                                   BehaviourSignal.status == "OK").all())
     if not rows:
         return None, {"checked": 0}
-    acted = sum(1 for r in rows if json.loads(r.result or "{}").get("acted"))
+    from engine.behaviour import judge
+    acted = sum(1 for r in rows if judge(json.loads(r.result or "{}")))
     return 100.0 * acted / len(rows), {"checked": len(rows), "acted": acted}
 
 

@@ -30,6 +30,8 @@ PAUSE_S         = 6
 BACKOFF_H       = 6
 ACT_RATIO       = 1.5
 ACT_MIN_VOLUME  = 5
+RARE_RATIO      = 3.0
+RARE_DAYS       = 4
 _state = {"blocked_until": 0.0, "session": None}
 
 TERMS = {
@@ -94,6 +96,21 @@ def fetch_series(terms, geo, timeframe="today 3-m"):
     return out
 
 
+def judge(result):
+    """Re-judge a saved check with today's rule (older checks have no days_on: a rarely searched
+    phrase there cannot count, because one noisy day can't be told apart from a real rise)."""
+    for v in ((result or {}).get("terms") or {}).values():
+        r, rec = v.get("ratio"), v.get("recent") or 0
+        if r is None:
+            continue
+        if (v.get("baseline") or 0) <= 0:
+            if r >= RARE_RATIO and (v.get("days_on") or 0) >= RARE_DAYS and rec >= ACT_MIN_VOLUME:
+                return True
+        elif r >= ACT_RATIO and rec >= ACT_MIN_VOLUME:
+            return True
+    return False
+
+
 def assess(series):
     """Per-term ratio of the last 7 days against the 8 weeks before, and a verdict."""
     res, acted = {}, False
@@ -110,8 +127,18 @@ def assess(series):
         else:
             ratio = recent / base
         ratio = round(min(ratio, 99.0), 2)
-        res[term] = {"ratio": ratio, "recent": round(recent, 1), "baseline": round(base, 1)}
-        if ratio >= ACT_RATIO and recent >= ACT_MIN_VOLUME:
+        rare = base <= 0
+        days_on = sum(1 for v in vals[-7:] if v > 0)
+        res[term] = {"ratio": ratio, "recent": round(recent, 1), "baseline": round(base, 1),
+                     "rare": rare, "days_on": days_on}
+        # Usually searched → 1.5× its normal level is enough. Rarely searched before (normal = 0):
+        # Google Trends is noisy at tiny volumes, so it must be searched on at least RARE_DAYS of
+        # the last 7 days and reach RARE_RATIO× its old average (Bud Light 2023 passes easily).
+        if rare:
+            ok = ratio >= RARE_RATIO and days_on >= RARE_DAYS and recent >= ACT_MIN_VOLUME
+        else:
+            ok = ratio >= ACT_RATIO and recent >= ACT_MIN_VOLUME
+        if ok:
             acted = True
     return {"terms": res, "acted": acted}
 
@@ -175,5 +202,11 @@ def run_behaviour_checks():
 def latest_for(session, sid, limit=30):
     rows = (session.query(BehaviourSignal).filter(BehaviourSignal.sid == sid)
             .order_by(BehaviourSignal.ts.desc()).limit(limit).all())
-    return [{"ts": r.ts, "geo": r.geo, "company": r.company, "status": r.status, "error": r.error,
-             "result": json.loads(r.result) if r.result else None} for r in rows]
+    out = []
+    for r in rows:
+        res = json.loads(r.result) if r.result else None
+        if res is not None:
+            res["judged"] = judge(res)          # today's rule, also for older checks
+        out.append({"ts": r.ts, "geo": r.geo, "company": r.company, "status": r.status, "error": r.error,
+                    "result": res})
+    return out

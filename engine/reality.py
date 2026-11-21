@@ -18,6 +18,7 @@ Honest limits: pageviews also jump for good news (a launch, an ad); share prices
 reasons, and private brands (Chick-fil-A, Subway…) have none. Both are checks, not proof.
 """
 import json
+import re
 import statistics
 import threading
 import time
@@ -171,34 +172,77 @@ def collect_in_background(force=False):
 # ─────────────────────────────────────────────
 # 2. FORWARD LOG (written at the moment of the warning)
 # ─────────────────────────────────────────────
+# One warning per brand per week: a story's ID can change between readings, and two stories about the
+# same brand in the same week share one attention window, so counting both would count one outcome twice.
+DEDUPE_D = 7
+# The outlook only "changes level" once it is clearly past a line (calm < 35 · watch 35–60 · pressure > 60):
+# moving up needs +MARGIN over the line, moving down −MARGIN under it. Hovering at 35 is not a change.
+MARGIN = 3.0
+
+
+def sticky_label(prev, value):
+    """The outlook level, with a buffer around the lines so it doesn't flip every reading."""
+    if value is None:
+        return prev
+    order = ["calm", "watch", "pressure building"]
+    raw = "calm" if value < 35 else "watch" if value <= 60 else "pressure building"
+    if prev not in order or raw == prev:
+        return raw
+    if order.index(raw) > order.index(prev):          # going up
+        need = 35 + MARGIN if raw == "watch" else 60 + MARGIN
+        return raw if value >= need else prev
+    need = 35 - MARGIN if raw == "calm" else 60 - MARGIN  # going down
+    return raw if value < need else prev
+
+
+def _norm_title(t):
+    return re.sub(r"[^a-z0-9]+", " ", (t or "").lower()).strip()[:80]
+
+
+def _dup_key(brand, title):
+    return brand or ("t:" + _norm_title(title))
+
+
 def log_signals(session, rows, fri, outlook, label):
     """Called with the index rows each reading. A story that starts pushing the index for a tracked
-    brand is logged once ('signal'). An outlook level change is logged once ('outlook')."""
+    brand is logged once per brand per week ('signal'). An outlook level change is logged once ('outlook')."""
     try:
         from engine.everyday import brand_in
         now = time.time()
-        known = {s for (s,) in session.query(ForwardLog.sid).filter(ForwardLog.kind == "signal",
-                                                                    ForwardLog.ts >= now - 30 * DAY).all()}
+
+        def recent(kind):
+            return {_dup_key(b, t) for (b, t) in session.query(ForwardLog.brand, ForwardLog.title)
+                    .filter(ForwardLog.kind == kind, ForwardLog.ts >= now - DEDUPE_D * DAY).all()}
+
+        known = recent("signal")
         for r in rows:
-            if (r.get("weighted") or 0) <= 0 or r.get("sid") in known:
+            if (r.get("weighted") or 0) <= 0:
                 continue
             b = brand_key(r.get("company")) or brand_key(brand_in([r.get("title") or ""]))
+            k = _dup_key(b, r.get("title"))
+            if k in known:
+                continue
+            known.add(k)
             session.add(ForwardLog(ts=now, kind="signal", brand=b, sid=r.get("sid"), title=(r.get("title") or "")[:300],
                                    fri=fri, outlook=outlook, label=label, weight=r.get("weighted")))
-        # 'spread': a counting story is spreading (R ≥ 1.3, 3+ new articles in 24 h) — logged once per story,
+        # 'spread': a counting story is spreading (R ≥ 1.3, 3+ new articles in 24 h) — once per brand per week,
         # so later we can see whether spreading stories really hit brands more often than the rest
-        spread_known = {s for (s,) in session.query(ForwardLog.sid).filter(ForwardLog.kind == "spread",
-                                                                           ForwardLog.ts >= now - 30 * DAY).all()}
+        spread_known = recent("spread")
         for r in rows:
             sr = r.get("spread_r") or {}
-            if (r.get("weighted") or 0) > 0 and sr.get("label") == "spreading" and r.get("sid") not in spread_known:
+            if (r.get("weighted") or 0) > 0 and sr.get("label") == "spreading":
                 b = brand_key(r.get("company")) or brand_key(brand_in([r.get("title") or ""]))
+                k = _dup_key(b, r.get("title"))
+                if k in spread_known:
+                    continue
+                spread_known.add(k)
                 session.add(ForwardLog(ts=now, kind="spread", brand=b, sid=r.get("sid"), title=(r.get("title") or "")[:300],
                                        fri=fri, outlook=outlook, label=f"R {sr.get('r')}", weight=r.get("weighted")))
         last = (session.query(ForwardLog).filter(ForwardLog.kind == "outlook").order_by(ForwardLog.ts.desc()).first())
-        if label and (last is None or last.label != label):
-            session.add(ForwardLog(ts=now, kind="outlook", fri=fri, outlook=outlook, label=label,
-                                   title=f"outlook {'starts at' if last is None else 'moves to'} {label}"))
+        lvl = sticky_label(last.label if last else None, outlook) if outlook is not None else label
+        if lvl and (last is None or last.label != lvl):
+            session.add(ForwardLog(ts=now, kind="outlook", fri=fri, outlook=outlook, label=lvl,
+                                   title=f"outlook {'starts at' if last is None else 'moves to'} {lvl}"))
         session.commit()
     except Exception as e:
         session.rollback()
@@ -388,10 +432,29 @@ def _report(session):
         test_cards = {c for c, us in by_card.items() if all(is_moderator(u) for u in us)}
     except Exception:
         pass
+    # repeats written before 21 Nov (same brand again within a week; outlook flapping at a line)
+    # are replayed with today's rules and left out, so the old log is judged like the new one
+    repeat_ids, kept_at, lvl = set(), {}, None
+    for f in session.query(ForwardLog).order_by(ForwardLog.ts).all():
+        if f.kind in ("signal", "spread", "listed", "narrative"):
+            k = (f.kind, _dup_key(f.brand, f.title))
+            if k in kept_at and f.ts - kept_at[k] < DEDUPE_D * DAY:
+                repeat_ids.add(f.id)
+            else:
+                kept_at[k] = f.ts
+        elif f.kind == "outlook":
+            new_lvl = sticky_label(lvl, f.outlook) if f.outlook is not None else f.label
+            if new_lvl == lvl:
+                repeat_ids.add(f.id)
+            lvl = new_lvl
+    left_out["repeats"] = 0
     for f in session.query(ForwardLog).order_by(ForwardLog.ts.desc()).limit(2000).all():
         if f.kind == "spot" and f.sid in test_cards:
             continue
-        if f.kind in ("signal", "spread", "listed") and f.title and not _counts_today(f.title):
+        if f.id in repeat_ids:
+            left_out["repeats"] += 1
+            continue
+        if f.kind in ("signal", "spread", "listed", "narrative") and f.title and not _counts_today(f.title):
             left_out["forward"] += 1
             continue
         o = outcome(session, f.brand, f.ts, cache) if f.brand else None
@@ -399,7 +462,7 @@ def _report(session):
                     "fri": f.fri, "weight": f.weight, "result": o})
     total = session.query(ForwardLog).count() - sum(1 for f in session.query(ForwardLog.sid).filter(ForwardLog.kind == "spot").all()
                                                     if f[0] in test_cards)
-    total -= left_out["forward"]
+    total = max(0, total - left_out["forward"] - len(repeat_ids))
     since = session.query(ForwardLog.ts).order_by(ForwardLog.ts).first()
 
     kinds = {}

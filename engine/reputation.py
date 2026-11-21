@@ -212,6 +212,12 @@ def compute_reputation():
         except Exception as e:
             print(f"⚠️ reality check error: {e}")
         try:
+            from engine.narratives import record as _narr
+            _narr(session, getattr(_social, "last_rows", []))   # big narratives across brands (test, recorded only)
+        except Exception as e:
+            session.rollback()
+            print(f"⚠️ narratives error: {e}")
+        try:
             from engine.spots import resolve
             resolve(session, getattr(_social, "last_rows", []))   # did a spotted brand make the news?
         except Exception as e:

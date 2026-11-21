@@ -133,6 +133,11 @@ for t in INDEX_GOOD:
     if not ok:
         fails += 1
         print(f"INDEX SHOULD COUNT  [{why}]  {t}")
+# the arena sometimes names a place as the "company" ("Capitola Beach"): that is not a brand
+for t, comp in [("Santa Cruz Co.: Capitola Beach Reopens Following E. Coli Outbreak That Sickened 9 Children", "Capitola Beach")]:
+    if index_gate(t, [], comp)[0]:
+        fails += 1
+        print(f"INDEX SHOULD SKIP (place given as company '{comp}')  {t}")
 for t, label in INDEX_BAD:
     ok, why = index_gate(t)
     if ok:
@@ -144,6 +149,6 @@ for t in INDEX_GOOD[1:3]:
     if gate(t)[0]:
         fails += 1
         print(f"PLAYERS SHOULD NOT SEE (politics)  {t}")
-total = len(GOOD) + len(BAD) + len(INDEX_GOOD) + len(INDEX_BAD) + 2
+total = len(GOOD) + len(BAD) + len(INDEX_GOOD) + len(INDEX_BAD) + 3
 print(f"{total - fails}/{total} correct")
 sys.exit(1 if fails else 0)

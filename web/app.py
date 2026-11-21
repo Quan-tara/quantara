@@ -1984,6 +1984,11 @@ def api_narrative_story(sid: str):
             d["platforms"] = attach(session, [{"sid": sid}])[0].get("platforms")
         except Exception:
             d["voices"], d["platforms"] = None, None
+        try:
+            from engine.comments import for_story as _cm
+            d["yt_comments"] = _cm(session, sid)
+        except Exception:
+            d["yt_comments"] = None
         from db.models import StoryPricePoint
         d["price_points"] = [[p.ts, p.price] for p in session.query(StoryPricePoint)
                              .filter(StoryPricePoint.sid == sid).order_by(StoryPricePoint.ts).all()]

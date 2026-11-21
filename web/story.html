@@ -766,7 +766,7 @@ async function attnPanel() {
   const watch = (d.watch || []).filter(w => w.status !== "active");
   el.innerHTML = `<div class="ph" style="margin-top:8px"><span class="lbl">Attention · last 3 days · test</span><span class="tag">recorded only</span></div>
     <div class="note">What pulls people towards a brand before it is "pressure". Nothing here counts in the index; the track record checks whether attention comes before damage.</div>
-    ${block("📺 Big videos about a brand", d.videos || [], i => "▶ " + views(i.size), "No big brand video found yet — YouTube is searched every 2 hours.")}
+    ${block("📺 Big videos about a brand", d.videos || [], i => "▶ " + views(i.size) + (i.comments && i.comments.comments ? ` · 💬 ${i.comments.comments} read, ${Math.round(100 * i.comments.complaints / i.comments.comments)}% complain` : ""), "No big brand video found yet — YouTube is searched every 2 hours.")}
     ${block("😂 Laughed at", d.ridicule || [], i => "score " + (i.size || 0).toFixed(1), "No brand being roasted in the news right now.")}
     ${block("🆕 New brands on the list", d.new_brands || [], i => "", "None yet — a name becomes a brand once it shows up in 2 separate stories.")}
     ${watch.length ? `<div class="note">Watching: ${watch.slice(0, 8).map(w => `${esc(w.name)} (${w.hits})`).join(" · ")}</div>` : ""}`;
@@ -798,12 +798,14 @@ function spreadHtml(d) {
   const narLine = `<div class="note">Big narrative: ${nar.length ? nar.map(x => `<b>${esc(x)}</b>`).join(" · ") : "none recognised"} · headline tone: <b>${tn == null ? "—" : (tn > 0 ? "+" : "") + tn.toFixed(1)}</b> ${toneWord} · recorded only.</div>`;
   const vo = d.voices, pf = d.platforms;
   const voLine = vo || pf ? `<div class="note">${vo ? `Who spreads it on Bluesky: <b>${vo.authors}</b> different account${vo.authors === 1 ? "" : "s"}, top 3 carry <b>${Math.round((vo.concentration || 0) * 100)}%</b> of the engagement · ${esc(vo.label)}` : "Who spreads it: not checked yet"}${pf ? ` · seen on <b>${pf}</b> of 4 platforms (news, Bluesky, YouTube, Google searches)` : ""} · recorded only.</div>` : "";
-  if (!r) return nar.length || tn != null || voLine ? `<section class="panel"><div class="ph"><span class="lbl">Spread · moderators · test</span><span class="tag">recorded only</span></div>${narLine}${voLine}</section>` : "";
+  const yc = d.yt_comments;
+  const ycLine = yc ? `<div class="note">YouTube comments: <b>${yc.comments}</b> read under ${yc.videos} video${yc.videos === 1 ? "" : "s"} · <b>${yc.comments ? Math.round(100 * yc.complaints / yc.comments) : 0}%</b> complain · ${yc.comments ? Math.round(100 * yc.jokes / yc.comments) : 0}% joke${(yc.sample || []).length ? ` · e.g. “${esc(yc.sample[0].slice(0, 140))}”` : ""} · recorded only.</div>` : "";
+  if (!r) return nar.length || tn != null || voLine || ycLine ? `<section class="panel"><div class="ph"><span class="lbl">Spread · moderators · test</span><span class="tag">recorded only</span></div>${narLine}${voLine}${ycLine}</section>` : "";
   const col = r.label === "spreading" ? "var(--red)" : r.label === "fading" ? "var(--green)" : "var(--muted)";
   return `<section class="panel"><div class="ph"><span class="lbl">Spread rate · moderators · test</span><span class="tag">recorded only</span></div>
     <div class="howline"><span><b style="font:700 22px var(--mono);color:${col}">R ${r.r.toFixed(2)}</b> &nbsp;<b style="color:${col}">${esc(r.label)}</b>
       · ${r.new_24h} new article${r.new_24h === 1 ? "" : "s"} in the last 24 h vs ${r.prev_24h} the day before.</span></div>
-    <div class="note">Like an epidemic: above 1, each wave of coverage is bigger than the last. Logged and checked against what follows; it doesn't change scores or bets yet.</div>${narLine}${voLine}</section>`;
+    <div class="note">Like an epidemic: above 1, each wave of coverage is bigger than the last. Logged and checked against what follows; it doesn't change scores or bets yet.</div>${narLine}${voLine}${ycLine}</section>`;
 }
 function chanceLabel(d) {
   const k = d.bet && d.bet.kind;

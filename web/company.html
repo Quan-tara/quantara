@@ -321,6 +321,8 @@ async function renderTrack() {
     ${(() => { const S = d.feature_splits || {}, r = g => !g ? "none yet" : g.checked ? `${g.spike_rate}% of ${g.checked} (${g.range[0]}–${g.range[1]}%)` : `${g.entries} logged, results after 7 days`;
       const v = S.voices || {}, p2 = S.platforms || {}; let out = "";
       if (v.broad || v.narrow) out += `<div class="sub">Who spreads it (test): many independent voices on Bluesky — jump followed ${r(v.broad)} · few voices or a few big accounts — ${r(v.narrow)}.</div>`;
+      const cm = S.comments || {};
+      if (cm.angry || cm.calm) out += `<div class="sub">YouTube comments (test): angry comment sections (30%+ complaining) — ${r(cm.angry)} · calmer ones — ${r(cm.calm)}.</div>`;
       if (p2.several || p2["news only"]) out += `<div class="sub">Platform breadth (test): seen beyond the news (Bluesky, YouTube or searches) — ${r(p2.several)} · news only — ${r(p2["news only"])}.</div>`;
       return out; })()}
     ${(() => { const T = d.tone_split || {}, n = T.negative, o = T.other; if (!n && !o) return ""; const r = g => !g ? "none yet" : g.checked ? `${g.spike_rate}% of ${g.checked} (${g.range[0]}–${g.range[1]}%)` : `${g.entries} logged, results after 7 days`; return `<div class="sub">Headline tone (test): story warnings with a clearly negative headline — jump followed ${r(n)} · other headlines — ${r(o)}.</div>`; })()}

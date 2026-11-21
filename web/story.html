@@ -744,12 +744,16 @@ async function narrPanel() {
     return `<svg width="80" height="20" style="vertical-align:middle"><polyline points="${pts}" fill="none" stroke="currentColor" stroke-width="1.2"/></svg>`; };
   const row = n => `<div class="li"><span><b>${esc(n.label)}</b> <span class="${col(n.status)}">${esc(n.status)}</span>
       ${n.new_brands && n.new_brands.length ? `<span class="tag on">new: ${esc(n.new_brands.join(", "))}</span>` : ""}</span>
-      <div class="m"><b class="mono">${(n.strength || 0).toFixed(1)}</b><span>${n.normal != null ? "normal " + n.normal : "no normal yet"}</span>
+      <div class="m"><b class="mono">${(n.strength || 0).toFixed(1)}</b><span>${n.normal != null ? "normal " + n.normal : "no normal yet"}</span>${n.curve && n.curve.phase !== "too little data" ? `<span class="tag">curve: ${esc(n.curve.phase)}${n.curve.peak_eta_h > 0 ? ", peak in ~" + (n.curve.peak_eta_h >= 48 ? Math.round(n.curve.peak_eta_h / 24) + " days" : Math.round(n.curve.peak_eta_h) + " h") : ""}</span>` : ""}
         <span>${n.stories} stor${n.stories === 1 ? "y" : "ies"}</span><span>${esc((n.brands || []).slice(0, 6).join(", ") || "no brand")}</span>${spark(n.series)}</div>
       ${n.top && n.top.length ? `<div style="font-size:12px;color:var(--dim)">${n.top.slice(0, 2).map(t => `<a href="/story/${encodeURIComponent(t[1])}">${esc((t[0] || "").slice(0, 90))}</a>`).join(" · ")}</div>` : ""}</div>`;
   el.innerHTML = `<div class="ph" style="margin-top:8px"><span class="lbl">Big narratives · across brands · test</span><span class="tag">${Math.min(d.hours, d.needed)}/${d.needed} hours of history</span></div>
     <div class="note">Every story that counts in the index is sorted into a bigger narrative. Rising = 1.5× its normal level with 2+ brands. Recorded only: nothing here changes scores, listing or bets.</div>
-    <div class="list">${d.narratives.map(row).join("")}</div>`;
+    <div class="list">${d.narratives.map(row).join("")}</div>
+    <div class="sub" style="margin-top:8px"><b>🌱 Emerging — themes the data found on its own</b></div>
+    ${(d.emerging || []).length ? `<div class="list">${d.emerging.map(e => `<div class="li"><span>${esc((e.title || "").split(" — ")[0])}</span><div class="m"><b>${esc(e.brands || "")}</b><span>${esc(e.words || "")}</span><span>${esc(when(e.ts))}</span></div><div style="font-size:12px;color:var(--dim)">${esc(((e.title || "").split(" — ")[1] || "").slice(0, 200))}</div></div>`).join("")}</div>`
+      : `<div class="note">None yet: an emerging theme needs stories about 2+ different brands that share distinctive words and fit none of the 7 narratives.</div>`}
+    <div class="note">Curve: each narrative's running total is fitted with the simplest epidemic curve; growing / near peak / fading. Early in a rise the peak can't be placed reliably, so none is shown.</div>`;
 }
 async function attnPanel() {
   const el = document.getElementById("attn"); if (!el) return;
@@ -792,12 +796,14 @@ function spreadHtml(d) {
   const r = d.spread_r, nar = (d.narratives || []);
   const tn = d.tone, toneWord = tn == null ? "not scored yet" : tn <= -0.7 ? "very negative" : tn <= -0.5 ? "negative" : tn < 0.3 ? "neutral" : "positive";
   const narLine = `<div class="note">Big narrative: ${nar.length ? nar.map(x => `<b>${esc(x)}</b>`).join(" · ") : "none recognised"} · headline tone: <b>${tn == null ? "—" : (tn > 0 ? "+" : "") + tn.toFixed(1)}</b> ${toneWord} · recorded only.</div>`;
-  if (!r) return nar.length || tn != null ? `<section class="panel"><div class="ph"><span class="lbl">Spread · moderators · test</span><span class="tag">recorded only</span></div>${narLine}</section>` : "";
+  const vo = d.voices, pf = d.platforms;
+  const voLine = vo || pf ? `<div class="note">${vo ? `Who spreads it on Bluesky: <b>${vo.authors}</b> different account${vo.authors === 1 ? "" : "s"}, top 3 carry <b>${Math.round((vo.concentration || 0) * 100)}%</b> of the engagement · ${esc(vo.label)}` : "Who spreads it: not checked yet"}${pf ? ` · seen on <b>${pf}</b> of 4 platforms (news, Bluesky, YouTube, Google searches)` : ""} · recorded only.</div>` : "";
+  if (!r) return nar.length || tn != null || voLine ? `<section class="panel"><div class="ph"><span class="lbl">Spread · moderators · test</span><span class="tag">recorded only</span></div>${narLine}${voLine}</section>` : "";
   const col = r.label === "spreading" ? "var(--red)" : r.label === "fading" ? "var(--green)" : "var(--muted)";
   return `<section class="panel"><div class="ph"><span class="lbl">Spread rate · moderators · test</span><span class="tag">recorded only</span></div>
     <div class="howline"><span><b style="font:700 22px var(--mono);color:${col}">R ${r.r.toFixed(2)}</b> &nbsp;<b style="color:${col}">${esc(r.label)}</b>
       · ${r.new_24h} new article${r.new_24h === 1 ? "" : "s"} in the last 24 h vs ${r.prev_24h} the day before.</span></div>
-    <div class="note">Like an epidemic: above 1, each wave of coverage is bigger than the last. Logged and checked against what follows; it doesn't change scores or bets yet.</div>${narLine}</section>`;
+    <div class="note">Like an epidemic: above 1, each wave of coverage is bigger than the last. Logged and checked against what follows; it doesn't change scores or bets yet.</div>${narLine}${voLine}</section>`;
 }
 function chanceLabel(d) {
   const k = d.bet && d.bet.kind;

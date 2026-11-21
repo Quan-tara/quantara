@@ -302,7 +302,17 @@ def update_listings(stories, session, now=None, arena="food"):
             snap = _snapshot(s, snap, lead)
             score = s["story_score"]
             inputs = _inputs_from_live(s)
-            n.title, n.url, n.source = s["title"], s["url"], s["source"]
+            # a listed story keeps the topic it was listed on: the headline only follows a new lead article
+            # about the SAME topic ("Taco Bell brings back the Steakhouse Burrito" must not take over a
+            # story about smaller nachos)
+            anchor = _anchor(snap, n)
+            if not anchor or _same_topic(s["title"], anchor, lead):
+                n.title, n.url, n.source = s["title"], s["url"], s["source"]
+            elif not _same_topic(n.title, anchor, lead):
+                best = next((a for a in snap.get("articles", []) if _same_topic(a.get("title"), anchor, lead)), None)
+                if best:
+                    print(f"⚓ Story {n.sid}: headline back to its listing topic — {best['title'][:70]}")
+                    n.title, n.url, n.source = best["title"], best.get("url") or n.url, best.get("source") or n.source
             n.last_seen = now
         else:
             inputs = _inputs_from_snapshot(snap, now)
@@ -311,7 +321,7 @@ def update_listings(stories, session, now=None, arena="food"):
         b_ = snap.get("bet") or {}
         if b_.get("kind") == "cave" and not b_.get("caved") and b_.get("hint"):
             from engine.story_market import cave_hint
-            if not cave_hint([b_["hint"]], b_.get("company"), topic=n.title):
+            if not cave_hint([b_["hint"]], b_.get("company"), topic=_anchor(snap, n) or n.title):
                 print(f"🏳️ Dropped cave hint on {n.sid}: not about this story — {b_['hint'][:80]}")
                 b_.pop("hint", None)      # an older, looser hint about another topic
                 snap["bet"] = b_
@@ -319,7 +329,7 @@ def update_listings(stories, session, now=None, arena="food"):
             from engine.story_market import cave_hint
             seen = set(b_.get("dismissed") or [])
             h = cave_hint([a.get("title") for a in snap.get("articles", []) if a.get("title") not in seen], b_.get("company"),
-                          topic=n.title)
+                          topic=_anchor(snap, n) or n.title)
             if h:
                 b_["hint"] = h
                 snap["bet"] = b_
@@ -394,7 +404,8 @@ def update_listings(stories, session, now=None, arena="food"):
         except Exception as e:
             print(f"⚠️ line error {s['sid']}: {e}")
             bet = None
-        snap0 = {**_snapshot(s), "score_inputs": {**_inputs_from_live(s), "at": now}}
+        snap0 = {**_snapshot(s), "score_inputs": {**_inputs_from_live(s), "at": now},
+                 "listed_title": s["title"]}            # the topic this story was listed on — kept for its life
         if bet:
             snap0["bet"] = bet
         n = Narrative(sid=s["sid"], title=s["title"], url=s["url"], source=s["source"], arena=arena,
@@ -423,6 +434,21 @@ def update_listings(stories, session, now=None, arena="food"):
         s["listed"] = bool(n and n.status == "LISTED")
         s["list_status"] = n.status if n else None
         s["closes_at"] = n.closes_at if n else None
+
+
+def _anchor(snap, n):
+    """The topic a listed story is about: its listing headline (stories listed from 21 Nov 2026 on),
+    else the short title written when it was listed."""
+    if snap.get("listed_title"):
+        return snap["listed_title"]
+    if snap.get("short_title"):
+        return snap["short_title"]
+    return None
+
+
+def _same_topic(title, anchor, company):
+    from engine.story_market import _topic_words
+    return bool(_topic_words(title or "", company) & _topic_words(anchor or "", company))
 
 
 def confirm_cave(sid, moderator_id, caved):

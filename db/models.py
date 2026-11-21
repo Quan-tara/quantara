@@ -510,3 +510,54 @@ class ThemeTick(Base):
     stories  = Column(Integer, nullable=False, default=0)
     brands   = Column(Text, nullable=True)                       # JSON list
     top      = Column(Text, nullable=True)                       # JSON: [[title, sid, weight], …] strongest first
+
+
+class LearnedBrand(Base):
+    """A brand the code didn't know, named by the AI from headlines or video titles. It becomes
+    'active' (used everywhere like a listed brand) once it shows up in 2+ separate stories."""
+    __tablename__ = "learned_brands"
+
+    id         = Column(Integer, primary_key=True, autoincrement=True)
+    name       = Column(String(60), nullable=False, unique=True, index=True)   # lower case
+    shown      = Column(String(60), nullable=True)                             # spelling to show
+    hits       = Column(Integer, nullable=False, default=1)                    # separate stories seen
+    first_seen = Column(Float, nullable=False)
+    last_seen  = Column(Float, nullable=False)
+    status     = Column(String(8), nullable=False, default="watch")           # watch | active
+    example    = Column(Text, nullable=True)
+
+
+class BrandAsk(Base):
+    """Cache: the AI's answer about which brand a headline is about (asked once per headline)."""
+    __tablename__ = "brand_asks"
+
+    id     = Column(Integer, primary_key=True, autoincrement=True)
+    title  = Column(String(300), nullable=False, index=True)
+    brand  = Column(String(60), nullable=True)
+    ts     = Column(Float, nullable=False)
+
+
+class AttentionItem(Base):
+    """Attention layer (recorded only): what pulls people's attention to a food brand before it is
+    'pressure' — a viral video, being laughed at, a brand nobody had on the list."""
+    __tablename__ = "attention_items"
+
+    id     = Column(Integer, primary_key=True, autoincrement=True)
+    ts     = Column(Float, nullable=False, index=True)
+    kind   = Column(String(12), nullable=False, index=True)    # video | ridicule | new brand
+    brand  = Column(String(60), nullable=True, index=True)
+    title  = Column(Text, nullable=True)
+    url    = Column(Text, nullable=True)
+    size   = Column(Float, nullable=True)                      # views (video) or story score (ridicule)
+    source = Column(String(80), nullable=True)                 # channel / outlet
+    key    = Column(String(120), nullable=True, index=True)    # de-duplication (video id, story title)
+
+
+class MethodStart(Base):
+    """When the current measuring rules started: the 'normal' level, the forward log's main numbers
+    and the narratives count only from here, so old and new rules are never mixed."""
+    __tablename__ = "method_starts"
+
+    id      = Column(Integer, primary_key=True, autoincrement=True)
+    version = Column(String(24), nullable=False, unique=True)
+    ts      = Column(Float, nullable=False)

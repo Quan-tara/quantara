@@ -1072,14 +1072,15 @@ async function renderBehaviour() {
   let d; try { d = await (await fetch("/api/behaviour/" + encodeURIComponent(STORY.sid))).json(); } catch (e) { return; }
   const side = document.querySelector(".side"); if (!side) return;
   const c = (d.checks || [])[0];
-  const rows = c && c.result ? Object.entries(c.result.terms).map(([t, v]) => `<div class="kv"><span>“${esc(t)}”</span><b>${v.ratio == null ? "—" : v.ratio + "×"} <span style="color:var(--muted);font-weight:400">(${v.recent ?? "—"} vs ${v.baseline ?? "—"})</span></b></div>`).join("") : "";
+  const rows = c && c.result ? Object.entries(c.result.terms).map(([t, v]) => `<div class="kv"><span>“${esc(t)}”</span><b>${v.ratio == null ? "—" : v.ratio + "×"} <span style="color:var(--muted);font-weight:400">(${v.recent ?? "—"} vs ${v.baseline ?? "—"}${v.baseline === 0 ? " · rarely searched before" : ""})</span></b></div>`).join("") : "";
   const sec = document.createElement("section");
   sec.className = "panel"; sec.id = "bh";
   sec.innerHTML = `<div class="ph"><span class="lbl">Behaviour check · moderators · test</span><span class="tag">${(d.checks || []).length} checks</span></div>
     <div class="tp">${!c ? `<div class="note" style="padding:0">Not checked yet — runs once a day per listed story that names a company.</div>`
       : `<div class="kv"><span>Last check</span><b>${when(c.ts)} · ${esc(c.geo || "")} · ${esc(c.company || "no company")}</b></div>
          ${c.status !== "OK" ? `<div class="note" style="padding:0">${esc(c.status)}: ${esc(c.error || "")}</div>`
-           : `${rows}<div class="kv"><span>People acting? (≥1.5× normal searches)</span><b class="${c.result.acted ? "up" : "down"}">${c.result.acted ? "YES" : "no"}</b></div>`}`}
+           : `${rows}<div class="kv"><span>People acting? (≥1.5× normal searches)</span><b class="${(c.result.judged ?? c.result.acted) ? "up" : "down"}">${(c.result.judged ?? c.result.acted) ? "YES" : "no"}</b></div>
+             <div class="note" style="padding:0">A phrase almost nobody searched before only counts if it is searched on 4+ of the last 7 days at 3× its old average.</div>`}`}
       <div class="bd-note">Searches for boycott / cancel / alternative, last 7 days vs the 8 weeks before (Google Trends). Recorded only — nothing is settled on it yet.</div></div>`;
   side.appendChild(sec);
 }

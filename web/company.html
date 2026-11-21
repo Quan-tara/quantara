@@ -202,7 +202,7 @@ async function renderYou() {
   const sector = $("#sector").value, brand = $("#brand").value.trim(), el = $("#you");
   $("#you-tag").textContent = brand || sector || "all food";
   let d; try { d = await (await fetch(`/api/reputation/you?sector=${encodeURIComponent(sector)}&brand=${encodeURIComponent(brand)}`)).json(); } catch (e) { return; }
-  const list = sector || brand ? d.stories : (SNAP.top || []).slice(0, 5).map(s => ({ ...s, match: "all food" }));
+  const list = sector || brand ? d.stories : (SNAP.top || []).filter(s => s.weighted > 0).slice(0, 5).map(s => ({ ...s, match: "all food" }));
   const sx = d.sector;
   const dev = sx && sx.price != null ? (100 - sx.price) / 2 : null;
   const sectorLine = dev != null ? `<div class="sub">Your category, ${esc(sx.label)}: drama is <b class="${dev > 2.5 ? "pressure" : dev < -2.5 ? "calm" : ""}">${Math.abs(dev) < 0.5 ? "at its normal level" : `${Math.abs(dev).toFixed(1)} points ${dev > 0 ? "above" : "below"} its normal level`}</b> (last 7 days).</div>` : "";

@@ -1903,7 +1903,13 @@ def api_narrative_story(sid: str):
                             "status": m.status, "tokens": set(sn.get("tokens", [])),
                             "hazards": set(sn.get("hazards", []))}
         rel = []
+        try:                                   # only stories with real pressure (same gate as the index)
+            from engine.everyday import index_gate as _ig
+        except Exception:
+            _ig = None
         for c in cands.values():
+            if _ig and (d.get("arena") or "food") in ("everyday", "food") and not _ig(c["title"] or "")[0]:
+                continue
             shared = tokens & c["tokens"]
             same_h = bool(hazards & c["hazards"])
             r = len(shared) / max(1, len(tokens | c["tokens"])) + (0.15 if same_h else 0)

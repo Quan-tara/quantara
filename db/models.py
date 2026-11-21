@@ -486,3 +486,27 @@ class Spot(Base):
     payout     = Column(Float, nullable=True)
     first      = Column(Boolean, nullable=False, default=False)      # first spotter of this card
     resolved_at = Column(Float, nullable=True)
+
+
+class ThemeTag(Base):
+    """Which big narrative(s) a story headline belongs to (cached so each headline is judged once)."""
+    __tablename__ = "theme_tags"
+
+    id     = Column(Integer, primary_key=True, autoincrement=True)
+    title  = Column(String(300), nullable=False, index=True)
+    themes = Column(Text, nullable=True)                         # JSON list of narrative keys ([] = none)
+    source = Column(String(8), nullable=False, default="rules")  # rules | ai
+    ts     = Column(Float, nullable=False)
+
+
+class ThemeTick(Base):
+    """Hourly strength of one big narrative across all brands (test phase, recorded only)."""
+    __tablename__ = "theme_ticks"
+
+    id       = Column(Integer, primary_key=True, autoincrement=True)
+    ts       = Column(Float, nullable=False, index=True)
+    theme    = Column(String(24), nullable=False, index=True)
+    strength = Column(Float, nullable=False, default=0.0)       # sum of the counting stories' weight
+    stories  = Column(Integer, nullable=False, default=0)
+    brands   = Column(Text, nullable=True)                       # JSON list
+    top      = Column(Text, nullable=True)                       # JSON: [[title, sid, weight], …] strongest first

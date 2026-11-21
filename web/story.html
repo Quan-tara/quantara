@@ -722,8 +722,8 @@ async function candidates() {
       : d.stories.length ? `<div class="list">${d.stories.map(c => `<div class="li"><a href="/story/${encodeURIComponent(c.sid)}">${esc(c.title)}</a>
           <div class="m"><b class="mono">${(c.score ?? 0).toFixed(1)}</b><span>${c.outlets} outlet${c.outlets === 1 ? "" : "s"}</span>${sectorTag(c.sector)}${c.company ? `<span>🏢 ${esc(c.company)}</span>` : ""}${trendTag(c.trending)}${c.buzz != null ? `<span title="Bluesky posts in the last 24h">🦋 ${c.buzz}</span>` : ""}${c.views != null ? `<span title="YouTube views, videos from the last 3 days">▶ ${fmtViews(c.views)}</span>` : ""}<span style="color:var(--dim)">${esc(c.why_not)}</span></div></div>`).join("")}</div>`
       : `<div class="empty">Nothing found in the latest reading.</div>`}
-    <div id="rising"></div><div id="narr"></div>`;
-  risingPanel(); narrPanel();
+    <div id="rising"></div><div id="narr"></div><div id="attn"></div>`;
+  risingPanel(); narrPanel(); attnPanel();
 }
 async function risingPanel() {
   const el = document.getElementById("rising"); if (!el) return;
@@ -750,6 +750,22 @@ async function narrPanel() {
   el.innerHTML = `<div class="ph" style="margin-top:8px"><span class="lbl">Big narratives · across brands · test</span><span class="tag">${Math.min(d.hours, d.needed)}/${d.needed} hours of history</span></div>
     <div class="note">Every story that counts in the index is sorted into a bigger narrative. Rising = 1.5× its normal level with 2+ brands. Recorded only: nothing here changes scores, listing or bets.</div>
     <div class="list">${d.narratives.map(row).join("")}</div>`;
+}
+async function attnPanel() {
+  const el = document.getElementById("attn"); if (!el) return;
+  let d; try { d = await (await fetch("/api/attention")).json(); } catch (e) { return; }
+  const views = n => n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1e3 ? Math.round(n / 1e3) + "k" : String(n || 0);
+  const item = (i, size) => `<div class="li"><span>${i.url ? `<a href="${esc(i.url)}" target="_blank" rel="noopener">${esc((i.title || "").slice(0, 110))}</a>` : esc((i.title || "").slice(0, 110))}</span>
+      <div class="m"><b>${esc(i.brand || "")}</b><span class="mono">${size}</span>${i.source ? `<span>${esc(i.source)}</span>` : ""}<span>${esc(when(i.ts))}</span></div></div>`;
+  const block = (label, arr, fmt, empty) => `<div class="sub" style="margin-top:8px"><b>${label}</b></div>
+    ${arr.length ? `<div class="list">${arr.map(i => item(i, fmt(i))).join("")}</div>` : `<div class="note">${empty}</div>`}`;
+  const watch = (d.watch || []).filter(w => w.status !== "active");
+  el.innerHTML = `<div class="ph" style="margin-top:8px"><span class="lbl">Attention · last 3 days · test</span><span class="tag">recorded only</span></div>
+    <div class="note">What pulls people towards a brand before it is "pressure". Nothing here counts in the index; the track record checks whether attention comes before damage.</div>
+    ${block("📺 Big videos about a brand", d.videos || [], i => "▶ " + views(i.size), "No big brand video found yet — YouTube is searched every 2 hours.")}
+    ${block("😂 Laughed at", d.ridicule || [], i => "score " + (i.size || 0).toFixed(1), "No brand being roasted in the news right now.")}
+    ${block("🆕 New brands on the list", d.new_brands || [], i => "", "None yet — a name becomes a brand once it shows up in 2 separate stories.")}
+    ${watch.length ? `<div class="note">Watching: ${watch.slice(0, 8).map(w => `${esc(w.name)} (${w.hits})`).join(" · ")}</div>` : ""}`;
 }
 async function myStories() {
   const el = $("#mine"); if (!el) return;

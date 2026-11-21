@@ -2277,6 +2277,17 @@ def api_narratives():
         session.close()
 
 
+@app.get("/api/attention")
+def api_attention():
+    """Attention layer (test phase, recorded only): big brand videos, ridicule, new brands."""
+    from engine.attention import board
+    session = SessionLocal()
+    try:
+        return board(session)
+    finally:
+        session.close()
+
+
 @app.get("/api/discovery")
 def api_discovery():
     """Food brands rising on Bluesky right now (story discovery)."""

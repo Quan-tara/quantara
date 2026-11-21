@@ -271,7 +271,7 @@ function renderChart() {
 
 function kindTable(K) {
   if (!K) return "";
-  const names = { signal: "Story starts counting", spread: "Story spreading (R ≥ 1.3)", narrative: "Narrative rising (across brands)", listed: "Story listed for players",
+  const names = { signal: "Story starts counting", spread: "Story spreading (R ≥ 1.3)", narrative: "Narrative rising (across brands)", attention: "Attention (video, ridicule, new brand)", listed: "Story listed for players",
                   spot: "Spotted by players", outlook: "Outlook changes level" };
   const rows = Object.keys(names).filter(k => K[k]).map(k => { const v = K[k];
     return `<tr><td>${names[k]}</td><td>${v.entries}</td><td>${v.checked ? v.spike_rate + "% of " + v.checked : "after 7 days"}</td>
@@ -292,7 +292,7 @@ async function renderTrack() {
       ${c.excess_30d != null ? `<span>share vs S&amp;P, 30 days: <b class="${c.excess_30d < 0 ? "pressure" : "calm"}">${sgn(c.excess_30d)}%</b></span>` : ""}</div></div>`;
   const fwdRow = f => { const o = f.result || {};
     return `<div class="li"><span>${esc(f.title || "")}</span>
-      <div class="m"><span>${when(f.ts)}</span><span class="tag">${esc(f.kind)}</span>${f.brand ? `<span>${esc(f.brand)}</span>` : ""}
+      <div class="m"><span>${when(f.ts)}</span><span class="tag">${esc(f.kind)}</span>${f.previous ? `<span class="tag">previous rules</span>` : ""}${f.brand ? `<span>${esc(f.brand)}</span>` : ""}
       ${f.kind === "outlook" ? `<span>FRI ${f1(f.fri)}</span>` : o.attention_x != null ? `<span>attention <b class="${o.spike ? "pressure" : ""}">${o.attention_x}×</b></span>` : f.brand ? `<span>result after 7 days</span>` : ""}
       ${o.excess_30d != null ? `<span>share 30d ${sgn(o.excess_30d)}%</span>` : ""}</div></div>`; };
   el.innerHTML = noData ? `<div class="sub">Collecting Wikipedia pageviews and share prices for the first time (about a year of history, takes a few minutes). Check back shortly.</div>` : `
@@ -308,7 +308,7 @@ async function renderTrack() {
     ${p.missed.length ? `<div class="sub"><b>Missed</b> (big attention jumps with no warning): ${p.missed.map(m => `${esc(m.brand)} ${esc(m.day)} (${m.x}×)`).join(" · ")}</div>` : ""}
     <details style="margin-top:8px"><summary class="sub" style="cursor:pointer">Past warnings, one by one (${p.cases.length})</summary><div class="list">${p.cases.map(caseRow).join("")}</div></details>
     <div class="sub" style="margin:14px 0 6px"><b>Live forward log</b> — every warning written down the moment it happens, checked later.
-      ${F.entries} entr${F.entries === 1 ? "y" : "ies"}${F.since ? " since " + new Date(F.since * 1000).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : ""}.${(() => { const L = d.left_out || {}, n = (L.past || 0) + (L.forward || 0), rp = L.repeats || 0; return (n ? ` ${n} older warning${n === 1 ? "" : "s"} left out: today's rules wouldn't count ${n === 1 ? "it" : "them"} (jokes, obituaries, investor pieces…).` : "") + (rp ? ` ${rp} repeat${rp === 1 ? "" : "s"} merged: one warning per brand per week, and the outlook only changes level once it is clearly past a line.` : ""); })()}
+      ${F.entries} entr${F.entries === 1 ? "y" : "ies"}${F.since ? " since " + new Date(F.since * 1000).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : ""}.${(() => { const L = d.left_out || {}, n = (L.past || 0) + (L.forward || 0), rp = L.repeats || 0, pv = L.previous || 0; return (pv ? ` Counting starts ${new Date((F.rules_since || 0) * 1000).toLocaleDateString("en-GB", { day: "numeric", month: "short" })} with today's rules (a wider net); ${pv} earlier warning${pv === 1 ? "" : "s"} kept apart as "previous rules".` : "") + (n ? ` ${n} older warning${n === 1 ? "" : "s"} left out: today's rules wouldn't count ${n === 1 ? "it" : "them"} (jokes, obituaries, investor pieces…).` : "") + (rp ? ` ${rp} repeat${rp === 1 ? "" : "s"} merged: one warning per brand per week, and the outlook only changes level once it is clearly past a line.` : ""); })()}
       Attention results appear after 7 days, share-price results after 30 and 90 days.</div>
     ${kindTable(F.by_kind)}
     <div class="list">${F.latest.slice(0, 8).map(fwdRow).join("") || `<div class="sub">Nothing logged yet.</div>`}</div>

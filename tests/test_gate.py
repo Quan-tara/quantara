@@ -88,6 +88,11 @@ INDEX_GOOD = [
     "Opinion | Consider the real ramifications of a Starbucks boycott",
     "Kroger shares fall after salmonella recall hits stores",
     "Hershey shares drop as shoppers boycott over price hikes",
+    # 21 Nov: attention brands, US places, food deaths are food safety
+    "MrBeast's Lunchly kits found with mold, parents furious",
+    "Feastables chocolate bars shrink but price stays the same",
+    "Boar's Head listeria outbreak: lawsuits pile up after deaths",
+    "Woman dies after eating at Chipotle; family blames E. coli",
 ]
 INDEX_BAD = [
     ("5 Disadvantages Of Ordering A Sheet Cake From Costco's Bakery", "listicle"),
@@ -106,6 +111,9 @@ INDEX_BAD = [
     ("Pizza Hut co-founder passes away at age ninety eight", "obituary"),
     ("Four Maryland high school students sue after AI mistakes Doritos bag for gun", "bystander"),
     ("Kroger dividend: is the payout safe after Q3 earnings?", "investor"),
+    ("Santa Cruz Co.: Capitola Beach Reopens Following E. Coli Outbreak That Sickened 9 Children", "beach water, not food"),
+    ("Man shot dead outside Taco Bell in Houston", "violence"),
+    ("Police: man dies after stabbing at Chicago McDonald's", "crime"),
 ]
 
 fails = 0

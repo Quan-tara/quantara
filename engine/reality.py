@@ -217,9 +217,15 @@ def log_signals(session, rows, fri, outlook, label):
         from engine.everyday import brand_in
         now = time.time()
 
+        try:                                    # the week starts fresh when the rules restart
+            from engine.attention import method_start
+            fresh_from = max(now - DEDUPE_D * DAY, method_start(session))
+        except Exception:
+            fresh_from = now - DEDUPE_D * DAY
+
         def recent(kind):
             return {_dup_key(b, t) for (b, t) in session.query(ForwardLog.brand, ForwardLog.title)
-                    .filter(ForwardLog.kind == kind, ForwardLog.ts >= now - DEDUPE_D * DAY).all()}
+                    .filter(ForwardLog.kind == kind, ForwardLog.ts >= fresh_from).all()}
 
         known = recent("signal")
         for r in rows:
@@ -533,10 +539,17 @@ def _report(session):
         pass
     # repeats written before 21 Nov (same brand again within a week; outlook flapping at a line)
     # are replayed with today's rules and left out, so the old log is judged like the new one
+    try:                                       # warnings made under earlier rules are kept apart
+        from engine.attention import method_start
+        rules_since = method_start(session)
+    except Exception:
+        rules_since = 0.0
     repeat_ids, kept_at, lvl = set(), {}, None
     for f in session.query(ForwardLog).order_by(ForwardLog.ts).all():
         if f.kind in ("signal", "spread", "listed", "narrative", "baseline", "attention"):
             k = (f.kind, _dup_key(f.brand, f.title))
+            if k in kept_at and kept_at[k] < rules_since <= f.ts:
+                kept_at.pop(k)                 # a warning under the old rules doesn't block one under the new
             if k in kept_at and f.ts - kept_at[k] < DEDUPE_D * DAY:
                 repeat_ids.add(f.id)
             else:
@@ -548,11 +561,6 @@ def _report(session):
             lvl = new_lvl
     left_out["repeats"] = 0
     left_out["previous"] = 0
-    try:                                       # warnings made under earlier rules are kept apart
-        from engine.attention import method_start
-        rules_since = method_start(session)
-    except Exception:
-        rules_since = 0.0
     for f in session.query(ForwardLog).order_by(ForwardLog.ts.desc()).limit(2000).all():
         if f.kind == "spot" and f.sid in test_cards:
             continue

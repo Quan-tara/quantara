@@ -790,8 +790,9 @@ async function myStories() {
 // ── STORY ── two charts on one timeline: what the news did (top) · what is expected (bottom)
 function spreadHtml(d) {
   const r = d.spread_r, nar = (d.narratives || []);
-  const narLine = `<div class="note">Big narrative: ${nar.length ? nar.map(x => `<b>${esc(x)}</b>`).join(" · ") : "none recognised"} · recorded only.</div>`;
-  if (!r) return nar.length ? `<section class="panel"><div class="ph"><span class="lbl">Spread · moderators · test</span><span class="tag">recorded only</span></div>${narLine}</section>` : "";
+  const tn = d.tone, toneWord = tn == null ? "not scored yet" : tn <= -0.7 ? "very negative" : tn <= -0.5 ? "negative" : tn < 0.3 ? "neutral" : "positive";
+  const narLine = `<div class="note">Big narrative: ${nar.length ? nar.map(x => `<b>${esc(x)}</b>`).join(" · ") : "none recognised"} · headline tone: <b>${tn == null ? "—" : (tn > 0 ? "+" : "") + tn.toFixed(1)}</b> ${toneWord} · recorded only.</div>`;
+  if (!r) return nar.length || tn != null ? `<section class="panel"><div class="ph"><span class="lbl">Spread · moderators · test</span><span class="tag">recorded only</span></div>${narLine}</section>` : "";
   const col = r.label === "spreading" ? "var(--red)" : r.label === "fading" ? "var(--green)" : "var(--muted)";
   return `<section class="panel"><div class="ph"><span class="lbl">Spread rate · moderators · test</span><span class="tag">recorded only</span></div>
     <div class="howline"><span><b style="font:700 22px var(--mono);color:${col}">R ${r.r.toFixed(2)}</b> &nbsp;<b style="color:${col}">${esc(r.label)}</b>

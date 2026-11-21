@@ -61,6 +61,7 @@ async def startup_event():
             "ALTER TABLE story_comments ADD COLUMN IF NOT EXISTS lead_s FLOAT",
             "ALTER TABLE story_comments ADD COLUMN IF NOT EXISTS bonus FLOAT",
             "ALTER TABLE brand_buzz ADD COLUMN IF NOT EXISTS complaints INTEGER",
+            "ALTER TABLE forward_log ADD COLUMN IF NOT EXISTS tone FLOAT",
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username) WHERE username IS NOT NULL",
         ]
         for _sql in _migrations:
@@ -1970,6 +1971,12 @@ def api_narrative_story(sid: str):
             d["narratives"] = for_titles(session, [d.get("title") or ""]).get(d.get("title") or "", [])
         except Exception:
             d["narratives"] = []
+        try:
+            from db.models import HeadlineTone
+            _t = session.query(HeadlineTone).filter(HeadlineTone.title == (d.get("title") or "")[:300]).first()
+            d["tone"] = _t.tone if _t else None
+        except Exception:
+            d["tone"] = None
         from db.models import StoryPricePoint
         d["price_points"] = [[p.ts, p.price] for p in session.query(StoryPricePoint)
                              .filter(StoryPricePoint.sid == sid).order_by(StoryPricePoint.ts).all()]

@@ -339,6 +339,7 @@ class BrandBuzz(Base):
     spike    = Column(Boolean, nullable=False, default=False)
     words    = Column(Text, nullable=True)         # JSON: what the posts are about (top words)
     top_post = Column(Text, nullable=True)         # JSON: most-liked post
+    complaints = Column(Integer, nullable=True)    # posts that complain (prices, sick, boycott, rude staff…)
     status   = Column(String(12), nullable=False, default="OK")
     error    = Column(String(300), nullable=True)
 

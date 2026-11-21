@@ -60,6 +60,7 @@ async def startup_event():
             "ALTER TABLE story_comments ADD COLUMN IF NOT EXISTS called VARCHAR(4)",
             "ALTER TABLE story_comments ADD COLUMN IF NOT EXISTS lead_s FLOAT",
             "ALTER TABLE story_comments ADD COLUMN IF NOT EXISTS bonus FLOAT",
+            "ALTER TABLE brand_buzz ADD COLUMN IF NOT EXISTS complaints INTEGER",
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username) WHERE username IS NOT NULL",
         ]
         for _sql in _migrations:

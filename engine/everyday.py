@@ -541,7 +541,7 @@ def index_gate(title, others=(), company=None):
     if not (us_brand([title]) or (company and company.lower() not in NON_US_BRANDS and brand_in([company]))
             or US_RX.search(title)):
         return False, "no US brand or US place named"
-    if not (us_brand([title]) or company) and not (ni._has_any(low, FOOD_WORDS) or re.search(
+    if not (us_brand([title]) or (company and brand_in([company]))) and not (ni._has_any(low, FOOD_WORDS) or re.search(
             r"\brecall|\bgrocer|\brestaurant|\bdiner|\bfarm|\bmeat|\bbeef|\bchicken|\begg|\bmilk|\bproduce\b", low)):
         return False, "no brand and not about food"        # "beach reopens after E. coli" is water, not food
     cat = stake_of(title, others)

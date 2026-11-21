@@ -465,6 +465,7 @@ class ForwardLog(Base):
     weight  = Column(Float, nullable=True)                     # how much the story pushed the index
     result  = Column(Text, nullable=True)                      # JSON, filled in once enough time has passed
     checked = Column(Float, nullable=True)
+    tone    = Column(Float, nullable=True)                     # headline tone -1…+1 at the time (test)
 
 
 class Spot(Base):
@@ -561,3 +562,14 @@ class MethodStart(Base):
     id      = Column(Integer, primary_key=True, autoincrement=True)
     version = Column(String(24), nullable=False, unique=True)
     ts      = Column(Float, nullable=False)
+
+
+class HeadlineTone(Base):
+    """How negative a story headline is, -1 (very negative for the brand) … +1 (positive), scored once by the
+    AI and cached. Test phase: recorded on warnings, so the track record can show whether tone matters."""
+    __tablename__ = "headline_tones"
+
+    id    = Column(Integer, primary_key=True, autoincrement=True)
+    title = Column(String(300), nullable=False, index=True)
+    tone  = Column(Float, nullable=True)
+    ts    = Column(Float, nullable=False)

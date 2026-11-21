@@ -175,6 +175,7 @@ def collect_in_background(force=False):
 # One warning per brand per week: a story's ID can change between readings, and two stories about the
 # same brand in the same week share one attention window, so counting both would count one outcome twice.
 DEDUPE_D = 7
+BASELINE_OUTLETS = 5
 # The outlook only "changes level" once it is clearly past a line (calm < 35 · watch 35–60 · pressure > 60):
 # moving up needs +MARGIN over the line, moving down −MARGIN under it. Hovering at 35 is not a change.
 MARGIN = 3.0
@@ -224,7 +225,7 @@ def log_signals(session, rows, fri, outlook, label):
                 continue
             known.add(k)
             session.add(ForwardLog(ts=now, kind="signal", brand=b, sid=r.get("sid"), title=(r.get("title") or "")[:300],
-                                   fri=fri, outlook=outlook, label=label, weight=r.get("weighted")))
+                                   fri=fri, outlook=outlook, label=label, weight=r.get("weighted"), tone=r.get("tone")))
         # 'spread': a counting story is spreading (R ≥ 1.3, 3+ new articles in 24 h) — once per brand per week,
         # so later we can see whether spreading stories really hit brands more often than the rest
         spread_known = recent("spread")
@@ -237,7 +238,24 @@ def log_signals(session, rows, fri, outlook, label):
                     continue
                 spread_known.add(k)
                 session.add(ForwardLog(ts=now, kind="spread", brand=b, sid=r.get("sid"), title=(r.get("title") or "")[:300],
-                                       fri=fri, outlook=outlook, label=f"R {sr.get('r')}", weight=r.get("weighted")))
+                                       fri=fri, outlook=outlook, label=f"R {sr.get('r')}", weight=r.get("weighted"),
+                                       tone=r.get("tone")))
+        # 'baseline': the naive rule our warnings must beat — a tracked brand in BASELINE_OUTLETS+ outlets in this
+        # reading (all its stories together), no gate, no score, no AI. Same checks, same one-per-brand-per-week.
+        per_brand = {}
+        for r in rows:
+            b = brand_key(r.get("company")) or brand_key(brand_in([r.get("title") or ""]))
+            if b:
+                agg = per_brand.setdefault(b, {"outlets": 0, "title": r.get("title"), "best": 0})
+                agg["outlets"] += r.get("outlets") or 0
+                if (r.get("outlets") or 0) > agg["best"]:
+                    agg["best"], agg["title"] = r.get("outlets") or 0, r.get("title")
+        base_known = recent("baseline")
+        for b, agg in per_brand.items():
+            if agg["outlets"] >= BASELINE_OUTLETS and _dup_key(b, agg["title"]) not in base_known:
+                base_known.add(_dup_key(b, agg["title"]))
+                session.add(ForwardLog(ts=now, kind="baseline", brand=b, title=(agg["title"] or "")[:300],
+                                       label=f"{agg['outlets']} outlets", fri=fri))
         last = (session.query(ForwardLog).filter(ForwardLog.kind == "outlook").order_by(ForwardLog.ts.desc()).first())
         lvl = sticky_label(last.label if last else None, outlook) if outlook is not None else label
         if lvl and (last is None or last.label != lvl):
@@ -436,7 +454,7 @@ def _report(session):
     # are replayed with today's rules and left out, so the old log is judged like the new one
     repeat_ids, kept_at, lvl = set(), {}, None
     for f in session.query(ForwardLog).order_by(ForwardLog.ts).all():
-        if f.kind in ("signal", "spread", "listed", "narrative"):
+        if f.kind in ("signal", "spread", "listed", "narrative", "baseline", "attention"):
             k = (f.kind, _dup_key(f.brand, f.title))
             if k in kept_at and f.ts - kept_at[k] < DEDUPE_D * DAY:
                 repeat_ids.add(f.id)
@@ -468,7 +486,7 @@ def _report(session):
         if prev:
             left_out["previous"] += 1
         fwd.append({"ts": f.ts, "kind": f.kind, "brand": f.brand, "title": f.title, "label": f.label,
-                    "fri": f.fri, "weight": f.weight, "result": o, "previous": prev})
+                    "fri": f.fri, "weight": f.weight, "result": o, "previous": prev, "tone": f.tone})
     total = session.query(ForwardLog).count() - sum(1 for f in session.query(ForwardLog.sid).filter(ForwardLog.kind == "spot").all()
                                                     if f[0] in test_cards)
     total = max(0, total - left_out["forward"] - len(repeat_ids) - left_out["previous"])
@@ -486,6 +504,20 @@ def _report(session):
             k["spikes"] += 1 if o["spike"] else 0
         if o.get("excess_30d") is not None:
             k["ex30"].append(o["excess_30d"])
+    # tone split (test): story warnings with a clearly negative headline vs the rest
+    from engine.tone import NEGATIVE
+    tone_split = {}
+    for f in fwd:
+        if f.get("previous") or f["kind"] not in ("signal", "spread") or f.get("tone") is None:
+            continue
+        g = tone_split.setdefault("negative" if f["tone"] <= NEGATIVE else "other", {"entries": 0, "checked": 0, "spikes": 0})
+        g["entries"] += 1
+        o = f.get("result") or {}
+        if o.get("spike") is not None:
+            g["checked"] += 1
+            g["spikes"] += 1 if o["spike"] else 0
+    for g in tone_split.values():
+        g["spike_rate"] = round(100 * g["spikes"] / g["checked"], 1) if g["checked"] else None
     by_kind = {k: {"entries": v["entries"], "checked": v["checked"],
                    "spike_rate": round(100 * v["spikes"] / v["checked"], 1) if v["checked"] else None,
                    "excess_30d": round(sum(v["ex30"]) / len(v["ex30"]), 2) if v["ex30"] else None}
@@ -505,4 +537,5 @@ def _report(session):
         },
         "forward": {"since": max(since[0], rules_since) if since else None, "rules_since": rules_since, "entries": total, "latest": fwd[:60], "by_kind": by_kind},
         "left_out": left_out,
+        "tone_split": tone_split,
     }

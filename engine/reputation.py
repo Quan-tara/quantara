@@ -87,8 +87,15 @@ def _social(session):
                      "weighted": round(min(100.0, w), 1), "posts": posts, "company": s.get("company"),
                      "sector": s.get("sector"), "listed": bool(s.get("listed")), "url": s.get("url"), "stakes": level,
                      "source": s.get("source"), "demand": dem, "gate": None if ok else why,
-                     "spread_r": s.get("spread_r")})
+                     "spread_r": s.get("spread_r"), "outlets": s.get("outlets") or 0})
     rows.sort(key=lambda x: x["weighted"], reverse=True)
+    try:                                           # headline tone (test, recorded only): counting stories first
+        from engine.tone import tones
+        tn = tones(session, [x["title"] for x in rows])
+        for x in rows:
+            x["tone"] = tn.get(x["title"])
+    except Exception as e:
+        print(f"⚠️ tone error: {e}")
     _social.last_rows = rows                       # all stories, for the sector stocks
     top = rows[:TOP_N]
     social = sum(x["weighted"] for x in top) / TOP_N

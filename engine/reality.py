@@ -185,6 +185,16 @@ def log_signals(session, rows, fri, outlook, label):
             b = brand_key(r.get("company")) or brand_key(brand_in([r.get("title") or ""]))
             session.add(ForwardLog(ts=now, kind="signal", brand=b, sid=r.get("sid"), title=(r.get("title") or "")[:300],
                                    fri=fri, outlook=outlook, label=label, weight=r.get("weighted")))
+        # 'spread': a counting story is spreading (R ≥ 1.3, 3+ new articles in 24 h) — logged once per story,
+        # so later we can see whether spreading stories really hit brands more often than the rest
+        spread_known = {s for (s,) in session.query(ForwardLog.sid).filter(ForwardLog.kind == "spread",
+                                                                           ForwardLog.ts >= now - 30 * DAY).all()}
+        for r in rows:
+            sr = r.get("spread_r") or {}
+            if (r.get("weighted") or 0) > 0 and sr.get("label") == "spreading" and r.get("sid") not in spread_known:
+                b = brand_key(r.get("company")) or brand_key(brand_in([r.get("title") or ""]))
+                session.add(ForwardLog(ts=now, kind="spread", brand=b, sid=r.get("sid"), title=(r.get("title") or "")[:300],
+                                       fri=fri, outlook=outlook, label=f"R {sr.get('r')}", weight=r.get("weighted")))
         last = (session.query(ForwardLog).filter(ForwardLog.kind == "outlook").order_by(ForwardLog.ts.desc()).first())
         if label and (last is None or last.label != label):
             session.add(ForwardLog(ts=now, kind="outlook", fri=fri, outlook=outlook, label=label,
@@ -364,7 +374,7 @@ def _report(session):
         test_cards = {c for c, us in by_card.items() if all(is_moderator(u) for u in us)}
     except Exception:
         pass
-    for f in session.query(ForwardLog).order_by(ForwardLog.ts.desc()).limit(60).all():
+    for f in session.query(ForwardLog).order_by(ForwardLog.ts.desc()).limit(2000).all():
         if f.kind == "spot" and f.sid in test_cards:
             continue
         o = outcome(session, f.brand, f.ts, cache) if f.brand else None
@@ -374,6 +384,20 @@ def _report(session):
                                                     if f[0] in test_cards)
     since = session.query(ForwardLog.ts).order_by(ForwardLog.ts).first()
 
+    kinds = {}
+    for f in fwd:
+        k = kinds.setdefault(f["kind"], {"entries": 0, "checked": 0, "spikes": 0, "ex30": []})
+        k["entries"] += 1
+        o = f.get("result") or {}
+        if o.get("spike") is not None:
+            k["checked"] += 1
+            k["spikes"] += 1 if o["spike"] else 0
+        if o.get("excess_30d") is not None:
+            k["ex30"].append(o["excess_30d"])
+    by_kind = {k: {"entries": v["entries"], "checked": v["checked"],
+                   "spike_rate": round(100 * v["spikes"] / v["checked"], 1) if v["checked"] else None,
+                   "excess_30d": round(sum(v["ex30"]) / len(v["ex30"]), 2) if v["ex30"] else None}
+               for k, v in kinds.items()}
     return {
         "collector": _state["msg"],
         "rules": {"spike": f"pageviews ≥ {SPIKE_X:g}× the brand's normal level, from the day before to "
@@ -387,5 +411,5 @@ def _report(session):
             "missed": [x for x in big if not x["warned"]][-12:],
             "cases": sorted(past, key=lambda p: p["listed_day"], reverse=True)[:40],
         },
-        "forward": {"since": since[0] if since else None, "entries": total, "latest": fwd},
+        "forward": {"since": since[0] if since else None, "entries": total, "latest": fwd[:60], "by_kind": by_kind},
     }

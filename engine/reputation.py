@@ -86,7 +86,8 @@ def _social(session):
         rows.append({"sid": s["sid"], "title": s["title"], "score": round(s.get("score") or 0, 1),
                      "weighted": round(min(100.0, w), 1), "posts": posts, "company": s.get("company"),
                      "sector": s.get("sector"), "listed": bool(s.get("listed")), "url": s.get("url"), "stakes": level,
-                     "source": s.get("source"), "demand": dem, "gate": None if ok else why})
+                     "source": s.get("source"), "demand": dem, "gate": None if ok else why,
+                     "spread_r": s.get("spread_r")})
     rows.sort(key=lambda x: x["weighted"], reverse=True)
     _social.last_rows = rows                       # all stories, for the sector stocks
     top = rows[:TOP_N]

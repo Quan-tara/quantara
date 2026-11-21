@@ -612,6 +612,7 @@ def group_stories(articles, same=None):
             "severity":   round(severity, 3),
             "negativity": round(negativity, 3),
             "spread":     spread,
+            "spread_r":   spread_rate(m),
             "score":      round(score, 4),
             "impact":     impact,
             "tier":       tier,
@@ -807,6 +808,44 @@ def assign_story_ids(stories, session, now=None, arena="food"):
     return stories
 
 
+# ─────────────────────────────────────────────
+# SPREAD RATE (R) — narrative economics: stories spread like epidemics
+# R = new coverage in the last 24 h ÷ new coverage in the 24 h before (each +1 to tame small numbers).
+# R > 1: each wave is bigger than the last → spreading. R < 1: fading. Recorded only for now:
+# it is checked against what really follows (forward log) before it may influence anything.
+# ─────────────────────────────────────────────
+SPREAD_UP, SPREAD_DOWN, SPREAD_MIN = 1.3, 0.7, 3
+
+
+def spread_rate(articles, now=None):
+    """articles: [{'ts', 'source', 'title'}…] → {r, new_24h, prev_24h, label}. Counts distinct (outlet, headline)."""
+    now = now or time.time()
+    seen, a24, p24 = set(), 0, 0
+    for a in articles or []:
+        k = ((a.get("source") or "").lower(), (a.get("title") or "").lower()[:80])
+        if k in seen:
+            continue
+        seen.add(k)
+        age = now - float(a.get("ts") or 0)
+        if 0 <= age < DAY_S:
+            a24 += 1
+        elif DAY_S <= age < 2 * DAY_S:
+            p24 += 1
+    r = round((a24 + 1) / (p24 + 1), 2)
+    if a24 + p24 < SPREAD_MIN:
+        label = "too little data"
+    elif r >= SPREAD_UP and a24 >= SPREAD_MIN:
+        label = "spreading"
+    elif r <= SPREAD_DOWN:
+        label = "fading"
+    else:
+        label = "steady"
+    return {"r": r, "new_24h": a24, "prev_24h": p24, "label": label}
+
+
+DAY_S = 86400
+
+
 def compact_story_index(stories):
     """What is stored per reading (top STORY_INDEX_MAX by score) for matching and trends."""
     top = sorted(stories, key=lambda x: x["story_score"], reverse=True)[:STORY_INDEX_MAX]
@@ -818,6 +857,7 @@ def compact_story_index(stories):
              "company": s.get("company"), "arena": s.get("arena", "food"),
              "sector": s.get("sector"), "trending": s.get("trending"),
              "closes_at": s.get("closes_at"),
+             "spread_r": s.get("spread_r"),
              "tokens": s["tokens"][:40], "hazards": s["hazards"]} for s in top]
 
 

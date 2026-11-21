@@ -1953,6 +1953,11 @@ def api_narrative_story(sid: str):
             d["breakdown"] = None
         except Exception as e:
             print(f"⚠️ breakdown error {sid}: {e}")
+        try:
+            from engine.narrative_index import spread_rate
+            d["spread_r"] = spread_rate(articles, now)
+        except Exception:
+            d["spread_r"] = None
         from db.models import StoryPricePoint
         d["price_points"] = [[p.ts, p.price] for p in session.query(StoryPricePoint)
                              .filter(StoryPricePoint.sid == sid).order_by(StoryPricePoint.ts).all()]

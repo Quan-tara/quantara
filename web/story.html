@@ -756,6 +756,14 @@ async function myStories() {
 }
 
 // ── STORY ── two charts on one timeline: what the news did (top) · what is expected (bottom)
+function spreadHtml(d) {
+  const r = d.spread_r; if (!r) return "";
+  const col = r.label === "spreading" ? "var(--red)" : r.label === "fading" ? "var(--green)" : "var(--muted)";
+  return `<section class="panel"><div class="ph"><span class="lbl">Spread rate · moderators · test</span><span class="tag">recorded only</span></div>
+    <div class="howline"><span><b style="font:700 22px var(--mono);color:${col}">R ${r.r.toFixed(2)}</b> &nbsp;<b style="color:${col}">${esc(r.label)}</b>
+      · ${r.new_24h} new article${r.new_24h === 1 ? "" : "s"} in the last 24 h vs ${r.prev_24h} the day before.</span></div>
+    <div class="note">Like an epidemic: above 1, each wave of coverage is bigger than the last. Logged and checked against what follows; it doesn't change scores or bets yet.</div></section>`;
+}
 function chanceLabel(d) {
   const k = d.bet && d.bet.kind;
   return k === "cave" ? `Chance ${d.bet.company || "the brand"} caves` : k === "line" ? "Chance it's just the beginning"
@@ -906,6 +914,7 @@ async function story(sid) {
           ${windowHtml}
           <div class="chart-wrap">${chart(d)}</div>
         </section>
+        ${IS_MOD ? spreadHtml(d) : ""}
         ${IS_MOD ? breakdownHtml(d) : ""}
         ${d.status === "WATCHING" || d.status === "DELISTED" ? "" : `<section class="panel" id="dc"></section>`}
         <section class="panel">

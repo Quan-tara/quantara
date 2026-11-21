@@ -81,6 +81,14 @@ svg text { font-family: var(--mono) }
 .chart-tip b { font-size: 13px }
 .how { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px 22px; padding: 12px 14px; font-size: 12px; color: var(--muted); line-height: 1.55 }
 .how b { color: var(--text) }
+.method summary { cursor: pointer; padding: 12px 14px; list-style: none }
+.method summary::-webkit-details-marker { display: none }
+.method summary .lbl::after { content: " ›"; color: var(--muted) }
+.method-body { display: grid; gap: 8px; font-size: 13px; line-height: 1.55; max-width: 80ch }
+.kt { overflow-x: auto; margin: 6px 0 10px }
+.kt table { border-collapse: collapse; font-size: 12px; min-width: 520px }
+.kt th, .kt td { text-align: left; padding: 5px 12px 5px 0; border-bottom: 1px solid var(--border) }
+.kt th { font: 700 10px var(--mono); letter-spacing: 1px; color: var(--muted); text-transform: uppercase }
 </style>
 
 <header>
@@ -94,7 +102,7 @@ svg text { font-family: var(--mono) }
 <main>
   <section class="panel">
     <div class="how">
-      <div><b>One index.</b> The Food Reputation Index measures reputation pressure on food &amp; drink: half food safety (recalls, outbreaks), half social drama (backlash, boycotts, price anger) that people actually talk about.</div>
+      <div><b>One index of narrative risk.</b> The Food Reputation Index measures the stories putting pressure on US food &amp; drink: half food safety (recalls, outbreaks), half fights with real stakes (prices, workers, boycotts, trust).</div>
       <div><b>An outlook.</b> Players bet on each story, people post and search. Together they show where the index is heading before it gets there.</div>
       <div><b>When to buy.</b> When the outlook turns to <span class="pressure">pressure building</span> and stories touch your category. In 16 past cases, most of the damage came 1–3 months after the signal.</div>
     </div>
@@ -118,6 +126,13 @@ svg text { font-family: var(--mono) }
 
   <section class="panel"><div class="ph"><span class="lbl">My protection</span><span class="sub" id="pos-sum"></span></div><div class="pb" id="positions"></div></section>
   <section class="panel"><div class="ph"><span class="lbl">What drives the social part</span><a href="/stories" class="mono" style="font-size:10px">stories ›</a></div><div class="pb" id="drivers"></div></section>
+  <section class="panel"><details class="method"><summary><span class="lbl">How we measure narrative risk</span></summary><div class="pb method-body">
+    <p><b>The idea.</b> Narrative economics (Robert Shiller) shows that stories spread through a population like an epidemic and, past a tipping point, change what people buy. Quantara measures that for one industry, brand by brand, as it happens.</p>
+    <p><b>What we read.</b> US food news, recalls (FDA, USDA), Reddit, Bluesky, YouTube and Google searches for "boycott / cancel / alternative". A story only counts if it is about the US food business and something real is at stake: prices, safety, workers, a boycott or trust.</p>
+    <p><b>How a story is scored.</b> Reach (how many outlets), regions, severity, momentum (new articles), and how fast it fades once coverage stops. We also track its <b>spread rate</b>: new coverage in the last day compared with the day before. Above 1 means each wave is bigger than the last.</p>
+    <p><b>What players add.</b> Players spot trouble before the news, bet on how fights end and post evidence. Their calls feed the outlook: the early warning before the index itself moves.</p>
+    <p><b>How we check ourselves.</b> Every warning is written down the moment it happens and later compared with what really followed: public attention to the brand (Wikipedia readers) and its share price against the S&amp;P 500. See the track record below.</p>
+  </div></details></section>
   <section class="panel"><div class="ph"><span class="lbl">Track record · does the index match reality?</span><span class="sub" id="track-sub"></span></div><div class="pb" id="track"><div class="sub">Loading…</div></div></section>
 </main>
 
@@ -254,6 +269,16 @@ function renderChart() {
   $("#chart-legend").innerHTML = `<b style="color:var(--text)">━ index</b> · <span style="color:var(--amber)">┅ safety</span> · <span style="color:var(--accent)">┅ social</span>`;
 }
 
+function kindTable(K) {
+  if (!K) return "";
+  const names = { signal: "Story starts counting", spread: "Story spreading (R ≥ 1.3)", listed: "Story listed for players",
+                  spot: "Spotted by players", outlook: "Outlook changes level" };
+  const rows = Object.keys(names).filter(k => K[k]).map(k => { const v = K[k];
+    return `<tr><td>${names[k]}</td><td>${v.entries}</td><td>${v.checked ? v.spike_rate + "% of " + v.checked : "after 7 days"}</td>
+      <td>${v.excess_30d == null ? "after 30 days" : sgn(v.excess_30d) + "%"}</td></tr>`; }).join("");
+  return rows ? `<div class="kt"><table><thead><tr><th>Warning type</th><th>Logged</th><th>Attention jump followed</th><th>Share vs S&amp;P, 30d</th></tr></thead><tbody>${rows}</tbody></table></div>` : "";
+}
+
 // ── TRACK RECORD: warnings vs what really followed (Wikipedia attention, share price) ──
 async function renderTrack() {
   const el = $("#track");
@@ -285,6 +310,7 @@ async function renderTrack() {
     <div class="sub" style="margin:14px 0 6px"><b>Live forward log</b> — every warning written down the moment it happens, checked later.
       ${F.entries} entr${F.entries === 1 ? "y" : "ies"}${F.since ? " since " + new Date(F.since * 1000).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : ""}.
       Attention results appear after 7 days, share-price results after 30 and 90 days.</div>
+    ${kindTable(F.by_kind)}
     <div class="list">${F.latest.slice(0, 8).map(fwdRow).join("") || `<div class="sub">Nothing logged yet.</div>`}</div>
     <div class="sub" style="margin-top:8px">Limits: attention also jumps on good news (a launch, an ad); share prices move for many reasons; private brands (Chick-fil-A, Subway…) have no share price. These are checks, not proof.</div>`;
 }

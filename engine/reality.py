@@ -448,6 +448,12 @@ def _report(session):
                 repeat_ids.add(f.id)
             lvl = new_lvl
     left_out["repeats"] = 0
+    left_out["previous"] = 0
+    try:                                       # warnings made under earlier rules are kept apart
+        from engine.attention import method_start
+        rules_since = method_start(session)
+    except Exception:
+        rules_since = 0.0
     for f in session.query(ForwardLog).order_by(ForwardLog.ts.desc()).limit(2000).all():
         if f.kind == "spot" and f.sid in test_cards:
             continue
@@ -458,15 +464,20 @@ def _report(session):
             left_out["forward"] += 1
             continue
         o = outcome(session, f.brand, f.ts, cache) if f.brand else None
+        prev = f.ts < rules_since
+        if prev:
+            left_out["previous"] += 1
         fwd.append({"ts": f.ts, "kind": f.kind, "brand": f.brand, "title": f.title, "label": f.label,
-                    "fri": f.fri, "weight": f.weight, "result": o})
+                    "fri": f.fri, "weight": f.weight, "result": o, "previous": prev})
     total = session.query(ForwardLog).count() - sum(1 for f in session.query(ForwardLog.sid).filter(ForwardLog.kind == "spot").all()
                                                     if f[0] in test_cards)
-    total = max(0, total - left_out["forward"] - len(repeat_ids))
+    total = max(0, total - left_out["forward"] - len(repeat_ids) - left_out["previous"])
     since = session.query(ForwardLog.ts).order_by(ForwardLog.ts).first()
 
     kinds = {}
     for f in fwd:
+        if f.get("previous"):
+            continue
         k = kinds.setdefault(f["kind"], {"entries": 0, "checked": 0, "spikes": 0, "ex30": []})
         k["entries"] += 1
         o = f.get("result") or {}
@@ -492,6 +503,6 @@ def _report(session):
             "missed": [x for x in big if not x["warned"]][-12:],
             "cases": sorted(past, key=lambda p: p["listed_day"], reverse=True)[:40],
         },
-        "forward": {"since": since[0] if since else None, "entries": total, "latest": fwd[:60], "by_kind": by_kind},
+        "forward": {"since": max(since[0], rules_since) if since else None, "rules_since": rules_since, "entries": total, "latest": fwd[:60], "by_kind": by_kind},
         "left_out": left_out,
     }

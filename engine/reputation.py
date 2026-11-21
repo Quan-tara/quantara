@@ -191,8 +191,15 @@ def compute_reputation():
             return
         value = round(SAFETY_W * (safety or 0) + SOCIAL_W * (social or 0), 2) if safety is not None and social is not None \
             else round(safety if social is None else social, 2)
+        try:
+            from engine.attention import method_start, refresh
+            since_rules = method_start(session)              # the current rules' start (21 Nov 2026: wider net)
+            refresh(session)                                 # learned brands → brand lists
+        except Exception as e:
+            since_rules = METHOD_SINCE
+            print(f"⚠️ method start error: {e}")
         hist = [r.value for r in session.query(ReputationTick).filter(ReputationTick.ts >= max(time.time() - 7 * DAY,
-                                                                                               METHOD_SINCE)).all()]
+                                                                                               since_rules)).all()]
         normal = round(statistics.median(hist), 2) if len(hist) >= 20 else None
         o, parts = outlook(session, value)
         session.add(ReputationTick(ts=time.time(), value=value, safety=safety, social=social, normal=normal,
@@ -217,6 +224,17 @@ def compute_reputation():
         except Exception as e:
             session.rollback()
             print(f"⚠️ narratives error: {e}")
+        try:
+            from engine.attention import record_rows
+            record_rows(session, getattr(_social, "last_rows", []))   # ridicule + new brands (test, recorded only)
+        except Exception as e:
+            session.rollback()
+            print(f"⚠️ attention error: {e}")
+        try:
+            from engine.attention import run_youtube_discovery
+            run_youtube_discovery()                  # every 2 h: food-drama videos → attention layer + news searches
+        except Exception as e:
+            print(f"⚠️ youtube discovery error: {e}")
         try:
             from engine.spots import resolve
             resolve(session, getattr(_social, "last_rows", []))   # did a spotted brand make the news?

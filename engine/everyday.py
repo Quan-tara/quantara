@@ -136,9 +136,32 @@ FOOD_BRANDS = [
     "olive garden", "applebee's", "ihop", "denny's", "sonic", "arby's", "jack in the box", "white castle",
     "in-n-out", "raising cane's", "dairy queen", "baskin-robbins", "cinnabon", "auntie anne's",
 ]
+# 21 Nov 2026: the brands that pull attention — creator & celebrity food brands, viral snacks and
+# drinks, cult US chains and big packaged-food names that were missing. Ambiguous words are left out
+# or written in full ("tyson foods", not "tyson"; "ritz crackers", not "ritz").
+ATTENTION_BRANDS = [
+    "feastables", "lunchly", "mrbeast burger", "prime energy", "logan paul's prime", "ksi's prime",
+    "liquid death", "olipop", "poppi", "celsius energy", "alani nu", "ghost energy", "bang energy", "c4 energy",
+    "takis", "hot cheetos", "sour patch kids", "swedish fish", "trolli", "goldfish crackers", "lunchables",
+    "uncrustables", "kool-aid", "capri sun", "gatorade", "mountain dew", "dr pepper", "sprite", "fanta",
+    "tropicana", "vitaminwater", "dasani", "aquafina", "lacroix", "la croix", "white claw", "modelo",
+    "coors", "miller lite", "michelob ultra", "busch light", "jack daniel's", "fireball whisky", "tito's",
+    "casamigos", "teremana", "general mills", "cheerios", "lucky charms", "froot loops", "cap'n crunch",
+    "quaker oats", "tyson foods", "oscar mayer", "hormel", "smucker's", "jif", "skippy", "campbell's",
+    "chobani", "fairlife", "boar's head", "blue bell", "hostess", "little debbie", "nabisco", "ritz crackers",
+    "chips ahoy", "frito-lay", "tostitos", "ruffles", "kraft heinz", "hellmann's", "kirkland signature",
+    "great value", "dave's hot chicken", "cook out", "wawa", "sheetz", "buc-ee's", "portillo's",
+    "chuck e. cheese", "dave & buster's", "hooters", "tgi fridays", "red robin", "noodles & company",
+    "bojangles", "el pollo loco", "church's chicken", "krystal", "steak 'n shake", "tropical smoothie",
+    "jamba", "smoothie king", "insomnia cookies", "nothing bundt cakes", "magnolia bakery", "salt bae",
+    "nusr-et", "hellofresh", "factor meals", "huel", "athletic greens", "ag1", "bloom nutrition",
+]
+FOOD_BRANDS += [b for b in ATTENTION_BRANDS if b not in FOOD_BRANDS]
+
 GROCERS = ["walmart", "target", "costco", "aldi", "lidl", "tesco", "sainsbury's", "asda", "morrisons",
            "waitrose", "m&s", "marks & spencer", "kroger", "safeway", "whole foods", "trader joe's",
-           "co-op", "iceland", "ocado", "publix", "h-e-b", "wegmans", "albertsons"]
+           "co-op", "iceland", "ocado", "publix", "h-e-b", "wegmans", "albertsons", "sam's club", "meijer", "food lion", "stop & shop", "sprouts farmers market",
+           "winco", "hy-vee", "harris teeter", "ralphs", "vons", "dollar general", "dollar tree", "7-eleven"]
 FOOD_WORDS = [
     "food", "foods", "menu", "recipe", "restaurant", "restaurants", "fast food", "fast-food", "takeaway",
     "takeout", "diners", "chef", "snack", "snacks", "drink", "drinks", "soda", "beer", "coffee", "tea",
@@ -358,7 +381,12 @@ US_RX = re.compile(
     r"atlanta|seattle|boston|philadelphia|phoenix|dallas|miami|denver|detroit|nyc|las vegas|san francisco|san diego|"
     r"san antonio|san jose|austin|nashville|orlando|tampa|portland|new orleans|st\.? louis|minneapolis|baltimore|"
     r"cleveland|cincinnati|pittsburgh|kansas city|milwaukee|charlotte|sacramento|salt lake city|honolulu|"
-    r"long island|silicon valley|bay area|midwest|southern california|socal)\b",
+    r"long island|silicon valley|bay area|midwest|southern california|socal|santa cruz|capitola|oakland|fresno|"
+    r"long beach|albuquerque|tucson|el paso|fort worth|columbus|indianapolis|jacksonville|memphis|louisville|"
+    r"raleigh|omaha|boise|anchorage|spokane|reno|savannah|newark|jersey city|hoboken|queens|the bronx|"
+    r"staten island|harlem|beverly hills|malibu|palm beach|key west|napa|fort lauderdale|scottsdale|"
+    r"bakersfield|stockton|riverside|irvine|anaheim|santa monica|pasadena|tulsa|wichita|des moines|madison|"
+    r"green bay|ann arbor|grand rapids|buffalo, n\.?y|rochester, n\.?y|hartford|providence|burlington, vt)\b",
     re.I)
 
 
@@ -513,6 +541,9 @@ def index_gate(title, others=(), company=None):
     if not (us_brand([title]) or (company and company.lower() not in NON_US_BRANDS and brand_in([company]))
             or US_RX.search(title)):
         return False, "no US brand or US place named"
+    if not (us_brand([title]) or company) and not (ni._has_any(low, FOOD_WORDS) or re.search(
+            r"\brecall|\bgrocer|\brestaurant|\bdiner|\bfarm|\bmeat|\bbeef|\bchicken|\begg|\bmilk|\bproduce\b", low)):
+        return False, "no brand and not about food"        # "beach reopens after E. coli" is water, not food
     cat = stake_of(title, others)
     if not cat:
         return False, "nostalgia, nothing at stake" if NOSTALGIA_RX.search(title) else "no real stakes"
@@ -558,7 +589,9 @@ def blocked_title(text, title, allow_politics=False):
     politics = politics or ni._has_any(text, CULTURE_WAR)
     if politics and allow_politics and brand_in([t]):
         politics = False
-    return (politics or ni._has_any(text, SPORT_TERMS) or ni._has_any(text, CRIME_TERMS) or ni._has_any(text, OFFTOPIC_TERMS))
+    # "listeria outbreak … after deaths", "dies after eating at …": illness from food is food safety, not crime
+    crime = ni._has_any(text, CRIME_TERMS) and not STAKE_RX["safety"].search(t)
+    return (politics or ni._has_any(text, SPORT_TERMS) or crime or ni._has_any(text, OFFTOPIC_TERMS))
 
 
 # Tagalog (Filipino) headlines and Philippine TV/showbiz pages
@@ -907,12 +940,18 @@ def discovery_news(articles):
     session = SessionLocal()
     try:
         hot = rising(session)
+        try:                                   # big brand videos on YouTube pull the news search forward too
+            from engine.attention import news_triggers
+            have = {h["brand"].lower() for h in hot}
+            hot = hot + [t for t in news_triggers(session) if t["brand"] not in have]
+        except Exception as e:
+            print(f"⚠️ youtube triggers: {e}")
     finally:
         session.close()
     seen = {(a["title"].lower(), a["source"].lower()) for a in articles}
     cutoff = time.time() - ni.ARTICLE_WINDOW_H * 3600
     extra, searched = [], []
-    for r in hot[:DISCOVERY_SEARCHES]:
+    for r in hot[:DISCOVERY_SEARCHES + 2]:
         brand, words = r["brand"], r["words"][:2]
         query = f'"{brand}" ' + " ".join(words)
         searched.append(query)

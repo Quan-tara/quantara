@@ -75,7 +75,9 @@ automation (AI, kiosks, robots replacing staff).
 Answer JSON only: {{"themes": [zero, one or two of the keys above]}}"""
 
 
-def _ai_tag(title):
+def ask_json(prompt, max_tokens=80):
+    """One Gemini call → parsed JSON dict, or None (no key, no model found yet, quota, error).
+    Uses the model the spot check / short-title job already found, so no extra discovery calls."""
     key = os.getenv("GEMINI_API_KEY", "").strip()
     if not key:
         return None
@@ -90,13 +92,11 @@ def _ai_tag(title):
     except Exception:
         pass
     models = [m for m in dict.fromkeys(models) if m]
-    if not models:
-        return None                                  # the spot check / title job finds the model first
     for m in models:
         try:
             r = requests.post(f"{GEMINI}/models/{m}:generateContent", params={"key": key}, timeout=8,
-                              json={"contents": [{"parts": [{"text": _PROMPT.format(title=title.replace('"', "'")[:300])}]}],
-                                    "generationConfig": {"temperature": 0, "maxOutputTokens": 60,
+                              json={"contents": [{"parts": [{"text": prompt}]}],
+                                    "generationConfig": {"temperature": 0, "maxOutputTokens": max_tokens,
                                                          "responseMimeType": "application/json"}})
         except Exception:
             return None
@@ -106,11 +106,17 @@ def _ai_tag(title):
             parts = ((r.json().get("candidates") or [{}])[0].get("content") or {}).get("parts") or [{}]
             txt = "".join(p.get("text", "") for p in parts)
             mm = re.search(r"\{.*\}", txt, re.S)
-            got = json.loads(mm.group(0)).get("themes") if mm else []
-            return [k for k in (got or []) if k in THEMES][:2]
+            return json.loads(mm.group(0)) if mm else None
         except Exception:
             return None
     return None
+
+
+def _ai_tag(title):
+    got = ask_json(_PROMPT.format(title=title.replace('"', "'")[:300]), 60)
+    if got is None:
+        return None
+    return [k for k in (got.get("themes") or []) if k in THEMES][:2]
 
 
 def tags_for(session, titles):
@@ -172,7 +178,12 @@ def record(session, rows, now=None):
 
 
 def _history(session, k, now, days):
-    return (session.query(ThemeTick).filter(ThemeTick.theme == k, ThemeTick.ts >= now - days * DAY,
+    try:
+        from engine.attention import method_start
+        since = max(now - days * DAY, method_start(session))
+    except Exception:
+        since = now - days * DAY
+    return (session.query(ThemeTick).filter(ThemeTick.theme == k, ThemeTick.ts >= since,
                                             ThemeTick.ts < now - 1).order_by(ThemeTick.ts).all())
 
 
@@ -204,6 +215,12 @@ def status(session, k, now=None):
     """Status from the latest stored tick (used before a new tick is written)."""
     now = now or time.time()
     t = session.query(ThemeTick).filter(ThemeTick.theme == k).order_by(ThemeTick.ts.desc()).first()
+    try:
+        from engine.attention import method_start
+        if t and t.ts < method_start(session):
+            t = None
+    except Exception:
+        pass
     if not t:
         return {"status": "warming up", "new_brands": [], "normal": None}
     a = {"strength": t.strength, "brands": json.loads(t.brands or "[]")}
@@ -246,7 +263,11 @@ def board(session, now=None):
                     "brands": json.loads(t.brands or "[]"), "top": json.loads(t.top or "[]"), "ts": t.ts, **st,
                     "series": series[-168:]})
     out.sort(key=lambda x: -x["strength"])
-    ticks = session.query(ThemeTick.ts).distinct().count()
+    try:
+        from engine.attention import method_start
+        ticks = session.query(ThemeTick.ts).filter(ThemeTick.ts >= method_start(session)).distinct().count()
+    except Exception:
+        ticks = session.query(ThemeTick.ts).distinct().count()
     return {"narratives": out, "hours": ticks, "needed": HISTORY_MIN_TICKS}
 
 

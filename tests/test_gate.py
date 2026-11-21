@@ -61,6 +61,15 @@ BAD = [  # (headline, why it must stay out)
     ("McDonald's Corporation (MCD) Stock Price, News, Quote & History", "quote page"),
     ("Every fast-food chicken sandwich, ranked", "ranking"),
     ("The Internet Is Furious With Wendy’s After the Fast Food Chain Is Seemingly Caught ‘Lying’", "no concrete demand"),
+    # 21 Nov: the brand is not the one in trouble
+    ("Doritos teens sue school over AI bag mistake", "bystander: school is sued"),
+    ("Maryland high school students sue after AI security error, and a bag of Doritos is allegedly at the center of the lawsuit", "bystander"),
+    ("Traumatized teens sue school, cops after Doritos bag triggers AI gun alert", "bystander"),
+    ("Four Maryland high school students sue after AI mistakes Doritos bag for gun", "bystander"),
+    ("Pizza Hut co-founder passes away at age ninety eight", "obituary"),
+    ("Is Kroger (KR) Undervalued Or Is Its Cash Flow Already Priced In?", "investor"),
+    ("$1000 Invested In Kroger 20 Years Ago Would Be Worth This Much Today", "investor"),
+    ("Kroger stock price target raised after earnings beat, analysts say", "investor"),
 ]
 
 # The INDEX gate is broader: real pressure counts even without a named brand or an explicit demand,
@@ -74,6 +83,11 @@ INDEX_GOOD = [
     "US grocery prices jump again as shoppers cut back",
     "Costco Kirkland Signature whipped cream recalled over possible cleaning chemical",
     "Taco Bell customers outraged over smaller portions for the same price",
+    "Taco Bell Customers Claim Beloved Nachos Menu Item Has Gotten 'Smaller' After Packaging Change",
+    "Kroger begins laying off thousands of employees",
+    "Opinion | Consider the real ramifications of a Starbucks boycott",
+    "Kroger shares fall after salmonella recall hits stores",
+    "Hershey shares drop as shoppers boycott over price hikes",
 ]
 INDEX_BAD = [
     ("5 Disadvantages Of Ordering A Sheet Cake From Costco's Bakery", "listicle"),
@@ -86,6 +100,12 @@ INDEX_BAD = [
     ("Shooting at McDonald's in Chicago leaves two injured", "violence"),
     ("Woke Starbucks? Conservative influencer mocks new cup design", "culture war, no stakes"),
     ("Trader Joe's Upcoming Frozen Dessert Is Giving Fans Sweet '90s Nostalgia", "promo"),
+    ("Is Kroger (KR) Undervalued Or Is Its Cash Flow Already Priced In?", "investor"),
+    ("$1000 Invested In Kroger 20 Years Ago Would Be Worth This Much Today", "investor"),
+    ("Millrose Properties, Inc. Securities Fraud Class Action Result of Undisclosed Rental Home Business and 8.5% Stock Decline - Investors may Contact Lewis Kahn, Esq., at Kahn Swick & Foti, LLC", "securities ad"),
+    ("Pizza Hut co-founder passes away at age ninety eight", "obituary"),
+    ("Four Maryland high school students sue after AI mistakes Doritos bag for gun", "bystander"),
+    ("Kroger dividend: is the payout safe after Q3 earnings?", "investor"),
 ]
 
 fails = 0

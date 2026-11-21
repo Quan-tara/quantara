@@ -1965,6 +1965,11 @@ def api_narrative_story(sid: str):
             d["spread_r"] = spread_rate(articles, now)
         except Exception:
             d["spread_r"] = None
+        try:
+            from engine.narratives import for_titles
+            d["narratives"] = for_titles(session, [d.get("title") or ""]).get(d.get("title") or "", [])
+        except Exception:
+            d["narratives"] = []
         from db.models import StoryPricePoint
         d["price_points"] = [[p.ts, p.price] for p in session.query(StoryPricePoint)
                              .filter(StoryPricePoint.sid == sid).order_by(StoryPricePoint.ts).all()]
@@ -2259,6 +2264,17 @@ def api_story_cave(sid: str, req: CaveReq):
         raise HTTPException(404, str(e))
     except ValueError as e:
         raise HTTPException(400, str(e))
+
+
+@app.get("/api/narratives")
+def api_narratives():
+    """Big narratives across brands (test phase, recorded only)."""
+    from engine.narratives import board
+    session = SessionLocal()
+    try:
+        return board(session)
+    finally:
+        session.close()
 
 
 @app.get("/api/discovery")

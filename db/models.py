@@ -653,3 +653,19 @@ class RevenueQuarter(Base):
     revenue = Column(Float, nullable=True)
     yoy     = Column(Float, nullable=True)             # 0.05 = +5% against the same quarter a year before
     ts      = Column(Float, nullable=False)
+
+
+class TipRule(Base):
+    """The rule for when a story counts as TIPPED, calibrated once on stored history.
+    Each bet copies its own target at listing, so a later rule never changes an open bet."""
+    __tablename__ = "tip_rules"
+
+    id          = Column(Integer, primary_key=True, autoincrement=True)
+    ts          = Column(Float, nullable=False)
+    outlets     = Column(Integer, nullable=False)          # mainstream size: reach this many outlets
+    growth      = Column(Integer, nullable=False)          # and at least this many more than at listing
+    days        = Column(Integer, nullable=False)          # within this many days
+    rate        = Column(Float, nullable=True)             # share of spreading stories that tipped in the history
+    cases       = Column(Integer, nullable=True)
+    provisional = Column(Boolean, nullable=False, default=True)
+    report      = Column(Text, nullable=True)              # JSON: rates for every candidate

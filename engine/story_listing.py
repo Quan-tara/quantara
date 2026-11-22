@@ -136,9 +136,10 @@ def _score_from_snapshot(snap, now):
 ARENA_RULES = {
     "food":     {"score": LIST_SCORE, "outlets": LIST_MIN_OUTLETS, "daily_cap": None, "listing": False},
     "brands":   {"score": 40.0, "outlets": 6, "daily_cap": 5, "listing": False},
-    "everyday": {"score": 30.0, "outlets": 4, "daily_cap": 5, "listing": True, "min_talk": 5,
-                 "stakes": True, "fresh_h": 12, "bet": "cave", "cave_days": 7, "demand": True,
-                 "score_low": 25.0, "few_open": 3},   # fewer than 3 open stories → bar 25
+    # 22 Nov 2026 — the backbone model: a brand story is listed the moment it starts SPREADING
+    # (engine/tipping.py), with one question: "Will this story tip within 5 days?". No score bar.
+    "everyday": {"score": 0.0, "outlets": 3, "daily_cap": 6, "listing": True,
+                 "stakes": True, "bet": "tip"},
 }
 
 
@@ -259,6 +260,13 @@ def update_listings(stories, session, now=None, arena="food"):
     now = now or time.time()
     arena = arena or "food"
     rules = rules_for(arena)
+    if rules.get("bet") == "tip":
+        try:
+            from db.database import SessionLocal as _SL
+            from engine.tipping import maybe_calibrate
+            maybe_calibrate(_SL)
+        except Exception as e:
+            print(f"⚠️ tip calibration start error: {e}")
     live = {s["sid"]: s for s in stories if s.get("sid")}
     known = {n.sid: n for n in session.query(Narrative).filter(Narrative.sid.in_(list(live) or ["-"])).all()}
     active = _arena_filter(session.query(Narrative).filter(Narrative.status == "LISTED"), arena).all()
@@ -334,6 +342,21 @@ def update_listings(stories, session, now=None, arena="food"):
                 b_["hint"] = h
                 snap["bet"] = b_
                 print(f"🏳️ Possible cave on {n.sid} ({b_.get('company')}): {h[:80]} — waiting for a moderator")
+        # "Will this story tip?": seen beyond the news yet, and has it tipped?
+        tipped_now = False
+        if b_.get("kind") == "tip" and not b_.get("tipped"):
+            from engine.tipping import beyond_news
+            from engine.story_market import outlets_now as _on
+            snap["bet"] = b_
+            n.snapshot = json.dumps(snap)
+            if not b_.get("talk") and (beyond_news(session, n.sid, b_.get("company") or lead, n.listed_at or now)
+                                       or talked_about(session, n.sid, b_.get("company") or lead, 5)):
+                b_["talk"] = True
+            cur = _on(n)
+            if b_.get("talk") and cur >= b_["target"]:
+                b_.update({"tipped": True, "tipped_at": now, "tipped_outlets": cur})
+                tipped_now = True
+            snap["bet"] = b_
         # exactly what this score was computed from — the story page's breakdown uses it,
         # and it stays frozen once the story closes
         snap["score_inputs"] = {**inputs, "at": now}
@@ -342,7 +365,11 @@ def update_listings(stories, session, now=None, arena="food"):
         n.peak_score = max(n.peak_score or 0, score)
         session.add(NarrativePoint(sid=n.sid, ts=now, score=score))
         _price_point(session, n, now)
-        if now >= n.closes_at:
+        if tipped_now:
+            n.status, n.final_score, n.closed_at = "CLOSED", score, now
+            _settle(session, n.sid, final=score)
+            print(f"🔥 Story TIPPED  {n.sid}  {b_.get('tipped_outlets')} outlets, seen beyond the news — YES wins  {n.title[:60]}")
+        elif now >= n.closes_at:
             n.status, n.final_score, n.closed_at = "CLOSED", score, now
             _settle(session, n.sid, final=score)
             print(f"🔒 Story closed  {n.sid}  final {score:.1f}  {n.title[:70]}")
@@ -370,12 +397,17 @@ def update_listings(stories, session, now=None, arena="food"):
         if s["sid"] in known:
             continue
         eff = s.get("outlets_eff", s["outlets"])
+        if rules.get("bet") == "tip":
+            # the backbone model: list the moment a brand story starts spreading
+            from engine.tipping import is_spreading
+            if not (_lead_brand(s.get("title")) or s.get("company")) or not is_spreading(s, now):
+                continue
         # damage potential: price / safety / trust / boycott stories count ×1.25, nostalgia / novelty ×0.75
-        if listing_score(s) < bar or eff < rules["outlets"]:
+        elif listing_score(s) < bar or eff < rules["outlets"]:
             continue
         # fresh only: new coverage in the last hours, or the brand is spiking on Bluesky right now —
         # a story that is already fading makes a one-sided bet and a late warning
-        if rules.get("fresh_h"):
+        if rules.get("fresh_h") and not rules.get("bet") == "tip":
             newest = max([m.get("ts") or 0 for m in s.get("members", [])] or [s.get("ts") or 0])
             if newest < now - rules["fresh_h"] * 3600 and not talk_level(session, s["sid"], s.get("company"))[2]:
                 continue
@@ -392,10 +424,18 @@ def update_listings(stories, session, now=None, arena="food"):
                 break
             room -= 1
         cave = rules.get("bet") == "cave" and bool(_lead_brand(s.get("title")) or s.get("company"))
-        closes = now + (rules.get("cave_days", 7) * 86400 if cave else LIST_WINDOW_H * 3600)
+        tip = rules.get("bet") == "tip"
+        if tip:
+            from engine.tipping import rule as _tip_rule, make_bet as _tip_bet
+            rl = _tip_rule(session)
+            closes = now + rl["days"] * 86400
+        else:
+            closes = now + (rules.get("cave_days", 7) * 86400 if cave else LIST_WINDOW_H * 3600)
         try:
             from engine.story_market import make_line, make_outlets_bet, make_cave_bet
-            if cave:
+            if tip:
+                bet = _tip_bet({**s, "company": _lead_brand(s.get("title")) or s.get("company")}, closes, rl)
+            elif cave:
                 bet = make_cave_bet({**s, "company": _lead_brand(s.get("title")) or s.get("company")}, closes)
             elif rules.get("bet") in ("outlets", "cave"):
                 bet = make_outlets_bet(s, closes, now)        # no company to cave → the outlets question

@@ -260,6 +260,9 @@ def line_chance(n, now=None):
         return CAVE_HINT if b.get("hint") else CAVE_BASE
     if b.get("kind") == "outlets":
         return outlets_chance(n, now)
+    if b.get("kind") == "tip":
+        from engine.tipping import chance
+        return chance(n, now)
     if n.status != "LISTED" and n.final_score is not None:
         return 1.0 if n.final_score > b["line"] else 0.0
     exp, _ = expected_close(n, now)
@@ -404,7 +407,7 @@ def settle(session, sid, final=None, refund=False):
     nar = session.query(Narrative).filter(Narrative.sid == sid).first()
     bet = bet_of(nar) if nar else None
     n = 0
-    if bet and bet.get("kind") == "outlets" and not refund and nar:
+    if bet and bet.get("kind") in ("outlets", "tip") and not refund and nar:
         bet["final_outlets"] = outlets_now(nar)               # frozen for the page
         snap = _snap(nar)
         snap["bet"] = bet
@@ -416,6 +419,8 @@ def settle(session, sid, final=None, refund=False):
         elif bet:                                   # line / outlets bet: all or nothing
             if bet.get("kind") == "cave":
                 yes = bool(bet.get("caved"))
+            elif bet.get("kind") == "tip":
+                yes = bool(bet.get("tipped"))
             elif bet.get("kind") == "outlets":
                 yes = bet["final_outlets"] >= bet["target"]
             else:
@@ -441,6 +446,8 @@ def settle(session, sid, final=None, refund=False):
         try:                                         # evidence comments: "called it" or not
             if bet.get("kind") == "cave":
                 yes = bool(bet.get("caved"))
+            elif bet.get("kind") == "tip":
+                yes = bool(bet.get("tipped"))
             elif bet.get("kind") == "outlets":
                 yes = (bet.get("final_outlets") or 0) >= bet["target"]
             else:
@@ -509,6 +516,15 @@ def _bet_view(n, now):
         return {"kind": "cave", "company": b.get("company"), "deadline": b.get("deadline", n.closes_at),
                 "closes_at": n.closes_at, "hint": b.get("hint"), "caved": b.get("caved"),
                 "chance": round(100 * (line_chance(n, now) or 0), 1),
+                "early_until": early_until, "early_bonus": EARLY_BONUS}
+    if b.get("kind") == "tip":
+        from engine.tipping import state_of
+        arts = _snap(n).get("articles")
+        return {"kind": "tip", "company": b.get("company"), "target": b["target"], "start": b.get("start"),
+                "now": outlets_now(n), "talk": bool(b.get("talk")), "tipped": bool(b.get("tipped")),
+                "tipped_at": b.get("tipped_at"), "final_outlets": b.get("final_outlets"),
+                "state": state_of(n), "rule": b.get("rule"), "new_24h": new_outlets(arts, now - 86400),
+                "chance": round(100 * (line_chance(n, now) or 0), 1), "closes_at": n.closes_at,
                 "early_until": early_until, "early_bonus": EARLY_BONUS}
     if b.get("kind") == "outlets":
         arts = _snap(n).get("articles")

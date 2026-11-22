@@ -402,6 +402,17 @@ def update_listings(stories, session, now=None, arena="food"):
             from engine.tipping import is_spreading
             if not (_lead_brand(s.get("title")) or s.get("company")) or not is_spreading(s, now):
                 continue
+            # the same story under a new id (headlines regroup) is never listed twice
+            br = _lead_brand(s.get("title")) or s.get("company")
+            twin = False
+            for o in _arena_filter(session.query(Narrative).filter(Narrative.listed_at >= now - 7 * 86400), arena).all():
+                osnap = json.loads(o.snapshot or "{}")
+                if _same_brand(osnap.get("lead_brand") or osnap.get("company"), br) and \
+                        _same_topic(s.get("title"), _anchor(osnap, o) or o.title, br):
+                    twin = True
+                    break
+            if twin:
+                continue
         # damage potential: price / safety / trust / boycott stories count ×1.25, nostalgia / novelty ×0.75
         elif listing_score(s) < bar or eff < rules["outlets"]:
             continue

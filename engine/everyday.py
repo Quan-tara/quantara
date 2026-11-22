@@ -846,7 +846,8 @@ def brand_in(titles):
 import urllib.parse as _up
 import feedparser as _fp
 
-REACH_TOP       = 8          # candidates checked per run
+REACH_TOP       = 12         # candidates checked per run (brand stories with real trouble first)
+REACH_ITEMS     = 100        # a Google News search returns up to 100 items: read them all, not just 40
 REACH_CACHE_MIN = 60         # same search not repeated within this time
 _reach_cache = {}            # query → (ts, items)
 
@@ -899,7 +900,7 @@ def topic_words(titles, company, n=2, exclude=()):
     return ranked[:n]
 
 
-def _search(query):
+def _search(query, limit=None):
     now = time.time()
     hit = _reach_cache.get(query)
     if hit and now - hit[0] < REACH_CACHE_MIN * 60:
@@ -909,7 +910,7 @@ def _search(query):
     try:
         r = requests.get(url, timeout=ni.FEED_TIMEOUT, headers=ni.UA)
         if r.status_code == 200:
-            for e in _fp.parse(r.content).entries[:ni.MAX_PER_FEED]:
+            for e in _fp.parse(r.content).entries[:limit or ni.MAX_PER_FEED]:
                 src, href = "", ""
                 if e.get("source") and hasattr(e.source, "get"):
                     src = (e.source.get("title") or "").strip()
@@ -987,29 +988,43 @@ def discovery_news(articles):
 
 
 def reach_check(stories, articles, top=REACH_TOP):
-    """Extra articles (same shape as feed articles) for the strongest candidates."""
+    """Extra articles (same shape as feed articles) for the strongest candidates.
+    22 Nov 2026: our feeds see ~3 outlets of a story that runs on dozens of sites, so stories could never
+    grow or tip. Brand stories with real trouble in the headline (the 'Will it tip?' candidates) are now
+    searched first, with two searches each (brand + 2 topic words, brand + the main topic word), reading
+    all 100 results, so a story's outlet count is close to its real coverage."""
     seen = {(a["title"].lower(), a["source"].lower()) for a in articles}
     cutoff = time.time() - ni.ARTICLE_WINDOW_H * 3600
+    try:
+        from engine.tipping import TROUBLE_RX
+    except Exception:
+        TROUBLE_RX = None
     cands = []
     for s in stories:
         brand = brand_in(s.get("raw_titles"))
         if brand:
-            cands.append((ni.story_score(s), s, brand))
-    cands.sort(key=lambda x: x[0], reverse=True)
+            trouble = bool(TROUBLE_RX and any(TROUBLE_RX.search(t or "") for t in s.get("raw_titles") or []))
+            cands.append((1 if trouble else 0, ni.story_score(s), s, brand))
+    cands.sort(key=lambda x: (x[0], x[1]), reverse=True)
     extra, searched = [], 0
-    for _, s, brand in cands[:top]:
-        words = topic_words(s.get("raw_titles"), brand)
+    stem = lambda w: w[:-1] if len(w) > 4 and w.endswith("s") else w
+    for trouble, _, s, brand in cands[:top]:
+        words = topic_words(s.get("raw_titles"), brand, n=3)
         if not words:
             continue
-        query = f'"{brand}" ' + " ".join(words)          # the search feed itself limits to recent days
-        searched += 1
-        b_low = brand.lower()
-        for it in _search(query):
-            t, tl = it["title"], it["title"].lower()
-            key = (tl, it["source"].lower())
+        queries = [f'"{brand}" ' + " ".join(words[:2])]            # the search feed itself limits to recent days
+        if trouble and len(words) >= 2:
+            queries.append(f'"{brand}" {words[1]}')     # the second, usually more specific word ("nachos", not "price")
+        b_low = brand.lower().replace("’", "'")
+        stems = [stem(w) for w in words[:2]]
+        for query in queries:
+          searched += 1
+          for it in _search(query, limit=REACH_ITEMS):
+            t, tl = it["title"], it["title"].lower().replace("’", "'")
+            key = (it["title"].lower(), it["source"].lower())
             if key in seen or it["ts"] < cutoff:
                 continue
-            if b_low not in tl or not any(w in tl for w in words):
+            if b_low not in tl or not any(w in tl for w in stems):
                 continue                                # not clearly the same story
             if not english_only(t) or blocked_title(tl, t) or ni._has_any(tl, A.EXCLUDE_TERMS):
                 continue

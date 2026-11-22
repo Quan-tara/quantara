@@ -31,7 +31,9 @@ DEFAULT_OUTLETS = 6       # our outlet counts come from ~20 feeds + searches, fa
 CANDIDATES = (5, 6, 8, 10, 12, 15)
 GROWTHS = (2, 3, 4)
 CAL_ARENAS = ("everyday", "brands")
-RULE_VERSION = 3          # a stored rule from an older version is recalibrated at once (3: strict filter, story-specific talk)
+RULE_VERSION = 4          # a stored rule from an older version is recalibrated at once (4: real outlet counts)
+MEASURE_SINCE = 1795371408   # 22 Nov 2026 evening: outlets counted with the wide reach search from here on. Older readings
+                          # undercount (~3 outlets per story), so the rule is calibrated only on readings after this.
 TARGET_RATE = 0.25
 MIN_CASES = 10
 FREEZE_CASES = 30
@@ -176,16 +178,18 @@ def state_of(n):
 
 
 # ─────────────────────────────── calibration on stored history ───────────────────────────────
-def replay(session, arenas=CAL_ARENAS, include_open=False):
+def replay(session, arenas=CAL_ARENAS, include_open=False, since=None):
     """Every story that became Spreading in the stored readings (everyday + brand-scandal arenas), with
     what followed within TIP_DAYS: [{sid, title, company, ts, start, max_outlets, beyond}] — finished
     windows only. Beyond the news = posts / videos about the story, or the brand spiking on Bluesky,
     AFTER it started spreading."""
     from db.models import ArenaReading, BrandBuzz, SocialSignal
     from engine.everyday import brand_in
-    hist, started, latest, last_ts = {}, {}, None, {}
+    from engine.story_market import _topic_words
+    since = MEASURE_SINCE if since is None else since
+    hist, started, latest, last_ts, alias = {}, {}, None, {}, {}
     q = (session.query(ArenaReading.ts, ArenaReading.arena, ArenaReading.story_index)
-         .filter(ArenaReading.arena.in_(list(arenas))).order_by(ArenaReading.ts))
+         .filter(ArenaReading.arena.in_(list(arenas)), ArenaReading.ts >= since).order_by(ArenaReading.ts))
     for ts, arena, idx in q.yield_per(200):
         if ts - last_ts.get(arena, 0) < 3 * 3600:
             continue
@@ -199,6 +203,7 @@ def replay(session, arenas=CAL_ARENAS, include_open=False):
             sid, o = s.get("sid"), int(s.get("outlets") or 0)
             if not sid:
                 continue
+            sid = alias.get(sid, sid)          # the same story under a new id (headlines regroup)
             h = hist.setdefault(sid, [])
             h.append((ts, o))
             if sid in started:
@@ -212,6 +217,15 @@ def replay(session, arenas=CAL_ARENAS, include_open=False):
             company = s.get("company") or brand_in([s.get("title") or ""])
             if o >= SPREAD_MIN_OUTLETS and new12 >= SPREAD_NEW_12H and company \
                     and tip_gate(s.get("title"), [], company)[0]:
+                tw = _topic_words(s.get("title"), company)
+                twin = next((c for c in started.values() if _norm(c["company"]) == _norm(company)
+                             and ts - c["ts"] <= 7 * 86400 and _topic_words(c["title"], c["company"]) & tw), None)
+                if twin:
+                    alias[s.get("sid")] = twin["sid"]
+                    if ts <= twin["ts"] + TIP_DAYS * 86400:
+                        twin["max_outlets"] = max(twin["max_outlets"], o)
+                        twin["path"].append((ts, o))
+                    continue
                 started[sid] = {"sid": sid, "title": (s.get("title") or "")[:160], "company": company,
                                 "arena": arena, "ts": ts, "start": o, "max_outlets": o, "path": [(ts, o)]}
     if latest is None:
@@ -238,10 +252,10 @@ def replay(session, arenas=CAL_ARENAS, include_open=False):
     return done, latest
 
 
-def calibrate(session, save=True):
+def calibrate(session, save=True, since=None):
     from db.models import TipRule
     from engine.reality import wilson
-    cases, latest = replay(session)
+    cases, latest = replay(session, since=since)
     for c in cases:
         c.pop("path", None)
     rates = {}
@@ -308,7 +322,7 @@ def preview(session, days=10):
     from engine.story_listing import rules_for
     rl = rule(session)
     cap = rules_for("everyday").get("daily_cap") or 6
-    cases, latest = replay(session, arenas=("everyday",), include_open=True)
+    cases, latest = replay(session, arenas=("everyday",), include_open=True, since=0)
     if not latest:
         return {"rule": rl, "days": [], "latest": None}
     since = latest - days * 86400

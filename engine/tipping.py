@@ -19,6 +19,7 @@ daily; then it is frozen. Every bet copies its target at listing, so open bets n
 """
 
 import json
+import re
 import threading
 import time
 
@@ -30,13 +31,48 @@ DEFAULT_OUTLETS = 6       # our outlet counts come from ~20 feeds + searches, fa
 CANDIDATES = (5, 6, 8, 10, 12, 15)
 GROWTHS = (2, 3, 4)
 CAL_ARENAS = ("everyday", "brands")
-RULE_VERSION = 2          # a stored rule from an older version is recalibrated at once
+RULE_VERSION = 3          # a stored rule from an older version is recalibrated at once (3: strict filter, story-specific talk)
 TARGET_RATE = 0.25
 MIN_CASES = 10
 FREEZE_CASES = 30
 TALK_POSTS, TALK_VIDEOS = 5, 6
 PACE_TAU_H = 24          # news pace fades: a story's next outlets come mostly within about a day
 _cal = {"running": False, "ts": 0.0}
+
+
+# ── what may be listed: real trouble for the brand, never a promo, a launch or good news ──
+TROUBLE_RX = re.compile(
+    r"\b(outrag\w*|furious|fury|angr\w*|anger|backlash|boycott\w*|slam\w*|blast\w*|fume\w*|complain\w*|"
+    r"criticis\w*|criticiz\w*|petition\w*|protest\w*|rally|rallies|uproar|"
+    r"sick|ill|illness\w*|poison\w*|hospitali\w*|outbreak\w*|recall\w*|contamina\w*|salmonella|listeria|e\.? ?coli|"
+    r"lawsuit\w*|sue[sd]?|suing|class action|accus\w*|investigat\w*|fined?|fines|penalt\w*|violation\w*|"
+    r"strike\w*|walk ?out\w*|union\w*|layoff\w*|lay(?:s|ing)? off|laid off|fired|firing|job cuts?|clos(?:e|es|ing|ures?) (?:\d+ )?(?:stores|locations|restaurants)|"
+    r"price hikes?|hikes?|rais(?:e|es|ed|ing) prices?|pricier|overpriced|shrink\w*|smaller|fees?|surcharge\w*|scam\w*|rip-?off|"
+    r"backtrack\w*|scandal\w*|controvers\w*|bans?|banned|halt\w*|shortage\w*|franchisees?)\b", re.I)
+PROMO_RX = re.compile(
+    r"\b(reveals?|unveils?|launch(?:es|ed)?|debuts?|introduc\w*|new (?:menu|meal|flavou?r|item|drink|collab)\w*|"
+    r"collab\w*|partner(?:s|ship)? with|limited[- ]time|brings? back|is back|returns? (?:to|for)|giveaway|"
+    r"free \w+ (?:day|deal)|deal of|coupon\w*|recipe\w*|review:|taste test|ranked|ranking|best \w+ (?:to|in))\b", re.I)
+GOODNEWS_RX = re.compile(
+    r"\b(recover\w*|rebound\w*|beats? (?:estimates|expectations)|sales (?:rise|jump|surge|grow)\w*|record (?:sales|profit)\w*|"
+    r"wins?|award\w*|celebrat\w*|donat\w*|charity|praised?)\b", re.I)
+
+
+def tip_gate(title, others=(), company=None):
+    """(ok, reason): may this story be listed for 'Will it tip?'. Stricter than the index gate:
+    real trouble for the brand must be in the headline, and promos, launches and good news never list."""
+    from engine.everyday import index_gate
+    ok, why = index_gate(title, list(others or []), company)
+    if not ok:
+        return False, why
+    t = title or ""
+    if GOODNEWS_RX.search(t):
+        return False, "good news for the brand"
+    if not TROUBLE_RX.search(t):
+        return False, "no trouble for the brand in the headline" + (" (promo / launch)" if PROMO_RX.search(t) else "")
+    if PROMO_RX.search(t) and not re.search(r"\b(outrag|furious|backlash|boycott|slam|angr|anger|sick|recall|sue|lawsuit)", t, re.I):
+        return False, "promo / launch"
+    return True, ""
 
 
 def _norm(b):
@@ -61,7 +97,6 @@ def target_for(start_outlets, rl):
 
 def is_spreading(s, now=None):
     """A live story (collector shape) that has just started spreading — the listing condition."""
-    from engine.everyday import index_gate
     from engine.story_market import new_outlets
     now = now or time.time()
     cur = int(max(s.get("outlets") or 0, len(s.get("all_outlets") or [])))
@@ -69,21 +104,35 @@ def is_spreading(s, now=None):
         return False
     if new_outlets(s.get("members"), now - 12 * 3600) < SPREAD_NEW_12H:
         return False
-    return bool(index_gate(s.get("title"), [m.get("title") for m in s.get("members", [])], s.get("company"))[0])
+    return bool(tip_gate(s.get("title"), [m.get("title") for m in s.get("members", [])], s.get("company"))[0])
 
 
-def beyond_news(session, sid, company, since):
-    """Seen beyond the news since `since`: Bluesky posts or YouTube videos about the story, or the brand
-    spiking on Bluesky."""
+def _spike_about(words_json, title, company):
+    """A brand's Bluesky spike counts only if people are posting about THIS story (shared topic words):
+    big brands spike every few days for unrelated reasons."""
+    from engine.story_market import _topic_words
+    try:
+        words = json.loads(words_json or "[]")
+    except Exception:
+        return False
+    if isinstance(words, dict):
+        words = list(words)
+    spike = {str(w).lower().rstrip("s") for w in words if isinstance(w, str)}
+    return bool(spike & _topic_words(title, company))
+
+
+def beyond_news(session, sid, company, since, title=None):
+    """Seen beyond the news since `since`: Bluesky posts or YouTube videos found for this story, or the
+    brand spiking on Bluesky with posts about this story's topic."""
     from db.models import BrandBuzz, SocialSignal
     for src, posts in (session.query(SocialSignal.source, SocialSignal.posts)
                        .filter(SocialSignal.sid == sid, SocialSignal.status == "OK", SocialSignal.ts >= since).all()):
         if (posts or 0) >= (TALK_VIDEOS if src == "youtube" else TALK_POSTS):
             return True
     c = _norm(company)
-    if c:
-        q = session.query(BrandBuzz.brand).filter(BrandBuzz.spike.is_(True), BrandBuzz.ts >= since).all()
-        if any(_norm(b) == c or (_norm(b) and _norm(b) in c) for (b,) in q):
+    if c and title:
+        q = session.query(BrandBuzz.brand, BrandBuzz.words).filter(BrandBuzz.spike.is_(True), BrandBuzz.ts >= since).all()
+        if any((_norm(b) == c or (_norm(b) and _norm(b) in c)) and _spike_about(w, title, company) for b, w in q):
             return True
     return False
 
@@ -127,13 +176,13 @@ def state_of(n):
 
 
 # ─────────────────────────────── calibration on stored history ───────────────────────────────
-def replay(session, arenas=CAL_ARENAS):
+def replay(session, arenas=CAL_ARENAS, include_open=False):
     """Every story that became Spreading in the stored readings (everyday + brand-scandal arenas), with
     what followed within TIP_DAYS: [{sid, title, company, ts, start, max_outlets, beyond}] — finished
     windows only. Beyond the news = posts / videos about the story, or the brand spiking on Bluesky,
     AFTER it started spreading."""
     from db.models import ArenaReading, BrandBuzz, SocialSignal
-    from engine.everyday import brand_in, index_gate
+    from engine.everyday import brand_in
     hist, started, latest, last_ts = {}, {}, None, {}
     q = (session.query(ArenaReading.ts, ArenaReading.arena, ArenaReading.story_index)
          .filter(ArenaReading.arena.in_(list(arenas))).order_by(ArenaReading.ts))
@@ -156,30 +205,36 @@ def replay(session, arenas=CAL_ARENAS):
                 st = started[sid]
                 if ts <= st["ts"] + TIP_DAYS * 86400:
                     st["max_outlets"] = max(st["max_outlets"], o)
+                    st["path"].append((ts, o))
                 continue
             before = [x for t, x in h if t <= ts - 12 * 3600]
             new12 = o - (before[-1] if before else 0)
             company = s.get("company") or brand_in([s.get("title") or ""])
             if o >= SPREAD_MIN_OUTLETS and new12 >= SPREAD_NEW_12H and company \
-                    and index_gate(s.get("title"), [], company)[0]:
+                    and tip_gate(s.get("title"), [], company)[0]:
                 started[sid] = {"sid": sid, "title": (s.get("title") or "")[:160], "company": company,
-                                "ts": ts, "start": o, "max_outlets": o}
+                                "arena": arena, "ts": ts, "start": o, "max_outlets": o, "path": [(ts, o)]}
     if latest is None:
         return [], None
-    done = [c for c in started.values() if c["ts"] + TIP_DAYS * 86400 <= latest]
+    for c in started.values():
+        c["done"] = c["ts"] + TIP_DAYS * 86400 <= latest
+    done = list(started.values()) if include_open else [c for c in started.values() if c["done"]]
     social = {}
     for sid, src, ts, posts in session.query(SocialSignal.sid, SocialSignal.source, SocialSignal.ts,
                                              SocialSignal.posts).filter(SocialSignal.status == "OK").all():
         if (posts or 0) >= (TALK_VIDEOS if src == "youtube" else TALK_POSTS):
             social.setdefault(sid, []).append(ts)
     spikes = {}
-    for b, ts in session.query(BrandBuzz.brand, BrandBuzz.ts).filter(BrandBuzz.spike.is_(True)).all():
-        spikes.setdefault(_norm(b), []).append(ts)
+    for b, ts, w in session.query(BrandBuzz.brand, BrandBuzz.ts, BrandBuzz.words).filter(BrandBuzz.spike.is_(True)).all():
+        spikes.setdefault(_norm(b), []).append((ts, w))
     for c in done:
         lo, hi = c["ts"], c["ts"] + TIP_DAYS * 86400
         co = _norm(c["company"])
-        c["beyond"] = any(lo <= t <= hi for t in social.get(c["sid"], [])) or any(
-            lo <= t <= hi for b, ts_ in spikes.items() if b and (b == co or b in co) for t in ts_)
+        talk = [t for t in social.get(c["sid"], []) if lo <= t <= hi]
+        talk += [t for b, xs in spikes.items() if b and (b == co or b in co)
+                 for t, w in xs if lo <= t <= hi and _spike_about(w, c["title"], c["company"])]
+        c["beyond"] = bool(talk)
+        c["talk_at"] = min(talk) if talk else None
     return done, latest
 
 
@@ -187,6 +242,8 @@ def calibrate(session, save=True):
     from db.models import TipRule
     from engine.reality import wilson
     cases, latest = replay(session)
+    for c in cases:
+        c.pop("path", None)
     rates = {}
     for T in CANDIDATES:
         for G in GROWTHS:
@@ -242,3 +299,39 @@ def maybe_calibrate(session_factory):
             s2.close()
             _cal["running"] = False
     threading.Thread(target=work, daemon=True).start()
+
+
+# ─────────────────────────────── board preview ───────────────────────────────
+def preview(session, days=10):
+    """What the board would have shown over the last `days` days under today's rules: every story that
+    started spreading (max DAILY_CAP a day, first come), its question, and how it ended."""
+    from engine.story_listing import rules_for
+    rl = rule(session)
+    cap = rules_for("everyday").get("daily_cap") or 6
+    cases, latest = replay(session, arenas=("everyday",), include_open=True)
+    if not latest:
+        return {"rule": rl, "days": [], "latest": None}
+    since = latest - days * 86400
+    cases = sorted([c for c in cases if c["ts"] >= since], key=lambda c: c["ts"])
+    by_day, out = {}, []
+    for c in cases:
+        day = time.strftime("%Y-%m-%d", time.gmtime(c["ts"]))
+        if by_day.get(day, 0) >= cap:
+            continue
+        by_day[day] = by_day.get(day, 0) + 1
+        target = target_for(c["start"], rl)
+        reach = next((t for t, o in c["path"] if o >= target), None)
+        tip_at = max(reach, c["talk_at"]) if reach and c.get("talk_at") else None
+        result = "TIPPED" if tip_at else ("FADED" if c["done"] else "OPEN")
+        out.append({"day": day, "ts": c["ts"], "title": c["title"], "company": c["company"], "start": c["start"],
+                    "target": target, "max_outlets": c["max_outlets"], "beyond_news": c["beyond"],
+                    "result": result, "tipped_after_h": round((tip_at - c["ts"]) / 3600) if tip_at else None})
+    days_list = []
+    for i in range(days, -1, -1):
+        d = time.strftime("%Y-%m-%d", time.gmtime(latest - i * 86400))
+        days_list.append({"day": d, "stories": [x for x in out if x["day"] == d]})
+    n = len(out)
+    return {"rule": {k: rl.get(k) for k in ("outlets", "growth", "days", "rate", "cases", "provisional")},
+            "latest": latest, "listed": n, "per_day": round(n / max(1, days), 1),
+            "tipped": sum(1 for x in out if x["result"] == "TIPPED"), "faded": sum(1 for x in out if x["result"] == "FADED"),
+            "open": sum(1 for x in out if x["result"] == "OPEN"), "days": days_list}

@@ -349,8 +349,8 @@ def update_listings(stories, session, now=None, arena="food"):
             from engine.story_market import outlets_now as _on
             snap["bet"] = b_
             n.snapshot = json.dumps(snap)
-            if not b_.get("talk") and (beyond_news(session, n.sid, b_.get("company") or lead, n.listed_at or now)
-                                       or talked_about(session, n.sid, b_.get("company") or lead, 5)):
+            if not b_.get("talk") and beyond_news(session, n.sid, b_.get("company") or lead, n.listed_at or now,
+                                                  title=_anchor(snap, n) or n.title):
                 b_["talk"] = True
             cur = _on(n)
             if b_.get("talk") and cur >= b_["target"]:

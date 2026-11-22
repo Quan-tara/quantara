@@ -380,7 +380,28 @@ def outcome(session, brand, ts, cache):
             "excess_90d": excess_return(closes, cache["$bench"], day0, 90),
             "beta": None if beta is None else round(beta, 2),
             "abnormal_30d": abnormal_return(closes, cache["$bench"], day0, 30, beta),
-            "abnormal_90d": abnormal_return(closes, cache["$bench"], day0, 90, beta), "listed_day": day0.isoformat()}
+            "abnormal_90d": abnormal_return(closes, cache["$bench"], day0, 90, beta), "listed_day": day0.isoformat(),
+            **_money_outcomes(session, brand, day0, cache)}
+
+
+def _money_outcomes(session, brand, day0, cache):
+    """Outcomes closer to money (engine/outcomes.py): brand search, app rating drop, revenue slowdown."""
+    try:
+        from db.models import AppDaily, RevenueQuarter, SearchDaily
+        from engine import outcomes as O
+        if "$s:" + brand not in cache:
+            cache["$s:" + brand] = {d: v for d, v in session.query(SearchDaily.day, SearchDaily.value)
+                                    .filter(SearchDaily.brand == brand).all() if v is not None}
+            cache["$a:" + brand] = {d: (n, a) for d, n, a in session.query(AppDaily.day, AppDaily.n, AppDaily.avg)
+                                    .filter(AppDaily.brand == brand).all()}
+            cache["$r:" + brand] = sorted((e, y) for e, y in session.query(RevenueQuarter.end, RevenueQuarter.yoy)
+                                          .filter(RevenueQuarter.brand == brand).all() if y is not None)
+        sx = O.search_x(cache["$s:" + brand], day0) if cache["$s:" + brand] else None
+        return {"search_x": sx, "search_jump": None if sx is None else sx >= 1.5,
+                "app_drop": O.app_drop(cache["$a:" + brand], day0) if cache["$a:" + brand] else None,
+                "revenue_slowdown": O.revenue_slowdown(cache["$r:" + brand], day0) if cache["$r:" + brand] else None}
+    except Exception:
+        return {}
 
 
 # ─────────────────────────────────────────────
@@ -586,7 +607,8 @@ def _report(session):
     for f in fwd:
         if f.get("previous"):
             continue
-        k = kinds.setdefault(f["kind"], {"entries": 0, "checked": 0, "spikes": 0, "ex30": [], "ab30": []})
+        k = kinds.setdefault(f["kind"], {"entries": 0, "checked": 0, "spikes": 0, "ex30": [], "ab30": [],
+                                         "sj": [], "ad": [], "rv": []})
         k["entries"] += 1
         o = f.get("result") or {}
         if o.get("spike") is not None:
@@ -596,6 +618,9 @@ def _report(session):
             k["ex30"].append(o["excess_30d"])
         if o.get("abnormal_30d") is not None:
             k["ab30"].append(o["abnormal_30d"])
+        for key, col in (("search_jump", "sj"), ("app_drop", "ad"), ("revenue_slowdown", "rv")):
+            if o.get(key) is not None:
+                k[col].append(bool(o[key]))
     # tone split (test): story warnings with a clearly negative headline vs the rest
     from engine.tone import NEGATIVE
     tone_split = {}
@@ -642,7 +667,10 @@ def _report(session):
                    "excess_30d": round(sum(v["ex30"]) / len(v["ex30"]), 2) if v["ex30"] else None,
                    "range": wilson(v["spikes"], v["checked"]),
                    "abnormal_30d": round(sum(v["ab30"]) / len(v["ab30"]), 2) if v["ab30"] else None,
-                   "n_abnormal": len(v["ab30"]), "abnormal_range": mean_range(v["ab30"])}
+                   "n_abnormal": len(v["ab30"]), "abnormal_range": mean_range(v["ab30"]),
+                   "money": {name: {"rate": round(100 * sum(xs) / len(xs), 1), "n": len(xs)} if xs else None
+                             for name, xs in (("search_jump", v["sj"]), ("app_drop", v["ad"]),
+                                              ("revenue_slowdown", v["rv"]))}}
                for k, v in kinds.items()}
     return {
         "collector": _state["msg"],

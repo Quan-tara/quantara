@@ -103,6 +103,8 @@ def _social(session):
         from engine import comments as YC
         YC.run(session, rows)                      # what people write under the videos (every 2 h)
         YC.attach(session, rows)
+        from engine import outcomes as OC
+        OC.run(session)                            # app ratings, brand search, revenue — outcomes closer to money
     except Exception as e:
         session.rollback()
         print(f"⚠️ voices error: {e}")

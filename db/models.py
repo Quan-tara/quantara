@@ -669,3 +669,56 @@ class TipRule(Base):
     cases       = Column(Integer, nullable=True)
     provisional = Column(Boolean, nullable=False, default=True)
     report      = Column(Text, nullable=True)              # JSON: rates for every candidate
+
+
+class StoryTimeline(Base):
+    """Phase 2 of the backbone model: one reading of a spreading / listed brand story every 3 h — the time
+    series early-warning signals are computed from. Recorded only."""
+    __tablename__ = "story_timeline"
+
+    id        = Column(Integer, primary_key=True, autoincrement=True)
+    sid       = Column(String(16), nullable=False, index=True)
+    ts        = Column(Float, nullable=False, index=True)
+    brand     = Column(String(60), nullable=True)
+    outlets   = Column(Integer, nullable=True)
+    new_12h   = Column(Integer, nullable=True)        # outlets whose first article came in the last 12 h
+    articles  = Column(Integer, nullable=True)
+    score     = Column(Float, nullable=True)
+    posts     = Column(Integer, nullable=True)        # Bluesky posts about it (latest check, 24 h)
+    videos    = Column(Integer, nullable=True)        # YouTube videos about it (latest check)
+    responses = Column(Integer, nullable=True)        # company responses seen so far
+    listed    = Column(Boolean, nullable=False, default=False)
+
+
+class CompanyResponse(Base):
+    """Phase 2, feedback: a headline in which the brand responds — apology, reversal, denial, action or
+    statement. Silence = a story with none. Recorded only."""
+    __tablename__ = "company_responses"
+
+    id     = Column(Integer, primary_key=True, autoincrement=True)
+    sid    = Column(String(16), nullable=False, index=True)
+    brand  = Column(String(60), nullable=True)
+    ts     = Column(Float, nullable=False)              # article time
+    seen   = Column(Float, nullable=False)              # when we found it
+    kind   = Column(String(16), nullable=False)         # reversal | apology | denial | action | statement
+    title  = Column(String(300), nullable=False)
+    source = Column(String(120), nullable=True)
+    url    = Column(Text, nullable=True)
+
+
+class StoryBridges(Base):
+    """Phase 2, bridges: who posts about a listed story on Bluesky and whether it spans separate groups of
+    accounts (follow links among the posters), their combined audience and how many big accounts. Recorded only."""
+    __tablename__ = "story_bridges"
+
+    id            = Column(Integer, primary_key=True, autoincrement=True)
+    sid           = Column(String(16), nullable=False, index=True)
+    ts            = Column(Float, nullable=False, index=True)
+    posts         = Column(Integer, nullable=True)
+    authors       = Column(Integer, nullable=True)
+    sampled       = Column(Integer, nullable=True)      # authors whose follows were read
+    clusters      = Column(Integer, nullable=True)      # separate groups among the sampled authors
+    largest_share = Column(Float, nullable=True)        # share of sampled authors in the biggest group
+    audience      = Column(Integer, nullable=True)      # followers of the sampled authors, summed
+    big_accounts  = Column(Integer, nullable=True)      # sampled authors with 10k+ followers
+    status        = Column(String(12), nullable=False, default="OK")

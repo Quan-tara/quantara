@@ -607,3 +607,49 @@ class VideoComments(Base):
     jokes      = Column(Integer, nullable=True)
     sample     = Column(Text, nullable=True)      # JSON: a few complaining comments (moderators only)
     status     = Column(String(12), nullable=False, default="OK")
+
+
+class BrandApp(Base):
+    """The brand's own iPhone app (found once via Apple's free search), for its review ratings."""
+    __tablename__ = "brand_apps"
+
+    id     = Column(Integer, primary_key=True, autoincrement=True)
+    brand  = Column(String(40), nullable=False, unique=True)
+    app_id = Column(String(20), nullable=True)            # None = no app found
+    name   = Column(String(120), nullable=True)
+    ts     = Column(Float, nullable=False)                 # last lookup / last reviews fetch
+
+
+class AppDaily(Base):
+    """App Store reviews of the brand's app, per day: how many, average stars, how many 1-star."""
+    __tablename__ = "app_daily"
+
+    id    = Column(Integer, primary_key=True, autoincrement=True)
+    brand = Column(String(40), nullable=False, index=True)
+    day   = Column(String(10), nullable=False, index=True)
+    n     = Column(Integer, nullable=False, default=0)
+    avg   = Column(Float, nullable=True)
+    ones  = Column(Integer, nullable=True)
+
+
+class SearchDaily(Base):
+    """Google search interest in the brand itself, per day (Trends 0–100, rescaled with every fetch)."""
+    __tablename__ = "search_daily"
+
+    id    = Column(Integer, primary_key=True, autoincrement=True)
+    brand = Column(String(40), nullable=False, index=True)
+    day   = Column(String(10), nullable=False, index=True)
+    value = Column(Float, nullable=True)
+    ts    = Column(Float, nullable=False)
+
+
+class RevenueQuarter(Base):
+    """Quarterly revenue from the company's SEC filings (XBRL), with growth against the same quarter a year before."""
+    __tablename__ = "revenue_quarters"
+
+    id      = Column(Integer, primary_key=True, autoincrement=True)
+    brand   = Column(String(40), nullable=False, index=True)
+    end     = Column(String(10), nullable=False)
+    revenue = Column(Float, nullable=True)
+    yoy     = Column(Float, nullable=True)             # 0.05 = +5% against the same quarter a year before
+    ts      = Column(Float, nullable=False)

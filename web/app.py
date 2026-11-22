@@ -1738,6 +1738,13 @@ def _bet_card(n, b_):
         return {"kind": "cave", "company": b_.get("company"), "deadline": b_.get("deadline", n.closes_at),
                 "hint": b_.get("hint"), "caved": b_.get("caved"), "closes_at": n.closes_at,
                 "early_until": (n.listed_at or 0) + EARLY_H * 3600}
+    if b_.get("kind") == "tip":
+        from engine.story_market import outlets_now, new_outlets, _snap, EARLY_H
+        from engine.tipping import state_of
+        return {"kind": "tip", "company": b_.get("company"), "target": b_["target"], "now": outlets_now(n),
+                "talk": bool(b_.get("talk")), "tipped": bool(b_.get("tipped")), "state": state_of(n),
+                "new_24h": new_outlets(_snap(n).get("articles"), _t.time() - 86400),
+                "closes_at": n.closes_at, "early_until": (n.listed_at or 0) + EARLY_H * 3600}
     if b_.get("kind") == "outlets":
         from engine.story_market import outlets_now, new_outlets, _snap, EARLY_H
         return {"kind": "outlets", "target": b_["target"], "now": outlets_now(n),
@@ -2292,6 +2299,17 @@ def api_narratives():
     session = SessionLocal()
     try:
         return board(session)
+    finally:
+        session.close()
+
+
+@app.get("/api/tipping/rule")
+def api_tipping_rule():
+    """The rule for when a story counts as tipped, and how it was calibrated on stored history."""
+    from engine.tipping import rule
+    session = SessionLocal()
+    try:
+        return rule(session)
     finally:
         session.close()
 

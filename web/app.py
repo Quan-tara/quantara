@@ -2314,6 +2314,22 @@ def api_tipping_rule():
         session.close()
 
 
+@app.get("/api/tipping/preview")
+def api_tipping_preview(days: int = 10):
+    """What the board would have listed over the last days under today's rules, and how each story ended."""
+    from engine.tipping import preview
+    session = SessionLocal()
+    try:
+        return preview(session, days=max(1, min(30, days)))
+    finally:
+        session.close()
+
+
+@app.get("/tip-preview")
+def tip_preview_page():
+    return FileResponse(os.path.join(os.path.dirname(__file__), "preview.html"))
+
+
 @app.get("/api/reality/history")
 def api_reality_history():
     """Today's rules replayed on all stored story readings, checked against what happened (cached 6 h;

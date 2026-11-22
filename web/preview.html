@@ -1,0 +1,69 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Board Preview — Quantara</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0f1320; --s1: #151d2e; --s2: #1c2538; --border: #2a3a55;
+  --accent: #00c8f0; --green: #00e676; --red: #ff3d5a; --amber: #ffb300;
+  --text: #f8faff; --muted: #7a95b8;
+  --mono: 'Space Mono', ui-monospace, Menlo, monospace;
+  --sans: 'DM Sans', system-ui, -apple-system, sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; margin: 0; padding: 0 }
+body { background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 14px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 0 40px }
+a { color: var(--accent) }
+header { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--border) }
+.logo { font-family: var(--mono); font-size: 13px; color: var(--accent); letter-spacing: 3px; text-decoration: none }
+main { max-width: 980px; margin: 0 auto; padding-top: 18px; display: grid; gap: 16px }
+.lbl { font-family: var(--mono); font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: 2px }
+.panel { background: var(--s1); border: 1px solid var(--border); border-radius: 8px; padding: 14px; display: grid; gap: 10px; min-width: 0 }
+h1 { font-size: 20px; text-wrap: balance }
+.sub { color: var(--muted); font-size: 13px; line-height: 1.5 }
+.stats { display: flex; gap: 26px; flex-wrap: wrap }
+.stat b { display: block; font-family: var(--mono); font-size: 22px }
+.day { display: grid; gap: 8px }
+.dh { font-family: var(--mono); font-size: 11px; color: var(--muted); border-bottom: 1px solid var(--border); padding-bottom: 4px }
+.card { background: var(--s2); border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; display: grid; gap: 4px; min-width: 0 }
+.co { font-weight: 700; font-size: 12px; color: var(--muted) }
+.t { font-weight: 600; overflow-wrap: anywhere }
+.m { display: flex; gap: 12px; flex-wrap: wrap; font-family: var(--mono); font-size: 11px; color: var(--muted) }
+.r { font-weight: 700 }
+.TIPPED { color: var(--red) } .FADED { color: var(--green) } .OPEN { color: var(--amber) }
+.none { color: var(--muted); font-size: 12px; font-style: italic }
+</style>
+<header><a class="logo" href="/stories">QUANTARA</a><span class="lbl">board preview · internal</span></header>
+<main id="main"><div class="sub">Replaying stored news through today's rules…</div></main>
+<script>
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+(async () => {
+  let d;
+  try { d = await (await fetch("/api/tipping/preview?days=10")).json(); }
+  catch (e) { document.getElementById("main").innerHTML = `<div class="panel">Could not load the preview.</div>`; return; }
+  const r = d.rule || {};
+  const res = x => x.result === "TIPPED" ? `🔥 tipped after ${x.tipped_after_h} h` : x.result === "FADED" ? "💨 faded" : "⏳ still open";
+  const card = x => `<div class="card"><span class="co">${esc(x.company)}</span><span class="t">${esc(x.title)}</span>
+      <span class="sub">🔥 Will it tip by ${DAYS[new Date((x.ts + (r.days || 5) * 86400) * 1000).getDay()]}?</span>
+      <div class="m"><span>listed at ${x.start} outlets</span><span>target ${x.target}</span><span>reached ${x.max_outlets}</span>
+        <span>${x.beyond_news ? "talked about beyond the news" : "news only"}</span><span class="r ${x.result}">${res(x)}</span></div></div>`;
+  document.getElementById("main").innerHTML = `
+    <section class="panel">
+      <h1>What players would have seen, last 10 days</h1>
+      <div class="sub">Stored news replayed through today's rules: a brand story is listed when it starts spreading (3+ outlets, 2+ new in 12 h, real trouble in the headline, max 6 a day). It tips at ${r.outlets}+ outlets, ${r.growth}+ more than at listing, with people talking about it beyond the news, within ${r.days} days.${r.provisional ? " The rule is provisional until 30 stories have finished." : ""}</div>
+      <div class="stats">
+        <div class="stat"><span class="lbl">Listed</span><b>${d.listed ?? 0}</b></div>
+        <div class="stat"><span class="lbl">Per day</span><b>${d.per_day ?? 0}</b></div>
+        <div class="stat"><span class="lbl">Tipped</span><b class="TIPPED">${d.tipped ?? 0}</b></div>
+        <div class="stat"><span class="lbl">Faded</span><b class="FADED">${d.faded ?? 0}</b></div>
+        <div class="stat"><span class="lbl">Still open</span><b class="OPEN">${d.open ?? 0}</b></div>
+      </div>
+      <div class="sub">Only the everyday news is replayed, and only the readings we stored. "Beyond the news" can only be seen for stories our Bluesky and YouTube checks looked at.</div>
+    </section>
+    ${(d.days || []).slice().reverse().map(day => `<section class="panel day"><div class="dh">${esc(day.day)} · ${day.stories.length} stor${day.stories.length === 1 ? "y" : "ies"}</div>
+      ${day.stories.length ? day.stories.map(card).join("") : `<div class="none">Nothing listed.</div>`}</section>`).join("")}`;
+})();
+</script>

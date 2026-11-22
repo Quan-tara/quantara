@@ -1003,7 +1003,24 @@ async function story(sid) {
   hookChart();
   STORY = d;
   if (d.status !== "WATCHING") { loadMarket(d.sid); loadComments(d.sid); }
-  if (IS_MOD) loadBuzz(d.sid);
+  if (IS_MOD) { loadBuzz(d.sid); loadMeasures(d.sid); }
+}
+// ── phase 2 measurements (moderators, recorded only) ──
+async function loadMeasures(sid) {
+  let m; try { m = await (await fetch("/api/tipping/story/" + encodeURIComponent(sid))).json(); } catch (e) { return; }
+  if (!m || (!m.timeline.length && !m.responses.length && !m.bridges.length)) return;
+  const host = document.querySelector(".grid2 > div"); if (!host) return;
+  const sec = document.createElement("section"); sec.className = "panel";
+  const tl = m.timeline, last = tl[tl.length - 1] || {}, br = m.bridges[m.bridges.length - 1], ew = m.early_warning;
+  const KIND = { reversal: "backed down", apology: "apologised", denial: "pushed back", action: "acted", statement: "made a statement" };
+  sec.innerHTML = `<div class="ph"><span class="lbl">Measurements · moderators</span><span class="tag">recorded only</span></div>
+    <div style="padding:12px 14px;display:grid;gap:6px;font-size:12px">
+      <div><b>Timeline:</b> ${tl.length} reading${tl.length === 1 ? "" : "s"} (every 3 h)${last.outlets != null ? ` · now ${last.outlets} outlets, +${last.new_12h ?? 0} in 12 h` : ""}${last.posts != null ? ` · ${last.posts} Bluesky posts` : ""}${last.videos != null ? ` · ${last.videos} videos` : ""}</div>
+      <div><b>Early warning:</b> ${ew ? `growth variance ${ew.variance} (before ${ew.variance_before}), autocorrelation ${ew.autocorr} (before ${ew.autocorr_before})${ew.rising ? " — <b style='color:var(--amber)'>both rising</b>" : ""}` : "needs 13+ readings"}</div>
+      <div><b>Company response:</b> ${m.responses.length ? m.responses.map(r => `${KIND[r.kind] || r.kind} — ${esc(r.title)} <span class="mono" style="color:var(--muted)">${esc(r.source || "")}</span>`).join("<br>") + (m.first_response_h != null ? `<br><span style="color:var(--muted)">first response ${m.first_response_h} h after we first measured it</span>` : "") : "none yet (silence)"}</div>
+      <div><b>Bridges (Bluesky):</b> ${br ? `${br.authors} accounts posting · ${br.clusters} separate group${br.clusters === 1 ? "" : "s"} among the ${br.sampled} most engaged (biggest holds ${Math.round(100 * (br.largest_share || 0))}%) · audience ${(br.audience || 0).toLocaleString()} · ${br.big_accounts} big account${br.big_accounts === 1 ? "" : "s"}` : "not checked yet (listed stories, every 6 h)"}</div>
+    </div>`;
+  host.insertBefore(sec, host.children[1] || null);      // right under the state / score panel
 }
 
 // ── "WOULD YOU STILL BUY FROM <BRAND>?" ──

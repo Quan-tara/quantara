@@ -2314,6 +2314,18 @@ def api_tipping_rule():
         session.close()
 
 
+@app.get("/api/tipping/story/{sid}")
+def api_tipping_story(sid: str):
+    """Phase 2 measurements for one story (recorded only): timeline, early-warning signals, company
+    responses, bridges."""
+    from engine.measures import for_story
+    session = SessionLocal()
+    try:
+        return for_story(session, sid[:16])
+    finally:
+        session.close()
+
+
 @app.get("/api/tipping/preview")
 def api_tipping_preview(days: int = 10):
     """What the board would have listed over the last days under today's rules, and how each story ended."""

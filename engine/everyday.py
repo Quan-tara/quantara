@@ -996,14 +996,15 @@ def reach_check(stories, articles, top=REACH_TOP):
     seen = {(a["title"].lower(), a["source"].lower()) for a in articles}
     cutoff = time.time() - ni.ARTICLE_WINDOW_H * 3600
     try:
-        from engine.tipping import TROUBLE_RX
+        from engine.tipping import tip_gate
     except Exception:
-        TROUBLE_RX = None
+        tip_gate = None
     cands = []
     for s in stories:
         brand = brand_in(s.get("raw_titles"))
         if brand:
-            trouble = bool(TROUBLE_RX and any(TROUBLE_RX.search(t or "") for t in s.get("raw_titles") or []))
+            # a real 'Will it tip?' candidate (brand + real trouble), not "Fast & Furious" in a game headline
+            trouble = bool(tip_gate and any(tip_gate(t, [], brand)[0] for t in (s.get("raw_titles") or [])[:5]))
             cands.append((1 if trouble else 0, ni.story_score(s), s, brand))
     cands.sort(key=lambda x: (x[0], x[1]), reverse=True)
     extra, searched = [], 0

@@ -478,6 +478,15 @@ def update_listings(stories, session, now=None, arena="food"):
         print(f"📌 Story listed  {s['sid']}  score {s['story_score']:.1f}  "
               f"[{s['outlets']} outlets]  {s['title'][:70]}")
 
+    if rules.get("bet") == "tip":
+        try:                                      # phase 2: timelines + company responses (recorded only)
+            from engine.measures import record_run
+            listed_now = _arena_filter(session.query(Narrative).filter(Narrative.status == "LISTED"), arena).all()
+            record_run(session, stories, listed_now, now)
+        except Exception as e:
+            session.rollback()
+            print(f"⚠️ timeline error: {e}")
+
     session.commit()
 
     for s in stories:

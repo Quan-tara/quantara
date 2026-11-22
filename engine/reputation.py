@@ -105,6 +105,12 @@ def _social(session):
         YC.attach(session, rows)
         from engine import outcomes as OC
         OC.run(session)                            # app ratings, brand search, revenue — outcomes closer to money
+        try:
+            from engine import bridges as BR
+            BR.run(session)                        # phase 2: does a listed story jump between groups on Bluesky
+        except Exception as e:
+            session.rollback()
+            print(f"⚠️ bridges: {e}")
     except Exception as e:
         session.rollback()
         print(f"⚠️ voices error: {e}")

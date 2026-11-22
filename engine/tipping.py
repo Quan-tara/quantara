@@ -24,10 +24,13 @@ import time
 
 SPREAD_MIN_OUTLETS = 3
 SPREAD_NEW_12H = 2
-TIP_GROWTH = 4
+TIP_GROWTH = 3            # default growth since listing (calibrated: GROWTHS)
 TIP_DAYS = 5
-DEFAULT_OUTLETS = 10
-CANDIDATES = (6, 8, 10, 12, 15, 20)
+DEFAULT_OUTLETS = 6       # our outlet counts come from ~20 feeds + searches, far below the real number
+CANDIDATES = (5, 6, 8, 10, 12, 15)
+GROWTHS = (2, 3, 4)
+CAL_ARENAS = ("everyday", "brands")
+RULE_VERSION = 2          # a stored rule from an older version is recalibrated at once
 TARGET_RATE = 0.25
 MIN_CASES = 10
 FREEZE_CASES = 30
@@ -124,18 +127,21 @@ def state_of(n):
 
 
 # ─────────────────────────────── calibration on stored history ───────────────────────────────
-def replay(session, arena="everyday"):
-    """Every story that became Spreading in the stored readings, with what followed within TIP_DAYS:
-    [{sid, title, company, ts, start, max_outlets, beyond}] — finished windows only."""
+def replay(session, arenas=CAL_ARENAS):
+    """Every story that became Spreading in the stored readings (everyday + brand-scandal arenas), with
+    what followed within TIP_DAYS: [{sid, title, company, ts, start, max_outlets, beyond}] — finished
+    windows only. Beyond the news = posts / videos about the story, or the brand spiking on Bluesky,
+    AFTER it started spreading."""
     from db.models import ArenaReading, BrandBuzz, SocialSignal
     from engine.everyday import brand_in, index_gate
-    hist, started, latest, last_ts = {}, {}, None, 0.0
-    q = (session.query(ArenaReading.ts, ArenaReading.story_index).filter(ArenaReading.arena == arena)
-         .order_by(ArenaReading.ts))
-    for ts, idx in q.yield_per(200):
-        if ts - last_ts < 3 * 3600:
+    hist, started, latest, last_ts = {}, {}, None, {}
+    q = (session.query(ArenaReading.ts, ArenaReading.arena, ArenaReading.story_index)
+         .filter(ArenaReading.arena.in_(list(arenas))).order_by(ArenaReading.ts))
+    for ts, arena, idx in q.yield_per(200):
+        if ts - last_ts.get(arena, 0) < 3 * 3600:
             continue
-        last_ts = latest = ts
+        last_ts[arena] = ts
+        latest = ts
         try:
             stories = json.loads(idx or "[]")
         except Exception:
@@ -170,7 +176,7 @@ def replay(session, arena="everyday"):
     for b, ts in session.query(BrandBuzz.brand, BrandBuzz.ts).filter(BrandBuzz.spike.is_(True)).all():
         spikes.setdefault(_norm(b), []).append(ts)
     for c in done:
-        lo, hi = c["ts"] - 86400, c["ts"] + TIP_DAYS * 86400
+        lo, hi = c["ts"], c["ts"] + TIP_DAYS * 86400
         co = _norm(c["company"])
         c["beyond"] = any(lo <= t <= hi for t in social.get(c["sid"], [])) or any(
             lo <= t <= hi for b, ts_ in spikes.items() if b and (b == co or b in co) for t in ts_)
@@ -183,28 +189,31 @@ def calibrate(session, save=True):
     cases, latest = replay(session)
     rates = {}
     for T in CANDIDATES:
-        k = sum(1 for c in cases if c["max_outlets"] >= max(T, c["start"] + TIP_GROWTH) and c["beyond"])
-        rates[T] = {"tipped": k, "cases": len(cases), "rate": round(k / len(cases), 3) if cases else None,
-                    "range": wilson(k, len(cases))}
+        for G in GROWTHS:
+            k = sum(1 for c in cases if c["max_outlets"] >= max(T, c["start"] + G) and c["beyond"])
+            rates[f"{T}+{G}"] = {"outlets": T, "growth": G, "tipped": k, "cases": len(cases),
+                                 "rate": round(k / len(cases), 3) if cases else None, "range": wilson(k, len(cases))}
     beyond_share = round(sum(1 for c in cases if c["beyond"]) / len(cases), 3) if cases else None
     if len(cases) >= MIN_CASES:
-        best = min(CANDIDATES, key=lambda T: (abs(rates[T]["rate"] - TARGET_RATE), T))
+        # closest to a quarter tipping; on a tie the stricter rule (bigger, then more growth)
+        key = min(rates, key=lambda k_: (abs(rates[k_]["rate"] - TARGET_RATE), -rates[k_]["outlets"], -rates[k_]["growth"]))
+        best, growth = rates[key]["outlets"], rates[key]["growth"]
     else:
-        best = DEFAULT_OUTLETS
-    out = {"outlets": best, "growth": TIP_GROWTH, "days": TIP_DAYS, "cases": len(cases),
-           "rate": rates[best]["rate"], "provisional": len(cases) < FREEZE_CASES,
+        best, growth, key = DEFAULT_OUTLETS, TIP_GROWTH, f"{DEFAULT_OUTLETS}+{TIP_GROWTH}"
+    out = {"version": RULE_VERSION, "outlets": best, "growth": growth, "days": TIP_DAYS, "cases": len(cases),
+           "rate": rates[key]["rate"], "provisional": len(cases) < FREEZE_CASES,
            "chosen_by": "history" if len(cases) >= MIN_CASES else "default (too few finished cases)",
            "rates": rates, "beyond_news_share": beyond_share, "latest_reading": latest,
            "examples": sorted(({"title": c["title"], "company": c["company"], "start": c["start"],
                                 "max": c["max_outlets"], "beyond": c["beyond"],
-                                "tipped": c["max_outlets"] >= max(best, c["start"] + TIP_GROWTH) and c["beyond"]}
+                                "tipped": c["max_outlets"] >= max(best, c["start"] + growth) and c["beyond"]}
                                for c in cases), key=lambda x: -x["max"])[:25]}
     if save:
-        session.add(TipRule(ts=time.time(), outlets=best, growth=TIP_GROWTH, days=TIP_DAYS, rate=out["rate"],
+        session.add(TipRule(ts=time.time(), outlets=best, growth=growth, days=TIP_DAYS, rate=out["rate"],
                             cases=len(cases), provisional=out["provisional"],
                             report=json.dumps({k: v for k, v in out.items() if k != "examples"} | {"examples": out["examples"]})))
         session.commit()
-        print(f"🎯 tip rule: {best}+ outlets, +{TIP_GROWTH} since listing, seen beyond the news, within {TIP_DAYS} days "
+        print(f"🎯 tip rule: {best}+ outlets, +{growth} since listing, seen beyond the news, within {TIP_DAYS} days "
               f"— {out['rate']} of {len(cases)} spreading stories tipped ({out['chosen_by']})")
     return out
 
@@ -216,7 +225,8 @@ def maybe_calibrate(session_factory):
         rl = rule(s)
     finally:
         s.close()
-    due = not rl["calibrated"] or (rl["provisional"] and time.time() - rl.get("ts", 0) > 86400)
+    due = (not rl["calibrated"] or (rl.get("report") or {}).get("version") != RULE_VERSION
+           or (rl["provisional"] and time.time() - rl.get("ts", 0) > 86400))
     if not due or _cal["running"] or time.time() - _cal["ts"] < 3600:
         return
     _cal["running"], _cal["ts"] = True, time.time()

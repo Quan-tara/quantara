@@ -83,7 +83,67 @@ CASES = [
     dict(key="goya-2020", name="Goya boycott", day="2020-07-09", type="social",
          ticker=None, bench=None, geo="US",
          attention=["goya boycott", "goya"], action=["boycott goya", "buy goya"]),
+    dict(key="target-pride-2023", name="Target Pride boycott", day="2023-05-24", type="social",
+         ticker="TGT", bench="^GSPC", geo="US",
+         attention=["target pride", "target"], action=["boycott target", "target boycott"]),
 ]
+for _c in CASES:
+    _c.setdefault("group", "blowup")
+
+# 22 Nov 2026 — stories that looked like trouble and BLEW OVER (outrage, boycott calls, scary reports),
+# so the test can ask the real question: in the first 3 days, do blow-ups look different from these?
+FIZZLES = [
+    dict(key="sbux-redcup-2015", name="Starbucks red cups", day="2015-11-09", ticker="SBUX", bench="^GSPC", geo="US",
+         attention=["starbucks red cup", "starbucks"], action=["boycott starbucks", "starbucks alternative"]),
+    dict(key="sbux-racetogether-2015", name="Starbucks Race Together", day="2015-03-17", ticker="SBUX", bench="^GSPC", geo="US",
+         attention=["race together starbucks", "starbucks"], action=["boycott starbucks", "starbucks alternative"]),
+    dict(key="sbux-philly-2018", name="Starbucks Philadelphia arrests", day="2018-04-14", ticker="SBUX", bench="^GSPC", geo="US",
+         attention=["starbucks arrest", "starbucks"], action=["boycott starbucks", "starbucks alternative"]),
+    dict(key="pepsi-jenner-2017", name="Pepsi Kendall Jenner ad", day="2017-04-04", ticker="PEP", bench="^GSPC", geo="US",
+         attention=["pepsi ad", "pepsi"], action=["boycott pepsi", "pepsi alternative"]),
+    dict(key="coke-georgia-2021", name="Coca-Cola Georgia voting law", day="2021-04-01", ticker="KO", bench="^GSPC", geo="US",
+         attention=["coca cola georgia", "coca cola"], action=["boycott coca cola", "boycott coke"]),
+    dict(key="coke-training-2021", name="Coca-Cola 'be less white' training", day="2021-02-19", ticker="KO", bench="^GSPC", geo="US",
+         attention=["coca cola be less white", "coca cola"], action=["boycott coca cola", "boycott coke"]),
+    dict(key="bk-tweet-2021", name="Burger King 'kitchen' tweet", day="2021-03-08", ticker="QSR", bench="^GSPC", geo="US",
+         attention=["burger king tweet", "burger king"], action=["boycott burger king", "burger king alternative"]),
+    dict(key="kfc-germany-2022", name="KFC Germany Kristallnacht message", day="2022-11-09", ticker="YUM", bench="^GSPC", geo="",
+         attention=["kfc kristallnacht", "kfc"], action=["boycott kfc", "kfc apology"]),
+    dict(key="tacobell-beef-2011", name="Taco Bell beef lawsuit", day="2011-01-24", ticker="YUM", bench="^GSPC", geo="US",
+         attention=["taco bell beef", "taco bell"], action=["taco bell beef lawsuit", "boycott taco bell"]),
+    dict(key="wendys-surge-2024", name="Wendy's surge pricing", day="2024-02-26", ticker="WEN", bench="^GSPC", geo="US",
+         attention=["wendys surge pricing", "wendys"], action=["boycott wendys", "wendys dynamic pricing"]),
+    dict(key="oreo-pride-2012", name="Oreo rainbow cookie", day="2012-06-25", ticker="MDLZ", bench="^GSPC", geo="US",
+         attention=["oreo rainbow", "oreo"], action=["boycott oreo", "boycott kraft"]),
+    dict(key="khc-macaroni-2017", name="Kraft mac & cheese chemicals report", day="2017-07-12", ticker="KHC", bench="^GSPC", geo="US",
+         attention=["mac and cheese chemicals", "kraft mac and cheese"], action=["is kraft mac and cheese safe", "phthalates mac and cheese"]),
+    dict(key="khc-lunchables-2024", name="Lunchables lead report", day="2024-04-09", ticker="KHC", bench="^GSPC", geo="US",
+         attention=["lunchables lead", "lunchables"], action=["are lunchables safe", "lunchables petition"]),
+    dict(key="gis-cheerios-2018", name="Cheerios glyphosate report", day="2018-08-15", ticker="GIS", bench="^GSPC", geo="US",
+         attention=["cheerios glyphosate", "cheerios"], action=["are cheerios safe", "glyphosate cereal"]),
+    dict(key="heineken-ad-2018", name="Heineken 'lighter is better' ad", day="2018-03-26", ticker="HEIA.AS", bench="^AEX", geo="",
+         attention=["heineken ad", "heineken"], action=["boycott heineken", "heineken racist"]),
+    dict(key="dove-ad-2017", name="Dove body-wash ad", day="2017-10-07", ticker="ULVR.L", bench="^FTSE", geo="",
+         attention=["dove ad", "dove"], action=["boycott dove", "dove racist"]),
+    dict(key="benjerrys-2021", name="Ben & Jerry's West Bank", day="2021-07-19", ticker="ULVR.L", bench="^FTSE", geo="US",
+         attention=["ben and jerry's israel", "ben and jerry's"], action=["boycott ben and jerry's", "ben and jerry's boycott"]),
+    dict(key="gillette-2019", name="Gillette 'toxic masculinity' ad", day="2019-01-14", ticker="PG", bench="^GSPC", geo="US",
+         attention=["gillette ad", "gillette"], action=["boycott gillette", "gillette alternative"]),
+    dict(key="nike-kaepernick-2018", name="Nike Kaepernick ad", day="2018-09-03", ticker="NKE", bench="^GSPC", geo="US",
+         attention=["nike kaepernick", "nike"], action=["boycott nike", "burn nike"]),
+    dict(key="tims-app-2022", name="Tim Hortons app tracking", day="2022-06-01", ticker="QSR", bench="^GSPC", geo="CA",
+         attention=["tim hortons app", "tim hortons"], action=["tim hortons privacy", "delete tim hortons app"]),
+    dict(key="keurig-2017", name="Keurig Hannity boycott", day="2017-11-11", ticker=None, bench=None, geo="US",
+         attention=["keurig hannity", "keurig"], action=["boycott keurig", "smash keurig"]),
+    dict(key="subway-tuna-2021", name="Subway tuna lawsuit", day="2021-01-26", ticker=None, bench=None, geo="US",
+         attention=["subway tuna", "subway"], action=["is subway tuna real", "subway tuna lawsuit"]),
+    dict(key="subway-footlong-2013", name="Subway footlong length", day="2013-01-17", ticker=None, bench=None, geo="US",
+         attention=["subway footlong", "subway"], action=["subway footlong 11 inches", "subway lawsuit"]),
+]
+for _c in FIZZLES:
+    _c.update(group="fizzle", type="fizzle")
+CASES = CASES + FIZZLES
+EARLY_D = 3                   # "the first 3 days": what we would have known in time to warn
 
 BEFORE_D, AFTER_D = 60, 90
 JUMP_RATIO        = 3.0       # reading "jumped" = attention ≥ 3× its normal level
@@ -230,7 +290,12 @@ def _analyse(case, days, trends, news, price):
     first_act = next((d for d in days if act_r.get(d, 0) >= JUMP_RATIO), None)
     peak_day = max(reading, key=reading.get) if reading else None
 
+    early = [d for d in days if 0 <= rel(d) <= EARLY_D]
     out = {"key": case["key"], "name": case["name"], "type": case["type"], "event_day": ev,
+           "group": case.get("group", "blowup"),
+           "early_attention_x": max((att_r.get(d, 0) for d in early), default=None) if att_r else None,
+           "early_action_x": max((act_r.get(d, 0) for d in early), default=None) if act_r else None,
+           "early_news_x": max((news_r.get(d, 0) for d in early), default=None) if news_r else None,
            "ticker": case["ticker"],
            "reading_peak": reading.get(peak_day) if peak_day else None,
            "reading_peak_day": rel(peak_day) if peak_day else None,
@@ -350,5 +415,45 @@ def results(session, full=False):
                 "*_x": "times the normal level (median of the 50 days before the event)",
                 "*_day": "days relative to the event day (negative = before)",
                 "excess_*": "share return minus home-market return since the day before the event, in %",
-                "lead_days": "days from the first signal jump to the first 5% share drop (positive = signal first)"},
+                "lead_days": "days from the first signal jump to the first 5% share drop (positive = signal first)",
+                "early_*": "the highest level in the first 3 days (what we would have known in time to warn)",
+                "group": "blowup = a remembered crisis; fizzle = outrage / boycott calls / scary report that blew over"},
+            "summary": summary(cases),
             "cases": cases}
+
+
+def _med(xs):
+    xs = [x for x in xs if x is not None]
+    return round(statistics.median(xs), 2) if xs else None
+
+
+def summary(cases):
+    """The question: in the first 3 days, do blow-ups look different from stories that blew over — and do
+    their shares really end up different? Plus how well one simple early rule separates them."""
+    out = {}
+    for g in ("blowup", "fizzle"):
+        cs = [c for c in cases if c.get("group", "blowup") == g and c.get("status") != "ERROR"]
+        priced = [c for c in cs if c.get("excess_60d") is not None]
+        out[g] = {"cases": len(cs), "with_share_price": len(priced),
+                  "early_attention_x": _med([c.get("early_attention_x") for c in cs]),
+                  "early_action_x": _med([c.get("early_action_x") for c in cs]),
+                  "early_news_x": _med([c.get("early_news_x") for c in cs]),
+                  "share_vs_market_60d": _med([c.get("excess_60d") for c in priced]),
+                  "share_down_5pct_60d": f"{sum(1 for c in priced if c['excess_60d'] <= -5)} of {len(priced)}"}
+    rules = {}
+    for a, b in ((10, 3), (20, 3), (20, 10), (50, 5), (100, 10)):
+        flag = lambda c: (c.get("early_attention_x") or 0) >= a and (c.get("early_action_x") or 0) >= b
+        bl = [c for c in cases if c.get("group", "blowup") == "blowup" and c.get("status") != "ERROR"]
+        fz = [c for c in cases if c.get("group") == "fizzle" and c.get("status") != "ERROR"]
+        flagged = [c for c in bl + fz if flag(c)]
+        fp = [c for c in flagged if c.get("excess_60d") is not None]
+        rules[f"attention ≥{a}× and action ≥{b}× in 3 days"] = {
+            "blowups_flagged": f"{sum(1 for c in bl if flag(c))} of {len(bl)}",
+            "fizzles_flagged": f"{sum(1 for c in fz if flag(c))} of {len(fz)}",
+            "share_vs_market_60d_when_flagged": _med([c["excess_60d"] for c in fp]),
+            "share_vs_market_60d_when_not": _med([c.get("excess_60d") for c in bl + fz if not flag(c) and c.get("excess_60d") is not None])}
+    out["early_rules"] = rules
+    out["read_me"] = ("If blow-ups show clearly higher early numbers than fizzles, and the flagged cases lose more "
+                      "share value than the unflagged ones, early signals can tell trouble that costs money from "
+                      "noise. If the two groups look alike, they can't — and the index needs other inputs.")
+    return out

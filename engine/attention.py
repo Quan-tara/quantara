@@ -31,7 +31,7 @@ METHOD_VERSION = "2026-11-21-wide"
 LEARN_AI_PER_RUN = 2
 ACTIVE_HITS = 2
 YT_EVERY_S = 2 * 3600
-YT_WINDOW_H = 48
+YT_WINDOW_H = 72
 VIDEO_MIN_VIEWS = 50_000
 VIDEO_WARN_VIEWS = 200_000
 RIDICULE_WARN_SCORE = 15.0
@@ -108,7 +108,8 @@ def learn_from(session, titles, scores=None):
         name = _clean_name(got.get("brand")) if got.get("us") else ""
         session.add(BrandAsk(title=k, brand=name or None, ts=now))
         session.flush()
-        if not name or name in NON_US_BRANDS:
+        from engine.everyday import FOOD_BRANDS, GROCERS
+        if not name or name in NON_US_BRANDS or name in FOOD_BRANDS or name in GROCERS or brand_in([name]):
             continue
         b = session.query(LearnedBrand).filter(LearnedBrand.name == name).first()
         if not b:
@@ -201,7 +202,7 @@ def run_youtube_discovery():
             from datetime import datetime, timedelta, timezone
             after = (datetime.now(timezone.utc) - timedelta(hours=YT_WINDOW_H)).strftime("%Y-%m-%dT%H:%M:%SZ")
             d = Y._get("search", {"part": "id", "q": q, "type": "video", "maxResults": 25, "publishedAfter": after,
-                                  "relevanceLanguage": "en", "regionCode": "US", "order": "viewCount"})
+                                  "relevanceLanguage": "en", "order": "relevance"})
             ids = [it["id"]["videoId"] for it in d.get("items", []) if it.get("id", {}).get("videoId")]
             vids = Y._get("videos", {"part": "snippet,statistics", "id": ",".join(ids)}).get("items", []) if ids else []
             rec.posts = len(vids)

@@ -931,6 +931,12 @@ def _search(query):
 DISCOVERY_SEARCHES = 3
 
 
+# brands that sponsor sports (Red Bull, Monster…) spike on race / match talk — not food news
+_SPORT_TALK_RX = re.compile(r"\b(?:f1|formula|grand ?prix|\w*gp|verstappen|hamilton|leclerc|norris|russell|hadjar|perez|"
+                            r"racing|qualifying|podium|nfl|nba|mlb|nhl|ufc|playoffs?|super ?bowl|touchdown|"
+                            r"lasvegasgp|motorsport|nascar)s?\b", re.I)
+
+
 def discovery_news(articles):
     """Brands rising on Bluesky → one Google News search each ("<brand> <words people use>").
     Matching headlines join the arena like any other article, so a story found on social media
@@ -951,6 +957,7 @@ def discovery_news(articles):
     seen = {(a["title"].lower(), a["source"].lower()) for a in articles}
     cutoff = time.time() - ni.ARTICLE_WINDOW_H * 3600
     extra, searched = [], []
+    hot = [r for r in hot if not _SPORT_TALK_RX.search(" ".join(r.get("words") or []))]
     for r in hot[:DISCOVERY_SEARCHES + 2]:
         brand, words = r["brand"], r["words"][:2]
         query = f'"{brand}" ' + " ".join(words)

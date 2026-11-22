@@ -403,6 +403,10 @@ FOOD_PROFILE = {
 }
 
 
+_FEED_LAST = {}          # feed url → (ts, content) of the last good fetch
+FEED_REUSE_H = 3
+
+
 def pull_rss_articles(profile=None):
     """Returns (relevant_articles, stats). `profile`: an arena's feeds and word lists
     (engine/arenas.py); default = food, which feeds the FSNI."""
@@ -416,11 +420,22 @@ def pull_rss_articles(profile=None):
     for feed_url, region in feeds:
         short = feed_url.split("?")[0][:70]
         try:
-            resp = requests.get(feed_url, timeout=FEED_TIMEOUT, headers=UA)
-            if resp.status_code != 200:
-                print(f"⚠️ Feed {short} → HTTP {resp.status_code}")
-                continue
-            feed = feedparser.parse(resp.content)
+            try:
+                resp = requests.get(feed_url, timeout=FEED_TIMEOUT, headers=UA)
+                code, content = resp.status_code, resp.content
+            except Exception as e:
+                code, content = f"error {type(e).__name__}", None
+            if code == 200:
+                _FEED_LAST[feed_url] = (now, content)
+            else:
+                last = _FEED_LAST.get(feed_url)
+                if last and now - last[0] < FEED_REUSE_H * 3600:
+                    print(f"⚠️ Feed {short} → HTTP {code} — reusing last good copy")
+                    content = last[1]            # articles keep their own dates, so the window still applies
+                else:
+                    print(f"⚠️ Feed {short} → HTTP {code}")
+                    continue
+            feed = feedparser.parse(content)
             entries = feed.entries[:MAX_PER_FEED]
             if not entries:
                 print(f"⚠️ Feed {short} → 0 entries")
@@ -900,25 +915,39 @@ GDELT_API = (
 )
 
 
+_GDELT_LAST = {"ts": 0.0, "res": None}
+GDELT_REUSE_H = 6
+
+
+def _gdelt_fallback(why):
+    """GDELT refuses often (429). Dropping it made the safety half jump ~10 points between readings,
+    so the last good answer (≤ GDELT_REUSE_H old) is reused instead — the index moves with news, not with rate limits."""
+    last = _GDELT_LAST["res"]
+    if last and time.time() - _GDELT_LAST["ts"] < GDELT_REUSE_H * 3600:
+        print(f"⚠️ GDELT {why} — reusing last good reading ({(time.time() - _GDELT_LAST['ts']) / 60:.0f} min old)")
+        return {**last, "cached": True}
+    print(f"⚠️ GDELT {why}")
+    return {"country_count": 0, "source_count": 0, "ok": False}
+
+
 def fetch_gdelt_signal():
     try:
         r = requests.get(GDELT_API, timeout=20, headers=UA)
         if r.status_code != 200:
-            print(f"⚠️ GDELT returned {r.status_code}")
-            return {"country_count": 0, "source_count": 0, "ok": False}
+            return _gdelt_fallback(f"returned {r.status_code}")
         try:
             data = r.json()
         except ValueError:
-            print(f"⚠️ GDELT non-JSON reply: {r.text[:80]!r}")
-            return {"country_count": 0, "source_count": 0, "ok": False}
+            return _gdelt_fallback(f"non-JSON reply: {r.text[:60]!r}")
         arts = data.get("articles", [])
         countries = {a["sourcecountry"] for a in arts if a.get("sourcecountry")}
         sources = {a["domain"] for a in arts if a.get("domain")}
         print(f"🌍 GDELT: {len(countries)} countries, {len(sources)} sources, {len(arts)} articles")
-        return {"country_count": len(countries), "source_count": len(sources), "ok": True}
+        res = {"country_count": len(countries), "source_count": len(sources), "ok": True}
+        _GDELT_LAST["ts"], _GDELT_LAST["res"] = time.time(), res
+        return res
     except Exception as e:
-        print(f"⚠️ GDELT error: {e}")
-        return {"country_count": 0, "source_count": 0, "ok": False}
+        return _gdelt_fallback(f"error: {e}")
 
 
 # ─────────────────────────────────────────────

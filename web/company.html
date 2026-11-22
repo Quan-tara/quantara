@@ -269,6 +269,40 @@ function renderChart() {
   $("#chart-legend").innerHTML = `<b style="color:var(--text)">━ index</b> · <span style="color:var(--amber)">┅ safety</span> · <span style="color:var(--accent)">┅ social</span>`;
 }
 
+// search jump = Google searches for the brand ≥ 1.5× normal within 7 days · app = brand app's stars fell 0.3+
+// · sales = revenue growth 2+ points lower in the next reported quarter
+function moneyCell(M) {
+  if (!M) return `<span class="sub">collecting</span>`;
+  const parts = [["search_jump", "searches up"], ["app_drop", "app stars down"], ["revenue_slowdown", "sales slower"]]
+    .filter(([k]) => M[k]).map(([k, n]) => `${n} ${M[k].rate}% (${M[k].n})`);
+  return parts.length ? parts.join(" · ") : `<span class="sub">collecting</span>`;
+}
+
+function historyHtml(h) {
+  if (!h || h.status === "computing") return `<div class="sub">Replaying today's rules on all stored readings… (takes a few minutes the first time; reload later).</div>`;
+  if (h.status === "error") return `<div class="sub">The history test failed: ${esc(h.error || "")}</div>`;
+  const G = h.groups || {}, day = t => t ? new Date(t * 1000).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "?";
+  const names = { ordinary: "Ordinary brand-weeks (no warning)", baseline: "Baseline: brand in 5+ outlets, no rules", counting: "Story counts in the index (score 15+)", strong: "Strong story (score 30+, listing level)" };
+  const rows = ["ordinary", "baseline", "counting", "strong"].filter(k => G[k]).map(k => { const v = G[k];
+    return `<tr><td>${names[k]}</td><td>${v.cases}</td><td>${v.checked ? `<b>${v.spike_rate}%</b> <span class="sub">(${v.range[0]}–${v.range[1]}%)</span>` : "—"}</td>
+      <td>${v.abnormal_30d == null ? "—" : sgn(v.abnormal_30d) + "% (" + v.n_abnormal + ")"}</td>
+      <td>${moneyCell({ search_jump: v.n_search ? { rate: v.search_jump_rate, n: v.n_search } : null, app_drop: v.n_app ? { rate: v.app_drop_rate, n: v.n_app } : null, revenue_slowdown: v.n_revenue ? { rate: v.revenue_slowdown_rate, n: v.n_revenue } : null })}</td></tr>`; }).join("");
+  const o = G.ordinary, b = G.baseline, st = G.strong;
+  let verdict = "";
+  if (o && st && o.checked && st.checked) {
+    const beatsBase = b && b.checked && st.range[0] > b.range[1], beatsOrd = st.range[0] > o.range[1];
+    verdict = beatsBase ? "Strong stories were clearly followed by attention jumps more often than both ordinary weeks and the naive baseline."
+      : beatsOrd ? "Strong stories beat ordinary weeks, but not yet clearly the naive 'many outlets' baseline."
+      : "In the stored history, our warnings are not clearly better than ordinary weeks yet.";
+  }
+  const cs = (h.strong_cases || []).slice(0, 12).map(c => `<div class="li"><span>${esc(c.title)}</span><div class="m"><span>${day(c.ts)}</span><span>${esc(c.brand)}</span>
+      <span>attention ${c.attention_x == null ? "—" : `<b class="${c.spike ? "pressure" : ""}">${c.attention_x}×</b>`}</span>${c.abnormal_30d != null ? `<span>share 30d ${sgn(c.abnormal_30d)}%</span>` : ""}${c.search_x != null ? `<span>searches ${c.search_x}×</span>` : ""}</div></div>`).join("");
+  return `<div class="sub" style="margin:14px 0 6px"><b>Test on stored history</b> — today's rules replayed on ${h.readings_used} stored readings (${day(h.period[0])} – ${day(h.period[1])}), then checked against what happened. ${verdict}</div>
+    <div class="kt"><table><thead><tr><th>Group</th><th>Cases</th><th>Attention jump followed (95% range)</th><th>Share move beyond the market, 30d</th><th>Closer to money</th></tr></thead><tbody>${rows}</tbody></table></div>
+    ${cs ? `<details><summary class="sub" style="cursor:pointer">Strong stories in the history, newest first</summary><div class="list">${cs}</div></details>` : ""}
+    <div class="sub">If the index measures something real, the rate should rise from row to row. Limits: some rules were tuned on these same headlines, and the period is short — the live forward log stays the judge.</div>`;
+}
+
 function kindTable(K) {
   if (!K) return "";
   const names = { signal: "Story starts counting", spread: "Story spreading (R ≥ 1.3)", narrative: "Narrative rising (across brands)", attention: "Attention (video, ridicule, new brand)", listed: "Story listed for players",
@@ -276,17 +310,19 @@ function kindTable(K) {
   const rows = Object.keys(names).filter(k => K[k]).map(k => { const v = K[k];
     const rr = v.range && v.range[0] != null ? ` <span class="sub">(${v.range[0]}–${v.range[1]}%)</span>` : "";
     return `<tr><td>${names[k]}</td><td>${v.entries}</td><td>${v.checked ? v.spike_rate + "% of " + v.checked + rr : "after 7 days"}</td>
-      <td>${v.abnormal_30d == null ? "after 30 days" : sgn(v.abnormal_30d) + "% (" + v.n_abnormal + ")"}</td></tr>`; }).join("");
+      <td>${v.abnormal_30d == null ? "after 30 days" : sgn(v.abnormal_30d) + "% (" + v.n_abnormal + ")"}</td>
+      <td>${moneyCell(v.money)}</td></tr>`; }).join("");
   const b = K.baseline, sg = K.signal;
   const vs = b && sg && b.checked && sg.checked ? `<div class="sub">Our story warnings: <b>${sg.spike_rate}%</b> followed by a jump (${sg.range[0]}–${sg.range[1]}%) · the naive baseline: <b>${b.spike_rate}%</b> (${b.range[0]}–${b.range[1]}%). ${sg.range[0] > b.range[1] ? "We clearly beat it." : sg.spike_rate > b.spike_rate ? "Ahead so far, but the ranges still overlap: not proven yet." : "So far we don't beat it — the filters and scoring add nothing yet."}</div>`
     : b ? `<div class="sub">The baseline row is the bar to beat: a warning for any brand with 5+ outlets, no filters or scoring. Our warnings are only worth their complexity if they hit more often.</div>` : "";
-  return rows ? vs + `<div class="kt"><table><thead><tr><th>Warning type</th><th>Logged</th><th>Attention jump followed (95% range)</th><th>Share move not explained by the market, 30d</th></tr></thead><tbody>${rows}</tbody></table></div>` : "";
+  return rows ? vs + `<div class="kt"><table><thead><tr><th>Warning type</th><th>Logged</th><th>Attention jump followed (95% range)</th><th>Share move not explained by the market, 30d</th><th>Closer to money</th></tr></thead><tbody>${rows}</tbody></table></div>` : "";
 }
 
 // ── TRACK RECORD: warnings vs what really followed (Wikipedia attention, share price) ──
 async function renderTrack() {
   const el = $("#track");
   let d; try { d = await (await fetch("/api/reality/report")).json(); } catch (e) { el.innerHTML = `<div class="sub">Could not load the track record.</div>`; return; }
+  let hist = null; try { hist = await (await fetch("/api/reality/history")).json(); } catch (e) {}
   const p = d.past_test, F = d.forward, pc = v => v == null ? "—" : v + "%";
   const rg = r => r && r[0] != null ? `likely ${r[0]}–${r[1]}%` : "";
   const mr = r => r && r[0] != null ? `likely ${sgn(r[0])} to ${sgn(r[1])}%` : "";
@@ -327,6 +363,8 @@ async function renderTrack() {
       return out; })()}
     ${(() => { const T = d.tone_split || {}, n = T.negative, o = T.other; if (!n && !o) return ""; const r = g => !g ? "none yet" : g.checked ? `${g.spike_rate}% of ${g.checked} (${g.range[0]}–${g.range[1]}%)` : `${g.entries} logged, results after 7 days`; return `<div class="sub">Headline tone (test): story warnings with a clearly negative headline — jump followed ${r(n)} · other headlines — ${r(o)}.</div>`; })()}
     <div class="list">${F.latest.slice(0, 8).map(fwdRow).join("") || `<div class="sub">Nothing logged yet.</div>`}</div>
+    ${historyHtml(hist)}
+    <div class="sub" style="margin-top:8px">Closer to money: Google searches for the brand ≥ 1.5× normal within 7 days · the brand app's App Store stars fall 0.3+ in the week after · revenue growth 2+ points lower in the next reported quarter (needs SEC_CONTACT set). Collected slowly, so these fill in over days.</div>
     <div class="sub" style="margin-top:8px">Limits: attention also jumps on good news (a launch, an ad); share prices move for many reasons; private brands (Chick-fil-A, Subway…) have no share price. These are checks, not proof.</div>`;
 }
 

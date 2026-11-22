@@ -2296,6 +2296,30 @@ def api_narratives():
         session.close()
 
 
+@app.get("/api/reality/history")
+def api_reality_history():
+    """Today's rules replayed on all stored story readings, checked against what happened (cached 6 h;
+    the first call starts it and answers {'status': 'computing'})."""
+    from engine.history_test import get
+    return get(SessionLocal)
+
+
+@app.get("/api/outcomes/status")
+def api_outcomes_status():
+    """How much of the new outcome data (app ratings, brand search, revenue) has been collected so far."""
+    from db.models import AppDaily, BrandApp, RevenueQuarter, SearchDaily
+    session = SessionLocal()
+    try:
+        apps = session.query(BrandApp).all()
+        return {"apps_found": [a.name for a in apps if a.app_id], "apps_checked": len(apps),
+                "app_days": session.query(AppDaily).count(),
+                "search_brands": session.query(SearchDaily.brand).distinct().count(),
+                "revenue_companies": session.query(RevenueQuarter.brand).filter(RevenueQuarter.yoy.isnot(None)).distinct().count(),
+                "sec_contact_set": bool(os.getenv("SEC_CONTACT", "").strip())}
+    finally:
+        session.close()
+
+
 @app.get("/api/attention")
 def api_attention():
     """Attention layer (test phase, recorded only): big brand videos, ridicule, new brands."""

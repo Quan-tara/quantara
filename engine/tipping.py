@@ -50,7 +50,8 @@ TROUBLE_RX = re.compile(
     r"lawsuit\w*|sue[sd]?|suing|class action|accus\w*|investigat\w*|fined?|fines|penalt\w*|violation\w*|"
     r"strike\w*|walk ?out\w*|union\w*|layoff\w*|lay(?:s|ing)? off|laid off|fired|firing|job cuts?|clos(?:e|es|ing|ures?) (?:\d+ )?(?:stores|locations|restaurants)|"
     r"price hikes?|hikes?|rais(?:e|es|ed|ing) prices?|pricier|overpriced|shrink\w*|smaller|fees?|surcharge\w*|scam\w*|rip-?off|"
-    r"backtrack\w*|scandal\w*|controvers\w*|bans?|banned|halt\w*|shortage\w*|franchisees?)\b", re.I)
+    r"backtrack\w*|scandal\w*|controvers\w*|bans?|banned|halt\w*|shortage\w*|franchisees?|"
+    r"outages?|stranded|meltdown|cancell?ations|overdraft|junk fees?|data breach\w*|hack(?:ed|ers?)|customer data)\b", re.I)
 PROMO_RX = re.compile(
     r"\b(reveals?|unveils?|launch(?:es|ed)?|debuts?|introduc\w*|new (?:menu|meal|flavou?r|item|drink|collab)\w*|"
     r"collab\w*|partner(?:s|ship)? with|limited[- ]time|brings? back|is back|returns? (?:to|for)|giveaway|"

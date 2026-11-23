@@ -32,7 +32,15 @@ APPS_PER_RUN, APP_EVERY_H = 6, 3
 SEARCH_EVERY_H = 1
 REV_PER_RUN, REV_EVERY_H = 3, 1
 _st = {"apps": 0.0, "search": 0.0, "rev": 0.0, "tickers": None}
-_FOODISH = ("Food & Drink", "Shopping", "Lifestyle")
+_FOODISH = ("Food & Drink", "Shopping", "Lifestyle", "Travel", "Entertainment", "Finance", "Music", "Utilities",
+            "Health & Fitness", "Navigation", "Photo & Video", "Education")
+# 23 Nov 2026: brands whose app says nothing about how customers feel (packaged goods sell through shops;
+# tech giants and car makers have many apps). Wrong matches seen live: "Coca-Cola Rewards Georgia",
+# "Pepsi Chat", "Loja Mondelez", "FoodSpot - Hershey", "Nestlé Waters".
+NO_APP = {"coca-cola", "pepsi", "hershey", "kraft", "heinz", "mondelez", "oreo", "nestle", "nestlé", "bud light",
+          "anheuser-busch", "monster energy", "beyond meat", "apple", "tesla", "ford", "general motors", "chevrolet",
+          "jeep", "toyota", "honda", "harley-davidson", "hbo", "warner bros", "live nation", "the north face", "vans",
+          "estee lauder", "e.l.f.", "levi's", "ralph lauren", "crocs", "stanley", "skims", "adidas", "old navy"}
 
 
 def _shown(brand):
@@ -49,7 +57,9 @@ def _find_app(brand):
     for a in r.json().get("results", []):
         name = (a.get("trackName") or "") + " " + (a.get("sellerName") or "")
         low = name.lower().replace("'", "").replace("’", "")
-        if a.get("primaryGenreName") in _FOODISH and all(w in low for w in words):
+        seller = (a.get("sellerName") or "").lower().replace("'", "").replace("’", "")
+        # the brand's own app: brand words in the name, and the company itself as the seller
+        if a.get("primaryGenreName") in _FOODISH and all(w in low for w in words) and words and words[0] in seller:
             return str(a.get("trackId")), (a.get("trackName") or "")[:120]
     return None, None
 
@@ -81,8 +91,14 @@ def run_apps(session):
     if time.time() - _st["apps"] < APP_EVERY_H * 3600:
         return 0
     _st["apps"] = time.time()
+    if not _st.get("cleaned"):
+        # once per start: drop apps of brands that have no meaningful app (and their reviews)
+        session.query(AppDaily).filter(AppDaily.brand.in_(list(NO_APP))).delete(synchronize_session=False)
+        session.query(BrandApp).filter(BrandApp.brand.in_(list(NO_APP))).delete(synchronize_session=False)
+        session.commit()
+        _st["cleaned"] = True
     known = {a.brand: a for a in session.query(BrandApp).all()}
-    todo = sorted(BRANDS, key=lambda b: known[b].ts if b in known else 0)[:APPS_PER_RUN]
+    todo = sorted([b for b in BRANDS if b not in NO_APP], key=lambda b: known[b].ts if b in known else 0)[:APPS_PER_RUN]
     done = 0
     for b in todo:
         a = known.get(b)

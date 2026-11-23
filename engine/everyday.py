@@ -27,6 +27,7 @@ import requests
 
 from engine import narrative_index as ni
 from engine import arenas as A
+from engine import consumer as C            # 23 Nov 2026: wider scope — listed US consumer brands
 
 # ─────────────────────────────────────────────
 # Vocabulary
@@ -64,6 +65,10 @@ CONSUMER_BRANDS = [
     "roblox", "minecraft", "call of duty", "ubisoft", "valve", "rockstar", "gta", "ea sports", "bud light",
     "anheuser-busch", "jaguar", "harley-davidson", "ford", "toyota", "honda",
 ]
+
+# 23 Nov 2026: video games / AI / big-tech platforms out, the missing listed US consumer brands in
+CONSUMER_BRANDS = [b for b in CONSUMER_BRANDS if b not in C.NOT_OUR_BRANDS] + \
+    [b for b in C.EXTRA_NAMES if b not in CONSUMER_BRANDS]
 
 EVERYDAY_WORDS = [
     "subscription", "subscriptions", "subscribers", "customers", "shoppers", "passengers", "travellers",
@@ -209,12 +214,24 @@ SECTORS = {
 }
 
 
+SECTORS.update(C.WIDE_SECTORS)                 # 23 Nov 2026: seven consumer sectors besides food
+
+
+def consumer_anchor(text):
+    """Is a US consumer brand from our list named? (food brands count too)"""
+    b = brand_in([text])
+    return bool(b) and b.lower().replace("’", "'") not in NON_US_BRANDS
+
+
 def _count(text, words):
     return sum(1 for w in words if ni._has_any(text, [w]))
 
 
 def sector_of(text):
-    """Best-matching sector (or 'other')."""
+    """Best-matching sector (or 'other'). A listed consumer brand decides first (Nike → fashion & beauty)."""
+    wb = C.wide_brand(brand_in([text]))
+    if wb:
+        return C.WIDE_BRANDS[wb][0]
     best, best_n = "other", 0
     for sec, kws in SECTORS.items():
         n = _count(text, kws)
@@ -242,7 +259,7 @@ def relatability(text, trending=False, title=""):
     """(qualifies?, details) — the relatable food-story rule.
     • about food & drink, with a human reaction, little business/legal jargon
     • food-safety stories only when there is a debate (blame, denial, outrage…), never a recall notice"""
-    anchor = food_anchor(text)
+    anchor = food_anchor(text) or consumer_anchor(text)      # 23 Nov 2026: any listed US consumer brand
     reaction = _count(text, REACTION_WORDS)
     jargon = _count(text, _JARGON_GENERAL)
     safety = ni._has_any(text, ni.HAZARD_TERMS)
@@ -293,8 +310,7 @@ CRIME_TERMS = ["went missing", "goes missing", "gone missing", "reported missing
                "abducted", "rape", "sexual", "body found", "funeral", "last messages", "died", "dies", "dead", "death",
                "armed robbery", "gunman", "suspect", "victim", "court case"]
 # tech / IT news that only mentions a food brand
-OFFTOPIC_TERMS = ["payroll", "workday", "cyberattack", "cyber attack", "hackers", "data breach",
-                  "ransomware", "nvidia", "jensen huang", "openai", "chatgpt", "bitcoin", "crypto", "semiconductor"]
+OFFTOPIC_TERMS = ["payroll", "workday", "nvidia", "jensen huang", "openai", "chatgpt", "bitcoin", "crypto", "semiconductor"]
 
 
 # ── damage potential: can this story cost the company money? ──
@@ -362,6 +378,7 @@ NON_US_BRANDS = ["greggs", "pret", "costa", "nando's", "wetherspoons", "gail's",
                  "morrisons", "waitrose", "m&s", "marks & spencer", "co-op", "iceland", "ocado", "walkers",
                  "deliveroo", "just eat", "milka", "innocent", "rewe", "edeka", "carrefour", "woolworths", "coles",
                  "gokul", "amul", "jollibee", "loblaws", "metro", "migros", "mercadona"]
+NON_US_BRANDS += [b for b in C.NON_US_CONSUMER if b not in NON_US_BRANDS]
 FOREIGN_RX = re.compile(
     r"£|€|₹|\bA\$|\bC\$|\buk\b|\bu\.k\.|\bbritain\b|\bbritish\b|\bengland\b|\benglish\b|\blondon\b|\bscotland\b|"
     r"\bscottish\b|\bwales\b|\bwelsh\b|\bireland\b|\birish\b|\bnhs\b|\bcouncil\b|\bhigh street\b|\bcrisps\b|"
@@ -412,6 +429,10 @@ STAKE_RX = {
     "boycott / trust": re.compile(r"\bboycott|\bpetition|\blied\b|\blying\b|\bmisleading|\bdeceptive|\bfake\b|\bfalse advertising|"
                                   r"\blawsuit|\bsue[sd]?\b|\bsuing\b|\bclass action|\bscandal|\bcover-?up|\bpolicy\b|\bnever again\b|"
                                   r"\bdone with\b|\bswitching to\b|\bcancel(?:s|led|ing)? (?:their|my|our)?\s*(?:membership|subscription|order)", re.I),
+    # 23 Nov 2026, wider scope: service failures and customer data — the airline / bank / phone crises
+    "service": re.compile(r"\boutages?\b|\bstranded\b|\bmeltdown\b|\bcancell?(?:ed|ations?) flights?\b|\bflights? cancell?ed\b|"
+                          r"\bdelays?\b.{0,30}\b(?:passengers|customers|travell?ers)\b|\bdata breach|\bhack(?:ed|ers?)\b|"
+                          r"\bransomware\b|\bcustomer data\b|\bpersonal data\b|\bdown for (?:hours|days)\b", re.I),
 }
 NOSTALGIA_RX = re.compile(r"\bdiscontinued\b|\bbring(?:s|ing)? (?:\w+ ){0,3}back\b|\bwants? .{0,30}\bback\b|\bbeg\w*\b.{0,40}\bback\b|"
                           r"\bnostalgi|\bmissing\b.{0,20}\bmenu\b|\bcomeback\b", re.I)
@@ -444,6 +465,10 @@ _INCIDENT_RX = re.compile(r"\b(?:AI|security|surveillance|police|cops|officers|g
 OBIT_RX = re.compile(r"\b(?:passe[sd] away|obituary|funeral|in memoriam|laid to rest)\b|"
                      r"\b(?:founder|co-?founder|creator|inventor|ceo|chairman|executive|former|legend|icon|mascot|actor|star)\b"
                      r".{0,60}\b(?:dies|died|dead)\b|\b(?:dies|died)\b.{0,15}\bat (?:age )?\d+|\b(?:dies|died)\b,? (?:aged|at) ", re.I)
+# biography / company-history pieces ("He co-founded Pizza Hut in 1958 with his brother…") — nothing at stake
+BIO_RX = re.compile(r"\b(?:co-?found(?:ed|er)|found(?:ed|er)|started|opened|launched)\b.{0,60}\bin (?:18|19)\d\d\b|"
+                    r"\bwas born\b|\blegacy of\b|\bremember(?:ing|ed)\b|\btribute to\b|\blife and (?:career|legacy)\b|"
+                    r"\bhistory of\b|\bthe story (?:of|behind)\b|\bhow .{0,40}\b(?:built|became)\b", re.I)
 INVESTOR_RX = re.compile(r"\bundervalued\b|\bovervalued\b|\bprice target\b|\bstock (?:forecast|rating|split|pick)|"
                          r"\b(?:buy|sell),? (?:sell,? )?or hold\b|\binvested in\b|\$\d[\d,]* invested\b|\bwould be worth\b|"
                          r"\bcash flow\b|\bvaluation\b|\bdividend|\bearnings (?:preview|call|estimate|beat|miss)|\bEPS\b|"
@@ -467,6 +492,8 @@ def not_their_trouble(title):
             return "investor article, not public pressure"
     if OBIT_RX.search(t) and not STAKE_RX["safety"].search(t):
         return "obituary, nothing the brand could back down on"
+    if BIO_RX.search(t) and not any(STAKE_RX[k].search(t) for k in ("safety", "workers", "boycott / trust")):
+        return "biography / company history, nothing at stake"
     if PROP_RX.search(t) or SUE_OTHER_RX.search(t) or (_OBJECT_RX.search(t) and _INCIDENT_RX.search(t)):
         return "the brand is a bystander, someone else is blamed"
     return ""
@@ -533,6 +560,11 @@ def index_gate(title, others=(), company=None):
         return False, "praise, not pressure"
     if JOKE_RX.search(title) and not STRONG_DEMAND_RX.search(title):
         return False, "joke, review or promo"
+    from engine.tipping import PROMO_RX, TROUBLE_RX
+    if GOOD_NEWS_RX.search(title):
+        return False, "good news for the brand"
+    if PROMO_RX.search(title) and not TROUBLE_RX.search(title):
+        return False, "promo / launch, no trouble"
     if FOREIGN_RX.search(title) and not US_RX.search(title):
         return False, "not about the US"
     named = brand_in([title]) or company
@@ -548,6 +580,12 @@ def index_gate(title, others=(), company=None):
     if not cat:
         return False, "nostalgia, nothing at stake" if NOSTALGIA_RX.search(title) else "no real stakes"
     return True, cat
+
+
+# good news for the brand: never pressure, even when an old scandal is mentioned ("sales recovery after outbreak")
+GOOD_NEWS_RX = re.compile(r"\b(?:recover(?:y|s|ed|ing)|rebound\w*|beats? (?:estimates|expectations)|"
+                          r"sales (?:rise|rises|rose|jump\w*|surge\w*|grow\w*|climb\w*)|record (?:sales|profit\w*|quarter)|"
+                          r"wins? (?:an? )?award|named (?:the )?best)\b", re.I)
 
 
 def stakes(texts):
@@ -633,7 +671,7 @@ def _everyday_relevant(text, title):
         return False
     if A.ROUNDUP_RX.search(title or ""):
         return False
-    if ni._has_any(text, A.POLITICS_TERMS) and not (ni._has_any(text, FOOD_BRANDS)
+    if ni._has_any(text, A.POLITICS_TERMS) and not (ni._has_any(text, FOOD_BRANDS) or consumer_anchor(text)
                                                     or ni._has_any(text, A.STRONG_CORPORATE)):
         return False
     return relatability(text, title=title)[0]
@@ -710,6 +748,7 @@ EVERYDAY_FEEDS = [
     # all subreddits in ONE request — Reddit answers 429 to ten quick requests from one server
     ("https://www.reddit.com/r/" + "+".join(REDDIT_SUBS) + "/top/.rss?t=day&limit=100", "US"),
 ]
+EVERYDAY_FEEDS += C.WIDE_FEEDS                  # 23 Nov 2026: airlines, retail, streaming, phones, cars, banks…
 
 EVERYDAY_PROFILE = {
     "name": "everyday",

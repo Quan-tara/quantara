@@ -328,7 +328,7 @@ BRAND_PROFILE = {
 }
 
 ARENAS = {"brands": BRAND_PROFILE}          # "everyday" is added at the bottom (engine/everyday.py)
-ARENA_LABELS = {"food": "Food safety", "brands": "Brand scandals", "everyday": "Food & drink"}
+ARENA_LABELS = {"food": "Food safety", "brands": "Brand scandals", "everyday": "Consumer brands"}
 # arenas that only keep their already-listed stories up to date (no news pulled, nothing new listed)
 MAINTENANCE_ONLY = {"brands"}
 

@@ -880,8 +880,23 @@ def compact_story_index(stories):
 # FDA — recent enforcement reports (openFDA)
 # ─────────────────────────────────────────────
 
+_FDA_LAST = {"ts": 0.0, "val": None}
+FDA_REUSE_H = 6
+
+
+def _fda_fallback(why):
+    """The FDA server failed: reuse the last good reading (up to FDA_REUSE_H hours old) so a server error
+    doesn't look like 'no recalls' and make the index jump (seen 23 Nov 2026: HTTP 500 → 0 events)."""
+    if _FDA_LAST["val"] and time.time() - _FDA_LAST["ts"] <= FDA_REUSE_H * 3600:
+        print(f"⚠️ FDA API {why} — reusing the reading from {int((time.time() - _FDA_LAST['ts']) / 60)} min ago")
+        return dict(_FDA_LAST["val"])
+    print(f"⚠️ FDA API {why}")
+    return {"events": 0, "class1_events": 0}
+
+
 def fetch_fda_signal():
-    """Food enforcement reports in the last 30 days. Returns dict, zeros on error."""
+    """Food enforcement reports in the last 30 days. Returns dict; on a server error the last good reading
+    (up to 6 h old), else zeros."""
     end = datetime.now(timezone.utc)
     start = end - timedelta(days=30)
     url = ("https://api.fda.gov/food/enforcement.json?search=report_date:["
@@ -891,16 +906,16 @@ def fetch_fda_signal():
         if r.status_code == 404:               # openFDA: no matches
             return {"events": 0, "class1_events": 0}
         if r.status_code != 200:
-            print(f"⚠️ FDA API returned {r.status_code}")
-            return {"events": 0, "class1_events": 0}
+            return _fda_fallback(f"returned {r.status_code}")
         results = r.json().get("results", [])
         events = {x.get("event_id") or x.get("recall_number") for x in results}
         class1 = {x.get("event_id") or x.get("recall_number") for x in results
                   if (x.get("classification") or "").strip() == "Class I"}
-        return {"events": len(events), "class1_events": len(class1)}
+        val = {"events": len(events), "class1_events": len(class1)}
+        _FDA_LAST.update(ts=time.time(), val=val)
+        return val
     except Exception as e:
-        print(f"⚠️ FDA API error: {e}")
-        return {"events": 0, "class1_events": 0}
+        return _fda_fallback(f"error: {e}")
 
 
 # ─────────────────────────────────────────────

@@ -65,7 +65,7 @@ BRANDS = {
     "whole foods": ("Whole_Foods_Market", None), "aldi": ("Aldi", None), "doordash": ("DoorDash", "DASH"),
     "instacart": ("Instacart", "CART"), "nestle": ("Nestlé", "NSRGY"), "nestlé": ("Nestlé", "NSRGY"),
 }
-# 23 Nov 2026: listed US consumer brands beyond food (engine/consumer.py)
+# 23 Nov 2026: more food & drink brands (engine/consumer.py)
 from engine.consumer import WIDE_BRANDS as _WB, WIDE_ALIASES as _WA
 BRANDS.update({k: (wiki, tic) for k, (_sec, wiki, tic) in _WB.items() if k not in BRANDS})
 ALIASES = {"mcdonalds": "mcdonald's", "dominos": "domino's", "dunkin'": "dunkin", "coke": "coca-cola",

@@ -66,9 +66,8 @@ CONSUMER_BRANDS = [
     "anheuser-busch", "jaguar", "harley-davidson", "ford", "toyota", "honda",
 ]
 
-# 23 Nov 2026: video games / AI / big-tech platforms out, the missing listed US consumer brands in
-CONSUMER_BRANDS = [b for b in CONSUMER_BRANDS if b not in C.NOT_OUR_BRANDS] + \
-    [b for b in C.EXTRA_NAMES if b not in CONSUMER_BRANDS]
+# 23 Nov 2026: video games / AI names never count as a brand here
+CONSUMER_BRANDS = [b for b in CONSUMER_BRANDS if b not in C.NOT_OUR_BRANDS]
 
 EVERYDAY_WORDS = [
     "subscription", "subscriptions", "subscribers", "customers", "shoppers", "passengers", "travellers",
@@ -94,6 +93,8 @@ REACTION_WORDS = [
     "pulled from", "sold out", "outage", "down for", "chaos", "meltdown", "fans react", "people are",
     "internet", "tiktok", "trend", "trending", "banned", "bans", "ban on", "no longer", "slashes",
     "rip-off", "rip off", "ripoff", "scam", "not happy", "disappointed",
+    "slam", "slams", "strike", "strikes", "walkout", "walk out", "overcharged", "overcharging", "price gouging",
+    "gouging", "pricing errors", "layoffs", "laid off",
     # how people complain on Reddit / social media
     "disgusting", "gross", "overpriced", "ridiculous", "insane", "absurd", "unacceptable", "terrible",
     "awful", "trash", "garbage", "ruined", "ruin", "downgrade", "downgraded", "cheaped out", "skimping",
@@ -162,6 +163,7 @@ ATTENTION_BRANDS = [
     "nusr-et", "hellofresh", "factor meals", "huel", "athletic greens", "ag1", "bloom nutrition",
 ]
 FOOD_BRANDS += [b for b in ATTENTION_BRANDS if b not in FOOD_BRANDS]
+FOOD_BRANDS += [b for b in C.EXTRA_NAMES if b not in FOOD_BRANDS]      # 23 Nov 2026: wider food scope
 
 GROCERS = ["walmart", "target", "costco", "aldi", "lidl", "tesco", "sainsbury's", "asda", "morrisons",
            "waitrose", "m&s", "marks & spencer", "kroger", "safeway", "whole foods", "trader joe's",
@@ -214,13 +216,7 @@ SECTORS = {
 }
 
 
-SECTORS.update(C.WIDE_SECTORS)                 # 23 Nov 2026: seven consumer sectors besides food
-
-
-def consumer_anchor(text):
-    """Is a US consumer brand from our list named? (food brands count too)"""
-    b = brand_in([text])
-    return bool(b) and b.lower().replace("’", "'") not in NON_US_BRANDS
+SECTORS.update(C.WIDE_SECTORS)                 # food only (empty): kept so a future sector is one line
 
 
 def _count(text, words):
@@ -251,7 +247,8 @@ def food_anchor(text):
         return True
     food = _count(text, FOOD_WORDS)
     if ni._has_any(text, GROCERS):
-        return food >= 1                        # a supermarket story only when it's about food
+        # a supermarket story only when it's about food — or about what shoppers pay there
+        return food >= 1 or bool(STAKE_RX["money"].search(text))
     return food >= 1
 
 
@@ -259,7 +256,7 @@ def relatability(text, trending=False, title=""):
     """(qualifies?, details) — the relatable food-story rule.
     • about food & drink, with a human reaction, little business/legal jargon
     • food-safety stories only when there is a debate (blame, denial, outrage…), never a recall notice"""
-    anchor = food_anchor(text) or consumer_anchor(text)      # 23 Nov 2026: any listed US consumer brand
+    anchor = food_anchor(text)
     reaction = _count(text, REACTION_WORDS)
     jargon = _count(text, _JARGON_GENERAL)
     safety = ni._has_any(text, ni.HAZARD_TERMS)
@@ -576,6 +573,8 @@ def index_gate(title, others=(), company=None):
     if not (us_brand([title]) or (company and brand_in([company]))) and not (ni._has_any(low, FOOD_WORDS) or re.search(
             r"\brecall|\bgrocer|\brestaurant|\bdiner|\bfarm|\bmeat|\bbeef|\bchicken|\begg|\bmilk|\bproduce\b", low)):
         return False, "no brand and not about food"        # "beach reopens after E. coli" is water, not food
+    if not (food_anchor(low) or ni._has_any(low, GROCERS)) and not STAKE_RX["safety"].search(title):
+        return False, "not about food & drink"       # the index is the FOOD Reputation Index
     cat = stake_of(title, others)
     if not cat:
         return False, "nostalgia, nothing at stake" if NOSTALGIA_RX.search(title) else "no real stakes"
@@ -671,7 +670,7 @@ def _everyday_relevant(text, title):
         return False
     if A.ROUNDUP_RX.search(title or ""):
         return False
-    if ni._has_any(text, A.POLITICS_TERMS) and not (ni._has_any(text, FOOD_BRANDS) or consumer_anchor(text)
+    if ni._has_any(text, A.POLITICS_TERMS) and not (ni._has_any(text, FOOD_BRANDS)
                                                     or ni._has_any(text, A.STRONG_CORPORATE)):
         return False
     return relatability(text, title=title)[0]
@@ -748,7 +747,7 @@ EVERYDAY_FEEDS = [
     # all subreddits in ONE request — Reddit answers 429 to ten quick requests from one server
     ("https://www.reddit.com/r/" + "+".join(REDDIT_SUBS) + "/top/.rss?t=day&limit=100", "US"),
 ]
-EVERYDAY_FEEDS += C.WIDE_FEEDS                  # 23 Nov 2026: airlines, retail, streaming, phones, cars, banks…
+EVERYDAY_FEEDS += C.WIDE_FEEDS                  # 23 Nov 2026: more food searches (chains, grocers, drinks, delivery)
 
 EVERYDAY_PROFILE = {
     "name": "everyday",

@@ -102,7 +102,7 @@ svg text { font-family: var(--mono) }
 <main>
   <section class="panel">
     <div class="how">
-      <div><b>One index of narrative risk.</b> The Food Reputation Index measures the stories putting pressure on US food &amp; drink: half food safety (recalls, outbreaks), half fights with real stakes (prices, workers, boycotts, trust).</div>
+      <div><b>One index of narrative risk.</b> The Consumer Reputation Index measures the stories putting pressure on listed US consumer brands (restaurants, food &amp; drink, retail, fashion, travel, entertainment, phones, cars, banks): half product safety (recalls, outbreaks), half fights with real stakes (prices, service, workers, boycotts, trust).</div>
       <div><b>An outlook.</b> Players bet on each story, people post and search. Together they show where the index is heading before it gets there.</div>
       <div><b>When to buy.</b> When the outlook turns to <span class="pressure">pressure building</span> and stories touch your category. In 16 past cases, most of the damage came 1–3 months after the signal.</div>
     </div>
@@ -229,7 +229,7 @@ function renderChart() {
   g += days.map(t => `<text x="${x(t)}" y="${H - 6}" text-anchor="middle" font-size="9" fill="var(--muted)">${day(t)}</text>`).join("");
   if (SNAP.normal != null) g += `<line x1="${L}" x2="${W - R}" y1="${y(SNAP.normal)}" y2="${y(SNAP.normal)}" stroke="var(--muted)" stroke-dasharray="3 4"/><text x="${W - R}" y="${y(SNAP.normal) - 4}" text-anchor="end" font-size="9" fill="var(--muted)">normal</text>`;
   const last = s[s.length - 1];
-  el.innerHTML = `<div class="chart-wrap"><svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block" role="img" aria-label="Food Reputation Index over the last 7 days. Move the pointer over the chart to read values.">${g}
+  el.innerHTML = `<div class="chart-wrap"><svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block" role="img" aria-label="Consumer Reputation Index over the last 7 days. Move the pointer over the chart to read values.">${g}
     ${line(2, "var(--amber)", 1.2, "2 3")}${line(3, "var(--accent)", 1.2, "2 3")}${line(1, "var(--text)", 2.2)}
     <circle cx="${x(last[0])}" cy="${y(last[1])}" r="3.5" fill="var(--text)"/>
     <g id="hover" style="display:none">

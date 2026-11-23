@@ -575,7 +575,7 @@ async function loadRole() {
   try { IS_MOD = !!(await (await fetch("/api/me/role?user_id=" + encodeURIComponent(ME.id))).json()).moderator; } catch (e) {}
 }
 
-// ── THE SCOREBOARD: Food Reputation Index ──
+// ── THE SCOREBOARD: Consumer Reputation Index ──
 async function friStrip() {
   const el = $("#fri"); if (!el) return;
   let d; try { d = await (await fetch("/api/reputation")).json(); } catch (e) { el.hidden = true; return; }
@@ -583,9 +583,9 @@ async function friStrip() {
   const c = d.change_24h, lab = d.label || "", lc = lab === "calm" ? "var(--green)" : lab === "watch" ? "var(--amber)" : "var(--red)";
   const top = (d.top || []).filter(t => t.weighted > 0).slice(0, 3);
   el.innerHTML = `<div class="fri">
-    <div><div class="lbl">Food Reputation Index</div>
+    <div><div class="lbl">Consumer Reputation Index</div>
       <div class="fri-v">${d.value.toFixed(1)} <small style="color:${c == null ? "var(--muted)" : c > 0 ? "var(--red)" : "var(--green)"}">${c == null ? "" : (c > 0 ? "▲ +" : "▼ ") + c.toFixed(1) + " in 24h"}</small></div>
-      <div class="m">How much trouble US food is in · <b style="color:${lc}">${esc(lab || "—")}</b> ahead</div></div>
+      <div class="m">How much trouble US consumer brands are in · <b style="color:${lc}">${esc(lab || "—")}</b> ahead</div></div>
     <div class="fri-why"><div class="lbl">What's pushing it now</div>
       <div class="m">🧪 Food safety (recalls, outbreaks) · <b>+${(d.safety * 0.5).toFixed(1)}</b></div>
       ${top.map(t => `<div class="m">${t.listed ? `<a href="/story/${encodeURIComponent(t.sid)}">${esc(t.company ? t.company + " · " : "")}${esc((t.title || "").slice(0, 70))}</a>` : `${esc(t.company ? t.company + " · " : "")}${esc((t.title || "").slice(0, 70))}`} · <b>+${(t.weighted / 10).toFixed(1)}</b></div>`).join("")}
@@ -686,7 +686,7 @@ async function board() {
       <div class="rules" id="how-more" hidden>
         <span>Stories are picked from US food news, Reddit and Bluesky when people are really talking about them and something is at stake: prices, safety, trust or a boycott.</span>
         <span><b>Will it tip?</b> A story tips when it reaches its target number of news outlets <b>and</b> people talk about it beyond the news (Bluesky, YouTube) within 5 days. It's checked every few hours and settled automatically. The winner gets 100 credits per unit; prices are the chance in %. <b>⚡ Early calls</b> in a story's first 12 hours pay <b>120</b>.</span>
-        <span><b>The Food Reputation Index</b> is one number for how much trouble the US food industry is in right now: half food-safety news (recalls, outbreaks), half the biggest stories here. Companies watch it and insure against it; your bets help it warn them early.</span>
+        <span><b>The Consumer Reputation Index</b> is one number for how much trouble listed US consumer brands are in right now: half product-safety news (recalls, outbreaks), half the biggest stories here. Companies watch it and insure against it; your bets help it warn them early.</span>
         <span><b>🔍 Spot it:</b> think trouble is brewing at a brand (anger online, a price change, a staff dispute) that the news hasn't picked up yet? Spot it, with a reason. If a real story about that brand appears within 14 days, you win <b>100 credits + 20 for every day you were early</b> (+50 if you were first). If nothing happens, you lose nothing. Up to 3 open spots at a time.</span>
         <span><b>Evidence:</b> back your call in the discussion with a reason and a source. Others mark it useful or post a counter-argument. When the story ends, evidence on the right side gets <b>✅ called it</b>, and the most useful one earns <b>+50 credits</b>.</span>
         <span>Everyone starts with <b>10,000</b> virtual credits. Your results are under <a href="/me">Me</a>.</span>
@@ -701,7 +701,7 @@ async function board() {
         <div class="tabs" style="flex-wrap:wrap">${[["all", "ALL"], ...groups.map(g => [g, g.toUpperCase()])].map(([k, l]) =>
           `<button class="${BOARD_ARENA === k ? "on" : ""}" onclick="setArena('${esc(k)}')">${esc(l)} · ${cnt(k)}</button>`).join("")}</div></div>
       ${open.length ? `<div class="cards">${open.map(card).join("")}</div>`
-        : `<div class="empty">No story is spreading right now. New ones appear as soon as a story about a food brand starts to spread.</div>`}
+        : `<div class="empty">No story is spreading right now. New ones appear as soon as a story about a US consumer brand starts to spread.</div>`}
     </section>
     <section class="panel">
       <div class="ph"><span class="lbl">Closed · last 14 days</span><span class="tag">${closed.length}</span></div>

@@ -463,6 +463,13 @@ def collect_arena(name, profile):
         trending, tstats = pull_trending(seen)
         articles += trending
         stats = {**stats, **tstats, "feeds_ok": stats.get("feeds_ok", 0) + tstats.get("trends_ok", 0)}
+        try:                                             # Reddit, a few subreddits per run (23 Nov 2026)
+            from engine.everyday import pull_reddit
+            reddit, rstats = pull_reddit(seen)
+            articles += reddit
+            stats["feeds_ok"] = stats.get("feeds_ok", 0) + (1 if rstats.get("reddit_ok") else 0)
+        except Exception as e:
+            print(f"⚠️ reddit error: {e}")
     if stats.get("feeds_ok", 0) == 0:
         print(f"⏭️ [{name}] no feeds reachable — reading skipped")
         return None

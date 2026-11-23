@@ -719,7 +719,8 @@ def _gn(q, region):
 
 REDDIT_SUBS = ["fastfood", "mildlyinfuriating", "shrinkflation", "Costco", "traderjoes", "starbucks",
                "McDonalds", "Chipotle", "tacobell", "kroger", "walmart", "wholefoods", "Wendys", "BurgerKing",
-               "Dunkin", "PaneraBread", "Frugal"]
+               "Dunkin", "PaneraBread", "Frugal", "KitchenConfidential", "starbucksbaristas", "doordash",
+               "UberEATS", "InstacartShoppers", "aldi", "Dominos", "ChickFilA", "grocery", "Target", "samsclub"]
 
 EVERYDAY_FEEDS = [
     _gn("fast+food+customers+furious+OR+backlash+OR+outrage", "US"),
@@ -743,9 +744,8 @@ EVERYDAY_FEEDS = [
     ("https://www.dailydot.com/feed/", "US"),
     _gn("site:dailydot.com+OR+site:today.com+OR+site:delish.com+food+OR+restaurant+fans+OR+customers+OR+tiktok", "US"),
     _gn("site:thetakeout.com+OR+site:mashed.com+OR+site:allrecipes.com+discontinued+OR+backlash+OR+furious", "US"),
-    # Reddit — where people actually complain (today's top posts; free RSS)
-    # all subreddits in ONE request — Reddit answers 429 to ten quick requests from one server
-    ("https://www.reddit.com/r/" + "+".join(REDDIT_SUBS) + "/top/.rss?t=day&limit=100", "US"),
+    # Reddit is read separately, a few subreddits per run (pull_reddit below): the one combined request
+    # failed with HTTP 404 for days (one bad subreddit name breaks all of them) — 23 Nov 2026
 ]
 EVERYDAY_FEEDS += C.WIDE_FEEDS                  # 23 Nov 2026: more food searches (chains, grocers, drinks, delivery)
 
@@ -758,6 +758,87 @@ EVERYDAY_PROFILE = {
     "categories": _everyday_categories,
     "severity": _everyday_severity,
 }
+
+# ─────────────────────────────────────────────
+# Reddit — where people actually complain (23 Nov 2026)
+# ─────────────────────────────────────────────
+# Each subreddit on its own (one bad name can't break the rest), REDDIT_PER_RUN per collector run in
+# rotation, each sub's last good posts kept REDDIT_KEEP_H hours so every run sees all of them. A name that
+# answers 404/403 (gone, private, banned) is skipped for a week and named in the log; 429 pauses Reddit 1 h.
+REDDIT_PER_RUN = 4
+REDDIT_KEEP_H = 12
+_RD = {"i": 0, "dead": {}, "cache": {}, "pause_until": 0.0}
+
+
+def _reddit_articles(content, sub, now):
+    import feedparser
+    pr = EVERYDAY_PROFILE
+    cutoff = now - ni.ARTICLE_WINDOW_H * 3600
+    out = []
+    for e in feedparser.parse(content).entries[:ni.MAX_PER_FEED]:
+        src = "Reddit r/" + sub
+        title = ni._clean_title(e.get("title", ""), src)
+        if not title:
+            continue
+        ts = ni._entry_ts(e) or now
+        if ts < cutoff:
+            continue
+        summary = re.sub(r"<[^>]+>", " ", e.get("summary", "") or "")
+        text = (title + " " + summary).lower()
+        if not pr["relevant"](text, title):
+            continue
+        out.append({"title": title, "source": src, "url": e.get("link", ""), "ts": ts, "region": "US",
+                    "tokens": pr["tokens"](title), "hazards": pr["kinds"](text), "categories": pr["categories"](text),
+                    "severity": pr["severity"](text), "negativity": ni._negativity(text),
+                    "spread": ni._has_any(text, ni.SPREAD_TERMS), "raw_title": title})
+    return out
+
+
+def pull_reddit(seen=None):
+    """(articles, stats) from food subreddits — see the note above."""
+    seen = seen if seen is not None else set()
+    now = time.time()
+    live = [s for s in REDDIT_SUBS if _RD["dead"].get(s, 0) < now]
+    read, gone = [], []
+    if now >= _RD["pause_until"] and live:
+        for k in range(min(REDDIT_PER_RUN, len(live))):
+            sub = live[(_RD["i"] + k) % len(live)]
+            try:
+                r = requests.get(f"https://www.reddit.com/r/{sub}/top/.rss?t=day&limit=50", timeout=ni.FEED_TIMEOUT,
+                                 headers=ni.UA)
+            except Exception as e:
+                print(f"⚠️ reddit r/{sub}: {type(e).__name__}")
+                continue
+            if r.status_code == 200:
+                _RD["cache"][sub] = (now, _reddit_articles(r.content, sub, now))
+                read.append(sub)
+            elif r.status_code in (403, 404):
+                _RD["dead"][sub] = now + 7 * 86400
+                gone.append(sub)
+            elif r.status_code == 429:
+                _RD["pause_until"] = now + 3600
+                print("⚠️ reddit: too many requests (429) — pausing Reddit for 1 h")
+                break
+            else:
+                print(f"⚠️ reddit r/{sub}: HTTP {r.status_code}")
+        _RD["i"] = (_RD["i"] + REDDIT_PER_RUN) % max(1, len(live))
+    out = []
+    cutoff = now - ni.ARTICLE_WINDOW_H * 3600
+    for sub, (ts, arts) in list(_RD["cache"].items()):
+        if now - ts > REDDIT_KEEP_H * 3600:
+            del _RD["cache"][sub]
+            continue
+        for a in arts:
+            key = (a["title"].lower(), a["source"].lower())
+            if a["ts"] >= cutoff and key not in seen:
+                seen.add(key)
+                out.append(dict(a))
+    if gone:
+        print(f"⚠️ reddit: r/{', r/'.join(gone)} not found / private — skipped for a week")
+    print(f"👽 reddit: read {', '.join('r/' + s for s in read) or 'nothing new'} | {len(_RD['cache'])} subs in memory → "
+          f"{len(out)} relevant posts")
+    return out, {"reddit_ok": len(_RD["cache"])}
+
 
 # ─────────────────────────────────────────────
 # Google Trends daily trending searches (free RSS) — what people actually search for today

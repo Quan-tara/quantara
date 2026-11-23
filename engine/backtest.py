@@ -404,6 +404,7 @@ def results(session, full=False):
     cases = []
     for r in rows:
         d = json.loads(r.result) if r.result else {"key": r.key}
+        d.update(_persistence(d))
         if not full:
             d.pop("series", None)
         d["status"], d["error"] = r.status, r.error
@@ -420,6 +421,45 @@ def results(session, full=False):
                 "group": "blowup = a remembered crisis; fizzle = outrage / boycott calls / scary report that blew over"},
             "summary": summary(cases),
             "cases": cases}
+
+
+# what each case was about (fizzles are typed "fizzle" in the list): safety / product-quality vs social
+TOPIC = {"khc-macaroni-2017": "safety", "khc-lunchables-2024": "safety", "gis-cheerios-2018": "safety",
+         "tacobell-beef-2011": "safety", "subway-tuna-2021": "safety", "subway-footlong-2013": "social"}
+PERSIST_D = (7, 21)           # "does it keep going?": days 7–21 after the event
+
+
+def _persistence(d):
+    """From the stored daily Google Trends values of the story term (0–100 within the case's window, so
+    comparable inside one case): how much of the first-days peak is still there in days 7–21, and whether
+    a second wave comes. No new data is fetched."""
+    case = next((c for c in CASES if c["key"] == d.get("key")), None)
+    ser = ((d.get("series") or {}).get("raw_trends") or {})
+    out = {"topic": TOPIC.get(d.get("key")) or (case or {}).get("type") or "social"}
+    if out["topic"] == "fizzle":
+        out["topic"] = "social"
+    if not case or not ser or not d.get("event_day"):
+        return out
+    term = next((t for t in case["attention"] if t in ser), None)
+    if not term:
+        return out
+    ev = _d(d["event_day"])
+    rel = {(_d(k) - ev).days: v for k, v in ser[term].items()}
+    early = max((v for k, v in rel.items() if 0 <= k <= EARLY_D), default=0)
+    later = [v for k, v in rel.items() if PERSIST_D[0] <= k <= PERSIST_D[1]]
+    wave2 = max((v for k, v in rel.items() if PERSIST_D[0] <= k <= 30), default=0)
+    if early <= 0 or not later:
+        return out
+    out.update({"persist_7_21": round(sum(later) / len(later) / early, 3),        # mean of days 7–21 vs the early peak
+                "second_wave": round(wave2 / early, 3)})                            # biggest later day vs the early peak
+    act = next((t for t in case["action"] if t in ser), None)
+    if act:
+        r2 = {(_d(k) - ev).days: v for k, v in ser[act].items()}
+        e2 = max((v for k, v in r2.items() if 0 <= k <= EARLY_D), default=0)
+        l2 = [v for k, v in r2.items() if PERSIST_D[0] <= k <= PERSIST_D[1]]
+        if e2 > 0 and l2:
+            out["action_persist_7_21"] = round(sum(l2) / len(l2) / e2, 3)
+    return out
 
 
 def _med(xs):
@@ -453,6 +493,41 @@ def summary(cases):
             "share_vs_market_60d_when_flagged": _med([c["excess_60d"] for c in fp]),
             "share_vs_market_60d_when_not": _med([c.get("excess_60d") for c in bl + fz if not flag(c) and c.get("excess_60d") is not None])}
     out["early_rules"] = rules
+
+    # 23 Nov 2026 — does it KEEP GOING? (persistence, days 7–21) and WHAT is it about? (safety vs social)
+    def grp(g, cs_=None):
+        return [c for c in (cs_ or cases) if c.get("group", "blowup") == g and c.get("status") != "ERROR"]
+    for g in ("blowup", "fizzle"):
+        cs = grp(g)
+        out[g]["persist_7_21"] = _med([c.get("persist_7_21") for c in cs])
+        out[g]["second_wave"] = _med([c.get("second_wave") for c in cs])
+        out[g]["action_persist_7_21"] = _med([c.get("action_persist_7_21") for c in cs])
+        out[g]["first_share_hit_day"] = _med([c.get("first_hit_day") for c in cs])
+    prules = {}
+    for th in (0.1, 0.2, 0.3, 0.5):
+        flag = lambda c: (c.get("persist_7_21") or 0) >= th
+        bl, fz = grp("blowup"), grp("fizzle")
+        known = [c for c in bl + fz if c.get("persist_7_21") is not None]
+        prules[f"still ≥{int(th * 100)}% of the early peak in days 7–21"] = {
+            "blowups_flagged": f"{sum(1 for c in bl if c.get('persist_7_21') is not None and flag(c))} of {sum(1 for c in bl if c.get('persist_7_21') is not None)}",
+            "fizzles_flagged": f"{sum(1 for c in fz if c.get('persist_7_21') is not None and flag(c))} of {sum(1 for c in fz if c.get('persist_7_21') is not None)}",
+            "share_vs_market_60d_when_flagged": _med([c.get("excess_60d") for c in known if flag(c)]),
+            "share_vs_market_60d_when_not": _med([c.get("excess_60d") for c in known if not flag(c)])}
+    out["persistence_rules"] = prules
+    topics = {}
+    for t in ("safety", "social"):
+        cs = [c for c in cases if c.get("topic") == t and c.get("status") != "ERROR"]
+        pr = [c for c in cs if c.get("excess_60d") is not None]
+        topics[t] = {"blowups": sum(1 for c in cs if c.get("group", "blowup") == "blowup"),
+                     "fizzles": sum(1 for c in cs if c.get("group") == "fizzle"),
+                     "share_vs_market_60d": _med([c["excess_60d"] for c in pr]),
+                     "share_down_5pct_60d": f"{sum(1 for c in pr if c['excess_60d'] <= -5)} of {len(pr)}"}
+    out["by_topic"] = topics
+    out["read_me_persistence"] = ("persist_7_21 = average search level in days 7–21 as a share of the first-3-days "
+                                  "peak (0.1 = faded to 10%). If blow-ups stay clearly higher than fizzles and the "
+                                  "flagged cases lose more share value, 'does it keep going?' tells costly trouble "
+                                  "from noise — about a week in, compare with first_share_hit_day to see if that is "
+                                  "still early enough.")
     out["read_me"] = ("If blow-ups show clearly higher early numbers than fizzles, and the flagged cases lose more "
                       "share value than the unflagged ones, early signals can tell trouble that costs money from "
                       "noise. If the two groups look alike, they can't — and the index needs other inputs.")

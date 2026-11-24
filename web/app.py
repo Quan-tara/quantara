@@ -1743,7 +1743,7 @@ def _bet_card(n, b_):
         from engine.tipping import state_of
         return {"kind": "tip", "company": b_.get("company"), "target": b_["target"], "now": outlets_now(n),
                 "talk": bool(b_.get("talk")), "tipped": bool(b_.get("tipped")), "state": state_of(n),
-                "new_24h": new_outlets(_snap(n).get("articles"), _t.time() - 86400),
+                "new_24h": new_outlets(_snap(n).get("articles"), _t.time() - 86400), "social": b_.get("social"),
                 "closes_at": n.closes_at, "early_until": (n.listed_at or 0) + EARLY_H * 3600}
     if b_.get("kind") == "outlets":
         from engine.story_market import outlets_now, new_outlets, _snap, EARLY_H

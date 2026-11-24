@@ -935,11 +935,12 @@ async function story(sid) {
                FADED: ["Faded", "var(--green)", "It ran out of steam before tipping."] };
   const st = tb && ST[tb.state];
   const tipHero = st ? `<section class="panel">
-      <div class="ph"><span class="lbl">State</span><span class="mono" style="font-size:10px;color:var(--muted)">${d.in_news ? "in the news" : "no new coverage"}</span></div>
+      <div class="ph"><span class="lbl">State</span><span class="mono" style="font-size:10px;color:var(--muted)">${tb.social && !tb.now ? "on Bluesky, not in the news yet" : d.in_news ? "in the news" : "no new coverage"}</span></div>
       <div style="padding:14px;display:grid;gap:8px">
         <div style="font-size:22px;font-weight:700;color:${st[1]}">${st[0]}</div>
         <div class="note" style="padding:0">${st[2]}</div>
         ${tipProgress(tb)}
+        ${tb.social && tb.social.top_post && tb.social.top_post.text ? `<blockquote class="note" style="margin:0;border-left:3px solid var(--border);padding:4px 10px">“${esc(tb.social.top_post.text)}” ${tb.social.top_post.url ? `<a href="${esc(tb.social.top_post.url)}" target="_blank" rel="noopener">open</a>` : ""}</blockquote>` : ""}
         ${windowHtml}
       </div>
       <div class="chart-wrap">${chart(d)}</div></section>` : "";
@@ -1363,14 +1364,16 @@ function sideName(side, short) {
 // "Will this story tip?" — the backbone model: tipped = mainstream size + people talking beyond the news
 function tipProgress(b) {
   const pct = Math.min(100, 100 * b.now / b.target);
+  const so = b.social;
+  const soLine = so ? `<div class="card-meta"><span>🦋 started on Bluesky: ${so.posts} posts in 3 h (${so.x}× normal, ${so.complaints} complaining)</span><span>${b.now ? "the news is picking it up" : "not in the news yet"}</span></div>` : "";
   return `<div style="display:flex;align-items:center;gap:8px"><div class="bar" style="flex:1;margin:0"><i style="width:${pct.toFixed(0)}%;background:${b.now >= b.target ? "var(--red)" : "var(--accent)"}"></i></div>
       <span class="mono" style="font-size:12px"><b>${b.now}</b> / ${b.target} outlets</span></div>
-    <div class="card-meta"><span>${b.talk ? "✅ people talking beyond the news" : "⬜ not yet talked about beyond the news"}</span>
-      <span>${b.new_24h ? `🔥 +${b.new_24h} outlet${b.new_24h === 1 ? "" : "s"} in 24h` : "no new outlets in 24h"}</span></div>`;
+    ${so ? soLine : `<div class="card-meta"><span>${b.talk ? "✅ people talking beyond the news" : "⬜ not yet talked about beyond the news"}</span>
+      <span>${b.new_24h ? `🔥 +${b.new_24h} outlet${b.new_24h === 1 ? "" : "s"} in 24h` : "no new outlets in 24h"}</span></div>`}`;
 }
 function tipBox(L) {
   return `<div style="font-size:16px;font-weight:700">🔥 Will this story tip by ${DAYS[new Date(L.closes_at * 1000).getDay()]} ${when(L.closes_at).split(",").pop()}?</div>
-    <div class="bd-note">Tips = it reaches <b>${L.target} news outlets</b> and people talk about it <b>beyond the news</b> (Bluesky, YouTube). Settled automatically.</div>
+    <div class="bd-note">${L.social ? `This one started on Bluesky. It tips if the news picks it up: <b>${L.target} news outlets</b> before the close. Settled automatically.` : `Tips = it reaches <b>${L.target} news outlets</b> and people talk about it <b>beyond the news</b> (Bluesky, YouTube). Settled automatically.`}</div>
     ${L.early_until > Date.now() / 1000 ? `<div class="m" style="color:var(--amber)">⚡ early-call bonus: units bought in the next ${dur(L.early_until - Date.now() / 1000)} pay ${100 + L.early_bonus} if right</div>` : ""}`;
 }
 function renderMarket() {

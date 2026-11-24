@@ -298,6 +298,12 @@ def update_listings(stories, session, now=None, arena="food"):
 
     # 1) update / close what is already listed
     for n in active:
+        if rules.get("bet") == "tip":
+            try:                                   # a social-first story picks up its brand's news coverage
+                from engine.social_first import absorb
+                absorb(n, stories)
+            except Exception as e:
+                print(f"⚠️ social story {n.sid}: {e}")
         snap = json.loads(n.snapshot or "{}")
         s = live.get(n.sid)
         lead = snap.get("lead_brand") or _lead_brand(n.title) or snap.get("company")
@@ -408,7 +414,8 @@ def update_listings(stories, session, now=None, arena="food"):
             for o in _arena_filter(session.query(Narrative).filter(Narrative.listed_at >= now - 7 * 86400), arena).all():
                 osnap = json.loads(o.snapshot or "{}")
                 if _same_brand(osnap.get("lead_brand") or osnap.get("company"), br) and \
-                        _same_topic(s.get("title"), _anchor(osnap, o) or o.title, br):
+                        (osnap.get("origin") == "bluesky" or _same_topic(s.get("title"), _anchor(osnap, o) or o.title, br)):
+                    # (a brand already listed from Bluesky: its news coverage is absorbed into that story)
                     twin = True
                     break
             if twin:
@@ -477,6 +484,13 @@ def update_listings(stories, session, now=None, arena="food"):
             pass
         print(f"📌 Story listed  {s['sid']}  score {s['story_score']:.1f}  "
               f"[{s['outlets']} outlets]  {s['title'][:70]}")
+
+    if rules.get("bet") == "tip" and rules.get("listing", True):
+        try:                                      # 24 Nov 2026: stories that start on Bluesky (engine/social_first)
+            from engine.social_first import list_new
+            list_new(session, now, room, arena)
+        except Exception as e:
+            print(f"⚠️ social-first listing error: {e}")
 
     if rules.get("bet") == "tip":
         try:                                      # phase 2: timelines + company responses (recorded only)

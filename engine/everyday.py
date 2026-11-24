@@ -477,6 +477,26 @@ _SECURITIES_RX = re.compile(r"\bsecurities (?:fraud|class action|litigation)|\bl
 _TICKER_RX = re.compile(r"\(\s*(?:NYSE|NASDAQ)?\s*:?\s*(?!(?:FDA|USDA|CDC|FTC|UFCW|SEIU|AI|US|USA|UK|PHOTOS?|VIDEO|WATCH)\s*\))[A-Z]{1,5}\s*\)")
 
 
+# explainers and how-to pieces: "Can You Shop At BJ's Without A Membership?", "Here's what to know…"
+EXPLAINER_RX = re.compile(r"^\s*(?:can|do|does|is|are|should|will|how|what|which|where|when)\b[^?]{0,140}\?\s*$|"
+                          r"\b(?:here'?s (?:what|how|why|everything)|what (?:you|to) (?:need to )?know|everything you need|"
+                          r"explained|a guide to|how to\b|tips (?:for|to)|hacks?\b|ranked|ranking)", re.I)
+# someone else is the one sued / accused, the brand only appears later ("Lextran sued, accused of refusing
+# to run negative ad about Kroger"). Not when the group taking action is customers / workers / families.
+_OTHER_ACCUSED_RX = re.compile(r"^\s*(?P<pre>[^,:;]{1,60}?)\s+(?:is |was |gets |got |being )?"
+                               r"(?:sued|accused|charged|fined|indicted)\b", re.I)
+_GROUP_RX = re.compile(r"\b(?:customers?|shoppers?|workers?|employees?|staff|families|parents|diners|fans|"
+                       r"drivers|franchisees?|consumers?|members?|baristas?|crews?)\b", re.I)
+
+
+def _someone_else_accused(t):
+    m = _OTHER_ACCUSED_RX.search(t)
+    if not m:
+        return False
+    pre = m.group("pre")
+    return not brand_in([pre]) and not _GROUP_RX.search(pre)
+
+
 def not_their_trouble(title):
     """Why the named brand is not the one under pressure ('' if it is)."""
     t = (title or "").replace("’", "'")
@@ -493,6 +513,11 @@ def not_their_trouble(title):
         return "biography / company history, nothing at stake"
     if PROP_RX.search(t) or SUE_OTHER_RX.search(t) or (_OBJECT_RX.search(t) and _INCIDENT_RX.search(t)):
         return "the brand is a bystander, someone else is blamed"
+    if _someone_else_accused(t):
+        return "someone else is the one accused, the brand is only mentioned"
+    if EXPLAINER_RX.search(t) and not re.search(r"\b(?:furious|outrage\w*|backlash|boycott\w*|angry|anger|slam\w*|"
+                                               r"sick|recall\w*|sued|lawsuit|strike|layoffs?|fume\w*)\b", t, re.I):
+        return "explainer / how-to, not pressure"
     return ""
 
 

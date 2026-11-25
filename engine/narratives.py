@@ -56,7 +56,7 @@ THEMES = {
         r"\bwoke\b|\banti-woke\b|\bdei\b|\bdiversity\b|\bpride\b|\btrans(?:gender)?\b|\blgbt|\bconservatives?\b|\bmaga\b|\btrump\b|"
         r"\bisrael|\bgaza\b|\bpalestin|\bpolitic|\bculture war\b|\bleft-wing\b|\bright-wing\b"),
     "automation": ("Automation & AI",
-        r"\bai\b|\bartificial intelligence\b|\bkiosks?\b|\brobots?\b|\bautomat|\bself-checkout|\bapp-only\b|\bcashierless\b|\bdrive-thru ai\b|\bvoice ai\b"),
+        r"\bai\b|\bartificial intelligence\b|\bkiosks?\b|\brobots?\b|\bautomat(?!ic (?:tips?|gratuity|gratuities|service charges?|charges?|fees?))|\bself-checkout|\bapp-only\b|\bcashierless\b|\bdrive-thru ai\b|\bvoice ai\b"),
 }
 _RX = {k: re.compile(rx, re.I) for k, (_, rx) in THEMES.items()}
 LABELS = {k: v[0] for k, v in THEMES.items()}

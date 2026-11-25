@@ -40,15 +40,39 @@ def candidates(session):
     return sorted(out, key=lambda r: -(r["complaints"] or 0))
 
 
+_OTHER_NAMES = ["hobby lobby", "target", "amazon", "walmart", "tesla", "meta", "home depot", "goya", "arby's",
+                "hardee's", "pilgrim's", "chick-fil-a", "nestlé", "nestle", "starbucks", "mcdonald's", "coca-cola",
+                "pepsi", "hershey", "mars", "papa john's", "trader joe's", "kroger", "costco", "shein", "zara", "paramount", "hbo"]
+
+
+def _others(brand, text, words):
+    """Other brand names in the top post / top words — 2+ of them means a boycott LIST, not a scandal."""
+    from engine import narrative_index as ni
+    from engine.everyday import FOOD_BRANDS
+    low = text.lower().replace("’", "'")          # the post itself: side words come from many different posts
+    me = (brand or "").lower()
+    seen = []
+    for n in _OTHER_NAMES + list(FOOD_BRANDS):
+        if n != me and not (me in n or n in me) and ni._has_any(low, [n]) and shown(n) not in seen:
+            if not any(n in x.lower() or x.lower() in n for x in seen):
+                seen.append(shown(n))
+    return seen
+
+
 def _title(c):
+    """(full title, short title). Never 'people slam hobby lobby target' — a post naming many brands is a list."""
     tp = c.get("top_post") or {}
     text = (tp.get("text") if isinstance(tp, dict) else str(tp or "")) or ""
     words = c.get("words") or []
     boycott = "boycott" in text.lower() or "boycott" in " ".join(words).lower()
+    b = shown(c["brand"])
+    stats = f"({c['x']}× normal, {c['complaints']} complaining posts in 3 h)"
+    others = _others(c["brand"], text, words)
+    if len(others) >= 2:
+        return (f"{b} named in viral boycott lists on Bluesky, alongside {', '.join(others[:3])} {stats}",
+                f"{b} named in viral boycott lists online")
     what = "boycott calls surge" if boycott else "complaints surge"
-    about = f" — people mention {', '.join(words[:3])}" if words else ""
-    return (f"{shown(c['brand'])}: {what} on Bluesky ({c['x']}× normal, {c['complaints']} complaining posts in 3 h){about}",
-            f"{shown(c['brand'])} {'boycott calls' if boycott else 'complaints'} surge online")
+    return (f"{b}: {what} on Bluesky {stats}", f"{b} {'boycott calls' if boycott else 'complaints'} surge online")
 
 
 def _sid(brand, now):
@@ -91,7 +115,8 @@ def list_new(session, now, room, arena="everyday"):
                "talk": True, "tipped": False, "social": social}
         snap = {"articles": [], "outlet_names": [], "outlets": 0, "regions": ["US"], "categories": [], "hazards": [],
                 "tokens": [], "company": shown(c["brand"]), "lead_brand": shown(c["brand"]), "origin": "bluesky",
-                "social": social, "listed_title": title, "short_title": short, "bet": bet, "ts": now}
+                "social": social, "listed_title": title, "short_title": short, "bet": bet, "ts": now,
+                "title_by": "rule", "title_v": 999}        # written by the rule above; the AI title writer leaves it
         n = Narrative(sid=sid, title=title, url=url, source="Bluesky", arena=arena, status="LISTED",
                       first_seen=c["ts"], listed_at=now, closes_at=now + rl["days"] * 86400, list_score=0.0,
                       last_score=0.0, peak_score=0.0, last_seen=now, snapshot=json.dumps(snap))
@@ -116,6 +141,14 @@ def absorb(n, stories):
     if snap.get("origin") != "bluesky":
         return False
     brand = snap.get("lead_brand") or snap.get("company")
+    retitled = False
+    if snap.get("title_by") != "rule" and snap.get("social"):      # stories listed before 25 Nov: clearer titles
+        so = snap["social"]
+        title, short = _title({"brand": brand, "x": so.get("x"), "complaints": so.get("complaints"),
+                               "words": so.get("words") or [], "top_post": so.get("top_post")})
+        n.title, snap["listed_title"], snap["short_title"] = title, title, short
+        snap["title_by"], snap["title_v"] = "rule", 999
+        retitled = True
     have = {(a.get("title"), a.get("source")) for a in snap.get("articles", [])}
     added = 0
     for s in stories:
@@ -130,7 +163,9 @@ def absorb(n, stories):
             snap.setdefault("articles", []).append({x: m.get(x) for x in ("title", "source", "url", "ts", "region")})
             added += 1
     if not added:
-        return False
+        if retitled:
+            n.snapshot = json.dumps(snap)
+        return retitled
     snap["outlet_names"] = sorted({a["source"] for a in snap["articles"] if a.get("source")})
     snap["outlets"] = len(snap["outlet_names"])
     n.snapshot = json.dumps(snap)

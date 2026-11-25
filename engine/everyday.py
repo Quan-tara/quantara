@@ -560,6 +560,13 @@ def gate(title, others=(), company=None):
     return True, f"{d} · {cat}"
 
 
+# one venue, no brand: "Atlanta Dive Bar Draws Backlash…", "Coffee shop owner refused to serve TikTok reviewer"
+_LOCAL_VENUE_RX = re.compile(r"\b(?:dive bar|bar|pub|tavern|diner|caf[eé]|coffee shop|bakery|food truck|pizzeria|"
+                             r"restaurant|eatery|deli|bistro|brewery|taqueria|steakhouse)\b(?!s)", re.I)
+_INDUSTRY_RX = re.compile(r"\bchains?\b|\brestaurants\b|\bindustry\b|\bnationwide\b|\bacross (?:the )?(?:us|u\.s\.|country)\b|"
+                          r"\b(?:us|u\.s\.|american) (?:grocery|food|restaurant)", re.I)
+
+
 def index_gate(title, others=(), company=None):
     """(ok, reason) — does this story count in the Food Reputation Index? Broader than gate():
     US, a food business, and something real at stake (money, safety, workers, boycott / trust).
@@ -598,6 +605,11 @@ def index_gate(title, others=(), company=None):
     if not (us_brand([title]) or (company and brand_in([company]))) and not (ni._has_any(low, FOOD_WORDS) or re.search(
             r"\brecall|\bgrocer|\brestaurant|\bdiner|\bfarm|\bmeat|\bbeef|\bchicken|\begg|\bmilk|\bproduce\b", low)):
         return False, "no brand and not about food"        # "beach reopens after E. coli" is water, not food
+    # 25 Nov 2026: outside food safety, the index is about national brands — a single local bar or diner
+    # ("Atlanta dive bar draws backlash over 18% tip") is not reputation risk for the industry
+    if not (us_brand([title]) or (company and brand_in([company]))) and not STAKE_RX["safety"].search(title) \
+            and _LOCAL_VENUE_RX.search(title) and not _INDUSTRY_RX.search(title):
+        return False, "a single local business, not a national brand"
     if not (food_anchor(low) or ni._has_any(low, GROCERS)) and not STAKE_RX["safety"].search(title):
         return False, "not about food & drink"       # the index is the FOOD Reputation Index
     cat = stake_of(title, others)
@@ -791,8 +803,52 @@ EVERYDAY_PROFILE = {
 # rotation, each sub's last good posts kept REDDIT_KEEP_H hours so every run sees all of them. A name that
 # answers 404/403 (gone, private, banned) is skipped for a week and named in the log; 429 pauses Reddit 1 h.
 REDDIT_PER_RUN = 4
+REDDIT_PER_RUN_OAUTH = 10        # with the official API (REDDIT_CLIENT_ID / REDDIT_CLIENT_SECRET in Render)
 REDDIT_KEEP_H = 12
-_RD = {"i": 0, "dead": {}, "cache": {}, "pause_until": 0.0}
+REDDIT_UA = "python:quantara.food-reputation:v1.0 (research; contact via reddit app owner)"
+_RD = {"i": 0, "dead": {}, "cache": {}, "pause_until": 0.0, "token": None, "token_until": 0.0, "mode": None}
+
+
+def _reddit_token():
+    """App-only OAuth token from the official API (free for small, non-commercial volumes). None without keys."""
+    import os
+    cid, sec = os.getenv("REDDIT_CLIENT_ID", "").strip(), os.getenv("REDDIT_CLIENT_SECRET", "").strip()
+    if not cid or not sec:
+        return None
+    if _RD["token"] and time.time() < _RD["token_until"] - 60:
+        return _RD["token"]
+    r = requests.post("https://www.reddit.com/api/v1/access_token", auth=(cid, sec),
+                      data={"grant_type": "client_credentials"}, headers={"User-Agent": REDDIT_UA}, timeout=15)
+    if r.status_code != 200:
+        raise RuntimeError(f"reddit token HTTP {r.status_code}")
+    j = r.json()
+    _RD["token"], _RD["token_until"] = j["access_token"], time.time() + int(j.get("expires_in", 3600))
+    return _RD["token"]
+
+
+def _reddit_json_articles(children, sub, now):
+    """The official API's JSON posts → articles (same shape and relevance rules as the RSS route)."""
+    pr = EVERYDAY_PROFILE
+    cutoff = now - ni.ARTICLE_WINDOW_H * 3600
+    out = []
+    for ch in children[:ni.MAX_PER_FEED]:
+        d = ch.get("data") or {}
+        if d.get("over_18") or d.get("stickied"):
+            continue
+        src = "Reddit r/" + sub
+        title = ni._clean_title(d.get("title", ""), src)
+        ts = float(d.get("created_utc") or now)
+        if not title or ts < cutoff:
+            continue
+        text = (title + " " + (d.get("selftext") or "")[:600]).lower()
+        if not pr["relevant"](text, title):
+            continue
+        out.append({"title": title, "source": src, "url": "https://www.reddit.com" + (d.get("permalink") or ""), "ts": ts,
+                    "region": "US", "tokens": pr["tokens"](title), "hazards": pr["kinds"](text),
+                    "categories": pr["categories"](text), "severity": pr["severity"](text),
+                    "negativity": ni._negativity(text), "spread": ni._has_any(text, ni.SPREAD_TERMS), "raw_title": title,
+                    "engagement": int(d.get("score") or 0) + 2 * int(d.get("num_comments") or 0)})
+    return out
 
 
 def _reddit_articles(content, sub, now):
@@ -825,28 +881,51 @@ def pull_reddit(seen=None):
     now = time.time()
     live = [s for s in REDDIT_SUBS if _RD["dead"].get(s, 0) < now]
     read, gone = [], []
+    token = None
+    try:
+        token = _reddit_token()
+    except Exception as e:
+        print(f"⚠️ reddit official API: {e} — using the public feeds")
+    _RD["mode"] = "official API" if token else "public feeds"
+    per_run = REDDIT_PER_RUN_OAUTH if token else REDDIT_PER_RUN
     if now >= _RD["pause_until"] and live:
-        for k in range(min(REDDIT_PER_RUN, len(live))):
+        blocked = 0
+        for k in range(min(per_run, len(live))):
             sub = live[(_RD["i"] + k) % len(live)]
             try:
-                r = requests.get(f"https://www.reddit.com/r/{sub}/top/.rss?t=day&limit=50", timeout=ni.FEED_TIMEOUT,
-                                 headers=ni.UA)
+                if token:
+                    r = requests.get(f"https://oauth.reddit.com/r/{sub}/top", params={"t": "day", "limit": 50, "raw_json": 1},
+                                     headers={"Authorization": f"bearer {token}", "User-Agent": REDDIT_UA}, timeout=ni.FEED_TIMEOUT)
+                else:
+                    r = requests.get(f"https://www.reddit.com/r/{sub}/top/.rss?t=day&limit=50", timeout=ni.FEED_TIMEOUT,
+                                     headers=ni.UA)
             except Exception as e:
                 print(f"⚠️ reddit r/{sub}: {type(e).__name__}")
                 continue
             if r.status_code == 200:
-                _RD["cache"][sub] = (now, _reddit_articles(r.content, sub, now))
+                arts = (_reddit_json_articles(((r.json().get("data") or {}).get("children") or []), sub, now) if token
+                        else _reddit_articles(r.content, sub, now))
+                _RD["cache"][sub] = (now, arts)
                 read.append(sub)
-            elif r.status_code in (403, 404):
-                _RD["dead"][sub] = now + 7 * 86400
+            elif r.status_code == 404 or (r.status_code == 403 and token):
+                _RD["dead"][sub] = now + 7 * 86400          # gone, or private (the official API tells us so)
                 gone.append(sub)
+            elif r.status_code == 403:
+                blocked += 1                                # the public feeds refuse our server: not the sub's fault
+            elif r.status_code == 401 and token:
+                _RD["token"] = None                         # token expired: a new one next run
+                break
             elif r.status_code == 429:
                 _RD["pause_until"] = now + 3600
                 print("⚠️ reddit: too many requests (429) — pausing Reddit for 1 h")
                 break
             else:
                 print(f"⚠️ reddit r/{sub}: HTTP {r.status_code}")
-        _RD["i"] = (_RD["i"] + REDDIT_PER_RUN) % max(1, len(live))
+        if blocked and not read:
+            _RD["pause_until"] = now + 6 * 3600
+            print("⚠️ reddit: the public feeds refuse this server (403) — pausing 6 h. "
+                  "Add REDDIT_CLIENT_ID / REDDIT_CLIENT_SECRET in Render to use the official API.")
+        _RD["i"] = (_RD["i"] + per_run) % max(1, len(live))
     out = []
     cutoff = now - ni.ARTICLE_WINDOW_H * 3600
     for sub, (ts, arts) in list(_RD["cache"].items()):
@@ -860,7 +939,7 @@ def pull_reddit(seen=None):
                 out.append(dict(a))
     if gone:
         print(f"⚠️ reddit: r/{', r/'.join(gone)} not found / private — skipped for a week")
-    print(f"👽 reddit: read {', '.join('r/' + s for s in read) or 'nothing new'} | {len(_RD['cache'])} subs in memory → "
+    print(f"👽 reddit ({_RD['mode']}): read {', '.join('r/' + s for s in read) or 'nothing new'} | {len(_RD['cache'])} subs in memory → "
           f"{len(out)} relevant posts")
     return out, {"reddit_ok": len(_RD["cache"])}
 

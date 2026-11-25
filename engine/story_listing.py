@@ -406,6 +406,7 @@ def update_listings(stories, session, now=None, arena="food"):
         if rules.get("bet") == "tip":
             # the backbone model: list the moment a brand story starts spreading
             from engine.tipping import is_spreading
+            from engine.social_first import is_list as _sf_is_list
             if not (_lead_brand(s.get("title")) or s.get("company")) or not is_spreading(s, now):
                 continue
             # the same story under a new id (headlines regroup) is never listed twice
@@ -414,7 +415,9 @@ def update_listings(stories, session, now=None, arena="food"):
             for o in _arena_filter(session.query(Narrative).filter(Narrative.listed_at >= now - 7 * 86400), arena).all():
                 osnap = json.loads(o.snapshot or "{}")
                 if _same_brand(osnap.get("lead_brand") or osnap.get("company"), br) and \
-                        (osnap.get("origin") == "bluesky" or _same_topic(s.get("title"), _anchor(osnap, o) or o.title, br)):
+                        ((osnap.get("origin") == "bluesky" and not _sf_is_list(osnap) or
+                          osnap.get("origin") == "bluesky" and "boycott" in (s.get("title") or "").lower())
+                         or _same_topic(s.get("title"), _anchor(osnap, o) or o.title, br)):
                     # (a brand already listed from Bluesky: its news coverage is absorbed into that story)
                     twin = True
                     break

@@ -132,6 +132,17 @@ def list_new(session, now, room, arena="everyday"):
     return used
 
 
+def ni_boycott(s):
+    t = " ".join([s.get("title") or ""] + [m.get("title") or "" for m in s.get("members", [])]).lower()
+    return "boycott" in t
+
+
+def is_list(snap):
+    """A 'named in boycott lists' story: general chatter, not one specific scandal. It takes in only news on
+    its own topic and never blocks a different news story about the same brand."""
+    return "boycott lists" in (snap.get("short_title") or snap.get("listed_title") or "")
+
+
 def absorb(n, stories):
     """A social-first story picks up the news coverage of its brand's trouble: articles from this run's
     stories about the same brand that pass the tip filter are merged in. Returns True if it changed."""
@@ -154,6 +165,8 @@ def absorb(n, stories):
     for s in stories:
         lead = _lead_brand(s.get("title")) or s.get("company")
         if not lead or not _same_brand(lead, brand) or not tip_gate(s.get("title"), [], lead)[0]:
+            continue
+        if is_list(snap) and not ni_boycott(s):
             continue
         for m in s.get("members", []):
             k = (m.get("title"), m.get("source"))

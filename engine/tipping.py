@@ -25,6 +25,7 @@ import time
 
 SPREAD_MIN_OUTLETS = 3
 SPREAD_NEW_12H = 2
+SPREAD_NEW_48H = 3      # or a slower burn: 3+ new outlets over 2 days (the stories that last — see backtest)
 TIP_GROWTH = 3            # default growth since listing (calibrated: GROWTHS)
 TIP_DAYS = 5
 DEFAULT_OUTLETS = 6       # our outlet counts come from ~20 feeds + searches, far below the real number
@@ -105,7 +106,8 @@ def is_spreading(s, now=None):
     cur = int(max(s.get("outlets") or 0, len(s.get("all_outlets") or [])))
     if cur < SPREAD_MIN_OUTLETS:
         return False
-    if new_outlets(s.get("members"), now - 12 * 3600) < SPREAD_NEW_12H:
+    if new_outlets(s.get("members"), now - 12 * 3600) < SPREAD_NEW_12H and \
+            new_outlets(s.get("members"), now - 48 * 3600) < SPREAD_NEW_48H:
         return False
     return bool(tip_gate(s.get("title"), [m.get("title") for m in s.get("members", [])], s.get("company"))[0])
 
@@ -215,8 +217,10 @@ def replay(session, arenas=CAL_ARENAS, include_open=False, since=None):
                 continue
             before = [x for t, x in h if t <= ts - 12 * 3600]
             new12 = o - (before[-1] if before else 0)
+            before48 = [x for t, x in h if t <= ts - 48 * 3600]
+            new48 = o - (before48[-1] if before48 else 0)
             company = s.get("company") or brand_in([s.get("title") or ""])
-            if o >= SPREAD_MIN_OUTLETS and new12 >= SPREAD_NEW_12H and company \
+            if o >= SPREAD_MIN_OUTLETS and (new12 >= SPREAD_NEW_12H or new48 >= SPREAD_NEW_48H) and company \
                     and tip_gate(s.get("title"), [], company)[0]:
                 tw = _topic_words(s.get("title"), company)
                 twin = next((c for c in started.values() if _norm(c["company"]) == _norm(company)

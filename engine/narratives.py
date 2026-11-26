@@ -45,7 +45,7 @@ THEMES = {
         r"\bunion|\bbaristas?\b|\bstrikes?\b|\bwalk ?outs?\b|\bwages?\b|\blayoffs?\b|\blaid off\b|\blaying off\b|\bunpaid\b|"
         r"\bunderpaid\b|\bstaffing\b|\bunderstaff|\bworkers?\b|\bemployees?\b|\bfired\b|\bfranchisees?\b|\bpicket"),
     "safety": ("Food safety scares",
-        r"\brecall|\boutbreak|\bsalmonella|\blisteria|\be\.? ?coli\b|\bsick(?:ened)?\b|\bhospitali|\bcontaminat|\bfood poisoning|"
+        r"\brecall|\boutbreak|\bsafety (?:warning|alert)|\bbotulism|\bsalmonella|\blisteria|\be\.? ?coli\b|\bsick(?:ened)?\b|\bhospitali|\bcontaminat|\bfood poisoning|"
         r"\bforeign object|\bglove\b|\bchoked\b|\bfound (?:a |an )?\w+ in\b|\bundercooked|\braw chicken|\bmold|\bpests?\b|\brodent|\bcockroach"),
     "ingredients": ("Ingredients & health",
         r"\bdyes?\b|\bred (?:no\.? ?)?40\b|\bseed oils?\b|\bartificial\b|\bultra-?processed|\badditives?\b|\bpreservatives?\b|"

@@ -245,7 +245,12 @@ def compute_reputation():
             print(f"⚠️ reality check error: {e}")
         try:
             from engine.narratives import record as _narr
-            _narr(session, getattr(_social, "last_rows", []))   # big narratives across brands (test, recorded only)
+            # + the safety half's stories (recalls, outbreaks), so "Food safety scares" shows what pushes the index
+            from engine.narrative_index import _load_story_index
+            food = sorted(_load_story_index(session, arena="food"), key=lambda x: -(x.get("score") or 0))[:8]
+            safety_rows = [{"sid": f.get("sid"), "title": f.get("title"), "weighted": round(f.get("score") or 0, 1),
+                            "company": f.get("company")} for f in food if (f.get("score") or 0) > 0]
+            _narr(session, getattr(_social, "last_rows", []) + safety_rows)   # big narratives (test, recorded only)
         except Exception as e:
             session.rollback()
             print(f"⚠️ narratives error: {e}")

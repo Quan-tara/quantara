@@ -356,7 +356,7 @@ class ReputationTick(Base):
     social  = Column(Float, nullable=True)
     normal  = Column(Float, nullable=True)        # median of the last 7 days (None while warming up)
     outlook = Column(Float, nullable=True)        # 0–100
-    label   = Column(String(24), nullable=True)   # calm | watch | pressure building
+    label   = Column(String(80), nullable=True)   # calm | watch | pressure building
     parts   = Column(Text, nullable=True)         # JSON: outlook parts
     top     = Column(Text, nullable=True)         # JSON: stories driving the social part
 

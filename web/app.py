@@ -63,6 +63,7 @@ async def startup_event():
             "ALTER TABLE brand_buzz ADD COLUMN IF NOT EXISTS complaints INTEGER",
             "ALTER TABLE forward_log ADD COLUMN IF NOT EXISTS tone FLOAT",
             "ALTER TABLE forward_log ADD COLUMN IF NOT EXISTS features TEXT",
+            "ALTER TABLE forward_log ALTER COLUMN label TYPE VARCHAR(80)",
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username) WHERE username IS NOT NULL",
         ]
         for _sql in _migrations:

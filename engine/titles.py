@@ -27,13 +27,14 @@ MAX_PER_RUN = 5
 MAX_LEN = 80
 _state = {"warned": False, "blocked_until": 0.0, "model": None, "last_error": None, "last_ok": None, "done": 0}
 
-PROMPT_VERSION = 3
+PROMPT_VERSION = 4
 PROMPT = """Write a short title for this food & drink story in a game where people bet on whether the fuss
 grows or fades. The title must show the FUSS: who is upset, mocking, begging or boycotting, and about what.
 Rules:
 - 5 to 9 words, plain everyday English, the way people talk
 - brand first if there is one
-- name the reaction (fans furious, people roast, customers quit, students boycott, fans beg) when the headlines show one
+- name the reaction (fans furious, people roast, customers quit, students boycott, fans beg) ONLY when the headlines show
+  people reacting. A company plan, a CEO quote or an analyst note is not a reaction: then say what the company does or plans
 - never turn mockery or complaints into praise; never state a claim from the story as fact
 - only facts from the headlines below; invent nothing
 - no quotes, no emojis, no hashtags, no full stop
@@ -42,6 +43,7 @@ Examples:
   "People Online Are Joking About The Starbucks Braised Short Rib Grilled Cheese" -> Starbucks' short rib sandwich gets roasted online
   "The Discontinued Jersey Mike's Sub That Customers Want Back" -> Jersey Mike's fans beg for their sub back
   "College students rally in support of Starbucks baristas urging boycott" -> Students call for a Starbucks boycott
+  "Dollar Tree CEO Says Price Hikes Are a Last Resort, but Shrinkflation and Item Cuts Are on the Table" -> Dollar Tree CEO puts shrinkflation on the table
 Return only the title.
 
 Headline:

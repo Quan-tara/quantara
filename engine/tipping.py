@@ -26,13 +26,20 @@ import time
 SPREAD_MIN_OUTLETS = 3
 SPREAD_NEW_12H = 2
 SPREAD_NEW_48H = 3      # or a slower burn: 3+ new outlets over 2 days (the stories that last — see backtest)
-TIP_GROWTH = 3            # default growth since listing (calibrated: GROWTHS)
+TIP_GROWTH = 2            # default growth since listing (calibrated: GROWTHS)
 TIP_DAYS = 5
-DEFAULT_OUTLETS = 6       # our outlet counts come from ~20 feeds + searches, far below the real number
-CANDIDATES = (5, 6, 8, 10, 12, 15)
-GROWTHS = (2, 3, 4)
+DEFAULT_OUTLETS = 5       # our outlet counts come from ~20 feeds + searches, far below the real number
+CANDIDATES = (4, 5, 6, 8, 10, 12, 15)
+GROWTHS = (1, 2, 3)
 CAL_ARENAS = ("everyday", "brands")
-RULE_VERSION = 4          # a stored rule from an older version is recalibrated at once (4: real outlet counts)
+RULE_VERSION = 5          # a stored rule from an older version is recalibrated at once
+                          # (5, 28 Nov: 14 days of replay had 0 of 3 tipping at 6+3 → easier default 5+2)
+# A second way to tip: people. Story posts on Bluesky (24 h) reach SOCIAL_TIP_POSTS and at least
+# SOCIAL_TIP_X times the first count after listing; for stories that started on Bluesky, the brand's
+# complaining posts (3 h) reach SOCIAL_TIP_COMPLAINTS and twice the count at listing.
+SOCIAL_TIP_POSTS = 25
+SOCIAL_TIP_X = 2.0
+SOCIAL_TIP_COMPLAINTS = 20
 MEASURE_SINCE = 1795371408   # 22 Nov 2026 evening: outlets counted with the wide reach search from here on. Older readings
                           # undercount (~3 outlets per story), so the rule is calibrated only on readings after this.
 TARGET_RATE = 0.25
@@ -50,7 +57,7 @@ TROUBLE_RX = re.compile(
     r"sick|ill|illness\w*|poison\w*|hospitali\w*|outbreak\w*|recall\w*|contamina\w*|salmonella|listeria|e\.? ?coli|"
     r"lawsuit\w*|sue[sd]?|suing|class action|accus\w*|investigat\w*|fined?|fines|penalt\w*|violation\w*|"
     r"strike\w*|walk ?out\w*|union\w*|layoff\w*|lay(?:s|ing)? off|laid off|fired|firing|job cuts?|clos(?:e|es|ing|ures?) (?:\d+ )?(?:stores|locations|restaurants)|"
-    r"price hikes?|hikes?|rais(?:e|es|ed|ing) prices?|pricier|overpriced|shrink\w*|smaller|fees?|surcharge\w*|scam\w*|rip-?off|"
+    r"price hikes?|hikes?|rais(?:e|es|ed|ing) prices?|pricier|overpriced|shrink\w*|(?:got|gotten|getting|gets|are|is|was|were|now|became|become|been)\W{1,3}(?:much |way |a lot |noticeably )?smaller|smaller (?:portions?|sizes?|packs?|packages?|packaging|bags?|boxes?|bottles?|cans?|servings?|burgers?|bars?|pizzas?|sandwich\w*|items?|amounts?|cups?|containers?|nuggets?|fries|meals?)|fees?|surcharge\w*|scam\w*|rip-?off|"
     r"backtrack\w*|scandal\w*|controvers\w*|bans?|banned|halt\w*|shortage\w*|franchisees?|"
     r"outages?|stranded|meltdown|cancell?ations|overdraft|junk fees?|data breach\w*|hack(?:ed|ers?)|customer data)\b", re.I)
 PROMO_RX = re.compile(
@@ -142,6 +149,34 @@ def beyond_news(session, sid, company, since, title=None):
     return False
 
 
+def social_tip(session, n, snap, b, now=None):
+    """Has the talk about this story itself taken off since it was listed? Returns a short reason or None."""
+    from db.models import BrandBuzz, SocialSignal
+    now = now or time.time()
+    since = n.listed_at or now
+    if snap.get("origin") == "bluesky":
+        so = b.get("social") or snap.get("social") or {}
+        start = int(so.get("complaints") or 10)
+        need = max(SOCIAL_TIP_COMPLAINTS, 2 * start)
+        brand = _norm(b.get("company") or snap.get("lead_brand") or snap.get("company"))
+        if not brand:
+            return None
+        for br, c in (session.query(BrandBuzz.brand, BrandBuzz.complaints)
+                      .filter(BrandBuzz.ts >= since + 3600, BrandBuzz.status == "OK").all()):
+            if _norm(br) == brand and (c or 0) >= need:
+                return f"{c} complaining posts in 3 h on Bluesky (listed at {start})"
+        return None
+    rows = [p or 0 for (p,) in session.query(SocialSignal.posts)
+            .filter(SocialSignal.sid == n.sid, SocialSignal.source == "bluesky", SocialSignal.status == "OK",
+                    SocialSignal.ts >= since).order_by(SocialSignal.ts).all()]
+    if len(rows) < 2:
+        return None
+    first, best = rows[0], max(rows[1:])
+    if best >= SOCIAL_TIP_POSTS and best >= SOCIAL_TIP_X * max(first, 5):
+        return f"{best} Bluesky posts about it in 24 h (was {first} when listed)"
+    return None
+
+
 def make_bet(s, closes_at, rl):
     cur = int(max(s.get("outlets") or 0, len(s.get("all_outlets") or [])))
     return {"kind": "tip", "company": s.get("company"), "start": cur, "target": target_for(cur, rl),
@@ -161,11 +196,18 @@ def chance(n, now=None):
         return 1.0
     if n.status != "LISTED":
         return 0.0
-    need = b["target"] - outlets_now(n)
-    pace = new_outlets(_snap(n).get("articles"), now - 12 * 3600) / 12.0
+    cur = outlets_now(n)
+    need = b["target"] - cur
+    arts = _snap(n).get("articles")
+    pace = new_outlets(arts, now - 12 * 3600) / 12.0
+    # a slow burn still counts a little: half the story's average pace since it was listed
+    since_h = max(12.0, (now - (n.listed_at or now)) / 3600)
+    pace = max(pace, 0.5 * max(0, cur - int(b.get("start") or 0)) / since_h)
     hours = max(0.0, (n.closes_at - now) / 3600)
+    total_h = max(1.0, ((n.closes_at or now) - (n.listed_at or now)) / 3600)
     p_out = 1.0 if need <= 0 else _poisson_at_least(need, pace * min(hours, PACE_TAU_H))
-    base = (b.get("rule") or {}).get("rate") or TARGET_RATE
+    # the history part shrinks with the time left: a quiet story near its close has little chance left
+    base = ((b.get("rule") or {}).get("rate") or TARGET_RATE) * min(1.0, hours / total_h)
     p = 0.5 * p_out + 0.5 * base if hours > 0 else p_out
     p *= 1.0 if b.get("talk") else 0.8
     return max(0.03, min(0.97, p))

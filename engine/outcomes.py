@@ -40,7 +40,16 @@ _FOODISH = ("Food & Drink", "Shopping", "Lifestyle", "Travel", "Entertainment", 
 NO_APP = {"coca-cola", "pepsi", "hershey", "kraft", "heinz", "mondelez", "oreo", "nestle", "nestlé", "bud light",
           "anheuser-busch", "monster energy", "beyond meat", "apple", "tesla", "ford", "general motors", "chevrolet",
           "jeep", "toyota", "honda", "harley-davidson", "hbo", "warner bros", "live nation", "the north face", "vans",
-          "estee lauder", "e.l.f.", "levi's", "ralph lauren", "crocs", "stanley", "skims", "adidas", "old navy"}
+          "estee lauder", "e.l.f.", "levi's", "ralph lauren", "crocs", "stanley", "skims", "adidas", "old navy",
+          # 28 Nov 2026: more wrong matches seen live ("McCormick County Schools", "Quaker Oats CU Member.Net",
+          # "The Sports Club at Boar's Head", "CORONA BT", "Box Tops for Education", "Gatorade Gx") and
+          # non-food shops left from the wide version
+          "mccormick", "quaker", "quaker oats", "boar's head", "chobani", "corona", "gatorade", "general mills",
+          "kellogg's", "kellanova", "campbell's", "tyson", "oscar mayer", "doritos", "frito-lay", "lay's",
+          "home depot", "the home depot", "lowe's", "best buy", "macy's", "kohl's", "in-n-out"}
+# app names that are never a brand's own customer app
+JUNK_APP_RX = re.compile(r"\b(test|practice|exam|quiz|school|schools|county|credit union|cu\b|member\.net|"
+                         r"sports club|education|bt$|fans?\b|wallpaper|guide|unofficial|tracker)", re.I)
 
 
 def _shown(brand):
@@ -59,6 +68,8 @@ def _find_app(brand):
         low = name.lower().replace("'", "").replace("’", "")
         seller = (a.get("sellerName") or "").lower().replace("'", "").replace("’", "")
         # the brand's own app: brand words in the name, and the company itself as the seller
+        if JUNK_APP_RX.search(a.get("trackName") or ""):
+            continue
         if a.get("primaryGenreName") in _FOODISH and all(w in low for w in words) and words and words[0] in seller:
             return str(a.get("trackId")), (a.get("trackName") or "")[:120]
     return None, None
@@ -95,6 +106,11 @@ def run_apps(session):
         # once per start: drop apps of brands that have no meaningful app (and their reviews)
         session.query(AppDaily).filter(AppDaily.brand.in_(list(NO_APP))).delete(synchronize_session=False)
         session.query(BrandApp).filter(BrandApp.brand.in_(list(NO_APP))).delete(synchronize_session=False)
+        bad = [a.brand for a in session.query(BrandApp).all() if a.name and JUNK_APP_RX.search(a.name)]
+        if bad:                                     # wrong matches found earlier: forget them and look again
+            session.query(AppDaily).filter(AppDaily.brand.in_(bad)).delete(synchronize_session=False)
+            session.query(BrandApp).filter(BrandApp.brand.in_(bad)).delete(synchronize_session=False)
+            print(f"📱 app reviews: dropped wrong app matches for {', '.join(bad)}")
         session.commit()
         _st["cleaned"] = True
     known = {a.brand: a for a in session.query(BrandApp).all()}

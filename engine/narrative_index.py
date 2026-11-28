@@ -375,6 +375,27 @@ def _outlet_region(href, fallback):
 
 _GERMAN_FEED = {"on": False}
 
+# Copy-paste sites far from our four regions (an Indonesian or Arabic site re-posting a US article) are
+# not separate outlets: they say nothing about how far a story spreads where it matters (28 Nov 2026).
+_COUNTED_CC = {"uk", "au", "ie", "de", "at", "ch", "fr", "nl", "be", "es", "it", "eu", "dk", "se", "pl", "pt", "fi",
+               "lu", "cz", "gr", "us", "ca", "nz"}
+_FAR_NAMES = re.compile(r"\b(singapore|india|indonesia|philippines|malaysia|pakistan|nigeria|kenya|ghana|bangladesh|"
+                        r"sri lanka|vietnam|thailand|uae|dubai|saudi|egypt|qatar)\b", re.I)
+
+
+def far_outlet(source, href):
+    """True for an outlet outside the US/UK/EU/AU regions (or written in another script)."""
+    if any(ord(ch) > 0x24F and ch.isalpha() for ch in (source or "")):
+        return True
+    if _FAR_NAMES.search(source or ""):
+        return True
+    host = re.sub(r"^https?://", "", (href or "").lower()).split("/")[0].split(":")[0]
+    if host and "news.google" not in host:
+        last = host.rsplit(".", 1)[-1]
+        if len(last) == 2 and last not in _COUNTED_CC:
+            return True
+    return False
+
 
 def _entry_ts(entry):
     for k in ("published_parsed", "updated_parsed"):
@@ -391,11 +412,25 @@ def _entry_ts(entry):
 # RSS PULL
 # ─────────────────────────────────────────────
 
+# Medicines, devices and cosmetics come through the FDA's recall feed too: not food (28 Nov 2026)
+NON_FOOD_RX = re.compile(
+    r"\b(ibuprofen|acetaminophen|aspirin|naproxen|tablets?|capsules?|pills?|\d+ ?mg\b|medications?|medicines?|drugs?|"
+    r"prescriptions?|pharma\w*|ointment|eye ?drops|inhalers?|syringes?|catheters?|medical devices?|detectors?|"
+    r"cosmetics?|toothpaste|sunscreen|shampoo|lotion|vapes?|e-cig\w*|ivermectin|insulin)\b", re.I)
+PATHOGEN_RX = re.compile(r"\b(salmonella|listeria|e\.? ?coli|botulism|norovirus|hepatitis a|cyclospora|campylobacter|"
+                         r"cronobacter|shigella|vibrio|food poisoning|foodborne)\b", re.I)
+
+
+def _food_relevant(text, title):
+    if NON_FOOD_RX.search(title or "") and not PATHOGEN_RX.search(title or "") and not _has_any((title or "").lower(), FOOD_TERMS):
+        return False
+    return _has_any(text, HAZARD_TERMS) or (_has_any(text, EVENT_TERMS) and _has_any(text, FOOD_TERMS))
+
+
 FOOD_PROFILE = {
     "name": "food",
     "feeds": RSS_FEEDS,
-    "relevant": lambda text, title: _has_any(text, HAZARD_TERMS) or (
-        _has_any(text, EVENT_TERMS) and _has_any(text, FOOD_TERMS)),
+    "relevant": _food_relevant,
     "tokens": _story_tokens,
     "kinds": _hazards,
     "categories": _categories,
@@ -471,6 +506,8 @@ def pull_rss_articles(profile=None):
                 summary = re.sub(r"<[^>]+>", " ", e.get("summary", "") or "")
                 text = (title + " " + summary).lower()
                 if not pr["relevant"](text, title):
+                    continue
+                if far_outlet(src, src_href):
                     continue
 
                 articles.append({

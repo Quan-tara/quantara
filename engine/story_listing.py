@@ -360,8 +360,16 @@ def update_listings(stories, session, now=None, arena="food"):
                 b_["talk"] = True
             cur = _on(n)
             if b_.get("talk") and cur >= b_["target"]:
-                b_.update({"tipped": True, "tipped_at": now, "tipped_outlets": cur})
+                b_.update({"tipped": True, "tipped_at": now, "tipped_outlets": cur, "tipped_by": "news",
+                           "tipped_why": f"{cur} news outlets and people talking about it"})
                 tipped_now = True
+            else:
+                from engine.tipping import social_tip
+                why = social_tip(session, n, snap, b_, now)
+                if why:
+                    b_.update({"tipped": True, "tipped_at": now, "tipped_outlets": cur, "tipped_by": "people",
+                               "tipped_why": why})
+                    tipped_now = True
             snap["bet"] = b_
         # exactly what this score was computed from — the story page's breakdown uses it,
         # and it stays frozen once the story closes
@@ -374,7 +382,7 @@ def update_listings(stories, session, now=None, arena="food"):
         if tipped_now:
             n.status, n.final_score, n.closed_at = "CLOSED", score, now
             _settle(session, n.sid, final=score)
-            print(f"🔥 Story TIPPED  {n.sid}  {b_.get('tipped_outlets')} outlets, seen beyond the news — YES wins  {n.title[:60]}")
+            print(f"🔥 Story TIPPED  {n.sid}  {b_.get('tipped_why')} — YES wins  {n.title[:60]}")
         elif now >= n.closes_at:
             n.status, n.final_score, n.closed_at = "CLOSED", score, now
             _settle(session, n.sid, final=score)

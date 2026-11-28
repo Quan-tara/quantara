@@ -417,7 +417,7 @@ def us_brand(titles):
 # or a boycott / broken trust. "Bring back my favourite sub" is nostalgia: nothing at stake.
 STAKE_RX = {
     "money":   re.compile(r"\bprices?\b|\bpric(?:ing|ed)\b|\$\d|\bfees?\b|\bsurcharge|\bovercharg|\btip(?:s|ping)?\b|"
-                          r"\bshrinkflation|\bsmaller\b|\bportions?\b|\bdownsiz|\bcost(?:s|ly)?\b|\bexpensive\b|"
+                          r"\bshrinkflation|(?:got|gotten|getting|gets|are|is|was|were|now|became|become|been)\W{1,3}(?:much |way |a lot |noticeably )?smaller\b|\bsmaller (?:portions?|sizes?|packs?|packages?|packaging|bags?|boxes?|bottles?|cans?|servings?|burgers?|bars?|pizzas?|sandwich\w*|items?|amounts?|cups?|containers?|nuggets?|fries|meals?)|\bportions?\b|\bdownsiz|\bcost(?:s|ly)?\b|\bexpensive\b|"
                           r"\brip-?off\b|\bdiscount\b|\bmembership\b|\brefund|\bcharg(?:e|es|ed|ing)\b|\bdeal\b.{0,20}\b(?:cut|end|scrap)", re.I),
     "safety":  re.compile(r"\brecall|\bsick\b|\billness|\bpoison|\bcontaminat|\boutbreak|\be\.? ?coli\b|\bsalmonella|"
                           r"\blisteria|\btoxic|\bunsafe\b|\bhospitali|\ballerg|\bchemical|\bcancer\b|\bmold\b|\bforeign object", re.I),
@@ -1196,6 +1196,8 @@ def discovery_news(articles):
                 continue
             if not english_only(t) or blocked_title(tl, t) or ni._has_any(tl, A.EXCLUDE_TERMS):
                 continue
+            if ni.far_outlet(it["source"], it.get("href")):
+                continue
             seen.add(key)
             extra.append({
                 "title": t, "source": it["source"], "url": it["url"], "ts": it["ts"],
@@ -1251,6 +1253,8 @@ def reach_check(stories, articles, top=REACH_TOP):
             if b_low not in tl or not any(w in tl for w in stems):
                 continue                                # not clearly the same story
             if not english_only(t) or blocked_title(tl, t) or ni._has_any(tl, A.EXCLUDE_TERMS):
+                continue
+            if ni.far_outlet(it["source"], it.get("href")):
                 continue
             seen.add(key)
             extra.append({

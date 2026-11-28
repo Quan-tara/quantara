@@ -9,10 +9,11 @@ count 0). A story people are really talking about counts more: up to +50% for Bl
 posts about it (40 posts in 24 h = the full +50%).
 
 OUTLOOK (0–100) — where the index is likely heading, from four early signals:
-  crowd     35%  players' bets: average chance they give "just the beginning" on listed stories
-  buzz      25%  food brands with a spike of COMPLAINTS on Bluesky right now (each brand = 25)
-  searches  20%  share of checked stories where people search "boycott / cancel / alternative"
-  momentum  20%  how fast the index rose over the last 24 h (+10 points = 100)
+  crowd     40%  players' bets: average chance they give on listed stories
+  buzz      30%  food brands with a spike of COMPLAINTS on Bluesky right now (each brand = 25)
+  momentum  30%  how fast the index rose over the last 24 h (+10 points = 100)
+  searches   0%  share of checked stories where people search "boycott / cancel / alternative" — recorded and
+                 shown, not counted until it proves itself (it fired on a stadium name and an obituary)
 Parts without data are left out and the others re-weighted.
   under 35 = calm · 35–60 = watch · over 60 = pressure building
 
@@ -27,6 +28,7 @@ share-price damage came 1–3 months later → cover periods of 1–3 months.
 """
 
 import json
+import re
 import math
 import random
 import statistics
@@ -39,7 +41,8 @@ from db.models import (ArenaReading, BehaviourSignal, IndexTick, Narrative, Prot
 SAFETY_W, SOCIAL_W = 0.5, 0.5
 TOP_N = 5
 TALK_FULL = 40
-WEIGHTS = {"crowd": 0.35, "buzz": 0.25, "searches": 0.15, "momentum": 0.25}
+WEIGHTS = {"crowd": 0.40, "buzz": 0.30, "searches": 0.0, "momentum": 0.30}   # searches: shown, not counted (28 Nov:
+# brand searches like "cancel kroger" move on their own, whatever the story — not yet a proven signal)
 PAY_PER_POINT = 0.10
 LOADING, FLOOR = 1.25, 0.01
 DAY = 86400
@@ -195,7 +198,7 @@ def outlook(session, value):
         except Exception as e:
             score, info = None, {"error": str(e)[:80]}
         parts[name] = {"score": None if score is None else round(score, 1), "weight": WEIGHTS[name], **info}
-        if score is not None:
+        if score is not None and WEIGHTS[name] > 0:
             used[name] = score
     if not used:
         return None, parts
@@ -206,11 +209,58 @@ def outlook(session, value):
 # ─────────────────────────────────────────────
 # READING (called every collector run)
 # ─────────────────────────────────────────────
+# The safety half is about US food. The FSNI behind it watches food safety in the US, UK, EU and Australia,
+# so its value is scaled by how much of its current top stories are US food stories (28 Nov 2026).
+# The shared parts (the FDA's US recall counts, the baseline) always keep 30%.
+SAFETY_TOP_N = 8
+SAFETY_KEEP = 0.3
+FOREIGN_RX = re.compile(
+    r"\b(canada|canadian|uk|u\.k\.|britain|british|england|scotland|scottish|wales|ireland|irish|"
+    r"australia|australian|new zealand|germany|austria|france|italy|spain|netherlands|belgium|europe|european|eu|"
+    r"india|china|japan|korea|philippines|singapore|malaysia|south africa|"
+    r"tesco|sainsbury'?s?|asda|waitrose|morrisons|dunnes|rewe|edeka|kaufland|marks (?:&|and) spencer|"
+    r"fsa|fsai|efsa|rasff|cfia)\b", re.I)
+NON_ASCII_RX = re.compile(r"[äöüßÄÖÜ]")
+
+
+def us_food_stories(stories):
+    """The food-safety stories that are about US food: covered from the US, no foreign place or chain in the
+    headline, not a German-language headline, not a medicine."""
+    from engine.narrative_index import NON_FOOD_RX, PATHOGEN_RX
+    out = []
+    for f in stories:
+        t = f.get("title") or ""
+        if "US" not in (f.get("regions") or []):
+            continue
+        if FOREIGN_RX.search(t) or NON_ASCII_RX.search(t):
+            continue
+        if NON_FOOD_RX.search(t) and not PATHOGEN_RX.search(t):
+            continue
+        out.append(f)
+    return out
+
+
+def us_safety(session, fsni):
+    """(scaled safety value, share of US food among the top stories, the US top stories)."""
+    if fsni is None:
+        return None, None, []
+    from engine.narrative_index import _load_story_index
+    top = sorted(_load_story_index(session, arena="food"), key=lambda x: -(x.get("score") or 0))[:SAFETY_TOP_N]
+    tot = sum(max(0.0, x.get("score") or 0) for x in top)
+    us = us_food_stories(top)
+    if not tot:
+        return round(fsni, 2), None, us
+    share = sum(max(0.0, x.get("score") or 0) for x in us) / tot
+    return round(fsni * (SAFETY_KEEP + (1 - SAFETY_KEEP) * share), 2), round(share, 2), us
+
+
 def compute_reputation():
     session = SessionLocal()
     try:
-        safety = _latest_fsni(session)
-        safety = None if safety is None else round(safety, 2)
+        fsni = _latest_fsni(session)
+        safety, us_share, _ = us_safety(session, fsni)
+        if fsni is not None:
+            print(f"🇺🇸 safety half: FSNI {fsni:.1f} × US food share {us_share} → {safety}")
         social, top = _social(session)
         if safety is None and social is None:
             return
@@ -247,7 +297,8 @@ def compute_reputation():
             from engine.narratives import record as _narr
             # + the safety half's stories (recalls, outbreaks), so "Food safety scares" shows what pushes the index
             from engine.narrative_index import _load_story_index
-            food = sorted(_load_story_index(session, arena="food"), key=lambda x: -(x.get("score") or 0))[:8]
+            food = us_food_stories(sorted(_load_story_index(session, arena="food"),
+                                          key=lambda x: -(x.get("score") or 0))[:SAFETY_TOP_N])
             safety_rows = [{"sid": f.get("sid"), "title": f.get("title"), "weighted": round(f.get("score") or 0, 1),
                             "company": f.get("company")} for f in food if (f.get("score") or 0) > 0]
             _narr(session, getattr(_social, "last_rows", []) + safety_rows)   # big narratives (test, recorded only)

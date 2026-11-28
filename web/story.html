@@ -532,7 +532,18 @@ function spotCard(c) {
     <div class="m">${c.spotters} player${c.spotters === 1 ? "" : "s"} · first spotted ${when(c.first_ts)}
       ${c.status === "SPOTTED" ? ` · ${Math.max(0, Math.ceil(left / 86400))} days left` : c.confirmed_by ? ` · news: ${esc((c.confirmed_by.title || "").slice(0, 60))}` : ""}</div>
     ${c.mine ? `<div class="m"><b>You spotted it</b>${c.mine.payout ? ` · <b class="down">+${Math.round(c.mine.payout)} cr</b>` : ""}</div>` : ""}
+    ${IS_MOD && c.status === "CONFIRMED" ? `<button class="btn ghost" style="margin-top:6px" onclick="event.preventDefault();event.stopPropagation();undoSpot('${esc(c.sid)}', this)">↩ UNDO CONFIRMATION (moderator)</button>` : ""}
   </a>`;
+}
+async function undoSpot(sid, btn) {
+  if (!ME) return;
+  if (btn.dataset.sure !== "1") { btn.dataset.sure = "1"; btn.textContent = "Click again to undo — payouts are taken back"; return; }
+  btn.disabled = true;
+  try {
+    const r = await fetch(`/api/moderation/spot/${encodeURIComponent(sid)}/undo?user_id=${encodeURIComponent(ME.id)}`, { method: "POST" });
+    btn.textContent = r.ok ? "Undone — reloading…" : "Could not undo";
+    if (r.ok) setTimeout(() => location.reload(), 600);
+  } catch (e) { btn.textContent = "Could not undo"; }
 }
 function spotsSection() {
   if (!SPOTS) return "";

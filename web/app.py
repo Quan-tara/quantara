@@ -1490,6 +1490,22 @@ def api_spot_card(sid: str, user_id: str = None):
         session.close()
 
 
+@app.post("/api/moderation/spot/{card_sid}/undo")
+def api_spot_undo(card_sid: str, user_id: str):
+    """Moderators: reverse a wrong spot confirmation (payouts taken back, card reopened)."""
+    from engine.story_comments import is_moderator
+    if not is_moderator(parse_user_id(user_id)):
+        raise HTTPException(status_code=403, detail="Moderators only")
+    from engine.spots import undo
+    session = SessionLocal()
+    try:
+        n = undo(session, card_sid[:16], why="moderator")
+        session.commit()
+        return {"ok": True, "undone": n}
+    finally:
+        session.close()
+
+
 @app.get("/api/moderation/reported")
 def api_moderation_reported(user_id: str):
     """Moderators: posts that players reported and that are still up (or held for review)."""

@@ -94,6 +94,13 @@ WIDE_FEEDS = [
     _gn("food+company+%22misleading%22+OR+%22false+advertising%22+OR+%22class+action%22+consumers"),
     _gn("coffee+chain+customers+furious+OR+backlash+OR+%22price+increase%22"),
     _gn("restaurant+chain+closes+OR+bankruptcy+OR+%22shutting+down%22+customers"),
+    # 28 Nov 2026: where creator / influencer food drama gets written up (TikTok itself is not read)
+    _gn("site:dailydot.com+restaurant+OR+%22fast+food%22+OR+drink+OR+grocery+OR+starbucks+OR+mcdonald%27s"),
+    _gn("site:buzzfeed.com+%22fast+food%22+OR+restaurant+OR+starbucks+OR+%22trader+joe%27s%22+OR+costco"),
+    _gn("site:thetakeout.com+OR+site:tastingtable.com+OR+site:mashed.com+customers+OR+backlash+OR+complaints+OR+fans"),
+    _gn("site:today.com+OR+site:delish.com+%22fast+food%22+OR+restaurant+viral+OR+backlash+OR+customers"),
+    _gn("tiktok+OR+influencer+OR+creator+%22fast+food%22+OR+restaurant+OR+snack+viral+backlash+OR+furious+OR+exposes"),
+    _gn("%22food+reviewer%22+OR+%22food+influencer%22+OR+%22tiktok+review%22+restaurant+OR+chain+OR+brand"),
 ]
 
 

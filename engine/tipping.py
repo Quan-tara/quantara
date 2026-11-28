@@ -79,7 +79,8 @@ def tip_gate(title, others=(), company=None):
     t = title or ""
     if GOODNEWS_RX.search(t):
         return False, "good news for the brand"
-    if not TROUBLE_RX.search(t):
+    from engine.everyday import viral_backlash
+    if not TROUBLE_RX.search(t) and not viral_backlash(t):
         return False, "no trouble for the brand in the headline" + (" (promo / launch)" if PROMO_RX.search(t) else "")
     if PROMO_RX.search(t) and not re.search(r"\b(outrag|furious|backlash|boycott|slam|angr|anger|sick|recall|sue|lawsuit)", t, re.I):
         return False, "promo / launch"

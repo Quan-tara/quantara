@@ -39,6 +39,10 @@ YT_QUERIES = [
     "found mold in food brand", "fast food exposed", "fast food price outrage", "snack brand controversy",
     "MrBeast Feastables Lunchly", "Prime drink controversy", "restaurant chain backlash", "worst fast food experience",
     "food recall viral", "fast food worker viral video", "grocery store prices viral", "drink brand lawsuit",
+    # 28 Nov 2026: creator food drama (the reviews people actually talk about)
+    "food reviewer exposes restaurant", "honest fast food review worst", "fast food ranked worst",
+    "food influencer controversy", "tiktok food drama", "I tried the viral fast food", "restaurant review gone wrong",
+    "fast food portions smaller now", "snack tastes different now", "new menu item review disgusting",
 ]
 RIDICULE_RX = re.compile(r"\broast(?:ed|ing|s)?\b|\bjok(?:e|es|ing)\b|\bmemes?\b|\bmock(?:ed|ing|s)?\b|\bridicul(?:ed|ing)\b|"
                          r"\bclowned\b|\bdragged\b|\btrolled\b|\blaughing at\b|\bwheezing\b|\bcan'?t stop (?:laughing|joking)|"

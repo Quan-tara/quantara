@@ -340,6 +340,18 @@ DEMAND_RX = re.compile(
     + r"|" + _CHANGE + r".{0,60}\b(?:backlash|outrage\w*|furious|angry|anger|slam\w*|complain\w*|fume\w*|livid|blast\w*)\b",
     re.I)
 STRONG_DEMAND_RX = re.compile(r"\bpetition|\bboycott|\blawsuit|\bclass action|\bsued\b|\bwalkout|\bstrike\b", re.I)
+# A creator's review that blows up is not "just a review" (28 Nov 2026): a named brand + a creator / viral
+# marker + a real negative reaction lets it through the joke/review rule.
+CREATOR_RX = re.compile(r"\btiktok\w*|\binfluencers?\b|\bcreators?\b|\byoutubers?\b|\bfood reviewers?\b|\bviral\b|"
+                        r"\bmillions? of views\b|\bcalls? out\b|\bcalled out\b|\bexpos(?:es|ed|ing)\b", re.I)
+VIRAL_BAD_RX = re.compile(r"\bbacklash|\boutrage\w*|\bfurious|\bangry|\bslam\w*|\bblast\w*|\bdisgust\w*|\bgross\b|"
+                          r"\bcomplain\w*|\bfume\w*|\blivid|\bexpos(?:es|ed|ing)|\bcalls? out|\bcalled out|\bscam\w*|"
+                          r"\bripoff|\brip-off|\bripped off|\bworst\b|\braw\b|\bundercooked|\bmold\w*|\bhair in\b|\bbug\b|"
+                          r"\bsick\b|\bshrink\w*|\bsmaller\b|\bstale\b|\bnever (?:again|going back)", re.I)
+
+
+def viral_backlash(title):
+    return bool(CREATOR_RX.search(title or "") and VIRAL_BAD_RX.search(title or ""))
 JOKE_RX = re.compile(r"\bjok(?:e|es|ing)\b|\broast(?:ed|ing)?\b|\bmemes?\b|\bhilarious\b|\bwheezing\b|\bwe tried\b|"
                      r"\btaste test\b|\branked\b|\breview\b|\bdisadvantages\b|\breasons? (?:why|to)\b|\bwhat,? exactly\b|"
                      r"\bsecret menu\b|\bhacks?\b|\bis (?:the )?new .{0,60} good\b|^\d+ |"
@@ -357,6 +369,8 @@ def demand(lead, others=()):
             m = STRONG_DEMAND_RX.search(t)
             if m:
                 return m.group(0).strip()
+        if viral_backlash(lead) and brand_in([lead]):
+            return "viral backlash"
         return ""
     for t in texts:
         m = DEMAND_RX.search(t)
@@ -587,7 +601,8 @@ def index_gate(title, others=(), company=None):
         return False, why
     if POSITIVE_RX.search(title) and not ni._has_any(low, NEGATIVE_HINT):
         return False, "praise, not pressure"
-    if JOKE_RX.search(title) and not STRONG_DEMAND_RX.search(title):
+    if JOKE_RX.search(title) and not STRONG_DEMAND_RX.search(title) and \
+            not (viral_backlash(title) and (brand_in([title]) or company)):
         return False, "joke, review or promo"
     from engine.tipping import PROMO_RX, TROUBLE_RX
     if GOOD_NEWS_RX.search(title):
@@ -613,6 +628,8 @@ def index_gate(title, others=(), company=None):
     if not (food_anchor(low) or ni._has_any(low, GROCERS)) and not STAKE_RX["safety"].search(title):
         return False, "not about food & drink"       # the index is the FOOD Reputation Index
     cat = stake_of(title, others)
+    if not cat and viral_backlash(title) and (brand_in([title]) or company):
+        cat = "quality"                               # a creator's viral takedown of a product (28 Nov 2026)
     if not cat:
         return False, "nostalgia, nothing at stake" if NOSTALGIA_RX.search(title) else "no real stakes"
     return True, cat

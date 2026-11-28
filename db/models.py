@@ -553,6 +553,7 @@ class AttentionItem(Base):
     size   = Column(Float, nullable=True)                      # views (video) or story score (ridicule)
     source = Column(String(80), nullable=True)                 # channel / outlet
     key    = Column(String(120), nullable=True, index=True)    # de-duplication (video id, story title)
+    days   = Column(Text, nullable=True)                       # emerging themes: JSON list of days it was seen
 
 
 class MethodStart(Base):

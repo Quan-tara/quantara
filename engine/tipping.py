@@ -162,9 +162,10 @@ def social_tip(session, n, snap, b, now=None):
         brand = _norm(b.get("company") or snap.get("lead_brand") or snap.get("company"))
         if not brand:
             return None
-        for br, c in (session.query(BrandBuzz.brand, BrandBuzz.complaints)
-                      .filter(BrandBuzz.ts >= since + 3600, BrandBuzz.status == "OK").all()):
-            if _norm(br) == brand and (c or 0) >= need:
+        for (c,) in (session.query(BrandBuzz.complaints)
+                     .filter(BrandBuzz.brand.in_(list({brand, brand.replace("'", "’")})),
+                             BrandBuzz.ts >= since + 3600, BrandBuzz.status == "OK").all()):
+            if (c or 0) >= need:
                 return f"{c} complaining posts in 3 h on Bluesky (listed at {start})"
         return None
     rows = [p or 0 for (p,) in session.query(SocialSignal.posts)
@@ -234,11 +235,8 @@ def replay(session, arenas=CAL_ARENAS, include_open=False, since=None):
     from engine.story_market import _topic_words
     since = MEASURE_SINCE if since is None else since
     hist, started, latest, last_ts, alias = {}, {}, None, {}, {}
-    q = (session.query(ArenaReading.ts, ArenaReading.arena, ArenaReading.story_index)
-         .filter(ArenaReading.arena.in_(list(arenas)), ArenaReading.ts >= since).order_by(ArenaReading.ts))
-    for ts, arena, idx in q.yield_per(200):
-        if ts - last_ts.get(arena, 0) < 3 * 3600:
-            continue
+    from engine.readings import sampled
+    for ts, arena, idx in sampled(session, arenas, since, 3 * 3600):
         last_ts[arena] = ts
         latest = ts
         try:

@@ -52,9 +52,9 @@ DAY = 86400
 # INDEX
 # ─────────────────────────────────────────────
 def _latest_fsni(session):
-    t = (session.query(IndexTick).filter(IndexTick.headlines.isnot(None))
+    t = (session.query(IndexTick.value).filter(IndexTick.headlines.isnot(None))   # value only, not the headlines JSON
          .order_by(IndexTick.ts.desc()).first())
-    return t.value if t else None
+    return t[0] if t else None
 
 
 def _talk(session, sids):
@@ -240,12 +240,22 @@ def us_food_stories(stories):
     return out
 
 
+_FOOD_IDX = {"ts": 0.0, "rows": []}
+
+
+def _food_index(session):
+    """The latest food-safety story list, read once per 10 minutes (it is a large JSON)."""
+    from engine.narrative_index import _load_story_index
+    if time.time() - _FOOD_IDX["ts"] > 600:
+        _FOOD_IDX.update(ts=time.time(), rows=_load_story_index(session, arena="food"))
+    return _FOOD_IDX["rows"]
+
+
 def us_safety(session, fsni):
     """(scaled safety value, share of US food among the top stories, the US top stories)."""
     if fsni is None:
         return None, None, []
-    from engine.narrative_index import _load_story_index
-    top = sorted(_load_story_index(session, arena="food"), key=lambda x: -(x.get("score") or 0))[:SAFETY_TOP_N]
+    top = sorted(_food_index(session), key=lambda x: -(x.get("score") or 0))[:SAFETY_TOP_N]
     tot = sum(max(0.0, x.get("score") or 0) for x in top)
     us = us_food_stories(top)
     if not tot:
@@ -319,7 +329,7 @@ def compute_reputation():
             from engine.narratives import record as _narr
             # + the safety half's stories (recalls, outbreaks), so "Food safety scares" shows what pushes the index
             from engine.narrative_index import _load_story_index
-            food = us_food_stories(sorted(_load_story_index(session, arena="food"),
+            food = us_food_stories(sorted(_food_index(session),
                                           key=lambda x: -(x.get("score") or 0))[:SAFETY_TOP_N])
             safety_rows = [{"sid": f.get("sid"), "title": f.get("title"), "weighted": round(f.get("score") or 0, 1),
                             "company": f.get("company")} for f in food if (f.get("score") or 0) > 0]
@@ -396,15 +406,32 @@ def _daily_means(rows):
     return [sum(v) / len(v) for _, v in sorted(days.items())]
 
 
+_DAILY = {}       # (table, day) → daily means, computed in the database and kept 6 h (database traffic)
+
+
+def _daily_series(session, which):
+    from sqlalchemy import func, cast, Integer
+    hit = _DAILY.get(which)
+    if hit and time.time() - hit[0] < 6 * 3600:
+        return hit[1]
+    if which == "FRI":
+        day = cast(ReputationTick.ts / DAY - 0.5, Integer)    # whole day number (floor on Postgres and SQLite)
+        q = session.query(day, func.avg(ReputationTick.value)).group_by(day).order_by(day)
+    else:
+        day = cast(IndexTick.ts / DAY - 0.5, Integer)
+        q = (session.query(day, func.avg(IndexTick.value)).filter(IndexTick.headlines.isnot(None))
+             .group_by(day).order_by(day))
+    series = [float(v) for _, v in q.all() if v is not None]
+    _DAILY[which] = (time.time(), series)
+    return series
+
+
 def _future_shifts(session, days):
     """How the average over the next `days` differed from the level at the start, historically.
     Uses the FRI's own history once it has 2×days of it, else the FSNI's."""
-    fri = [(r.ts, r.value) for r in session.query(ReputationTick.ts, ReputationTick.value).all()]
-    src, series = "FRI", _daily_means(fri)
+    src, series = "FRI", _daily_series(session, "FRI")
     if len(series) < 2 * days + 5:
-        fs = [(r.ts, r.value) for r in session.query(IndexTick.ts, IndexTick.value)
-              .filter(IndexTick.headlines.isnot(None)).all()]
-        src, series = "FSNI", _daily_means(fs)
+        src, series = "FSNI", _daily_series(session, "FSNI")
     shifts = [sum(series[i + 1:i + 1 + days]) / days - series[i] for i in range(len(series) - days - 1)]
     if len(shifts) >= 10:
         return shifts, f"{src} history ({len(series)} days)"

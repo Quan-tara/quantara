@@ -37,10 +37,8 @@ def _events(session):
     last_ts, first, latest, n_used = {}, None, None, 0
     seen = {"baseline": {}, "counting": {}, "strong": {}}
     events = {"baseline": [], "counting": [], "strong": []}
-    q = session.query(ArenaReading.ts, ArenaReading.arena, ArenaReading.story_index).order_by(ArenaReading.ts)
-    for ts, arena, idx in q.yield_per(200):
-        if ts - last_ts.get(arena, 0) < SAMPLE_S:
-            continue
+    from engine.readings import sampled
+    for ts, arena, idx in sampled(session, None, 0.0, SAMPLE_S):
         last_ts[arena] = ts
         n_used += 1
         first = first or ts

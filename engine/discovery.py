@@ -113,9 +113,9 @@ def run_discovery():
                 from engine.everyday import blocked_title
                 food = [t for t in res["texts"] if not blocked_title((t or "").lower(), t or "")]
                 res["brand_total"], res["texts"] = len(food), food
-                prev = [r.posts for r in session.query(BrandBuzz)
+                prev = [p for (p,) in session.query(BrandBuzz.posts)      # posts only: the rows carry big JSON
                         .filter(BrandBuzz.brand == b, BrandBuzz.status == "OK",
-                                BrandBuzz.ts >= now - HISTORY_D * 86400).all() if r.posts is not None]
+                                BrandBuzz.ts >= now - HISTORY_D * 86400).all() if p is not None]
                 base = statistics.median(prev) if len(prev) >= MIN_HISTORY else None
                 rec.posts, rec.baseline = res["brand_total"], base
                 rec.complaints = complaints(food)
@@ -165,12 +165,18 @@ def rising(session, hours=RISING_KEEP_H):
 def overview(session):
     """For /api/discovery: what is rising, and how far the warm-up is."""
     now = time.time()
-    rows = session.query(BrandBuzz).filter(BrandBuzz.ts >= now - HISTORY_D * 86400, BrandBuzz.status == "OK").all()
-    per = Counter(r.brand for r in rows)
+    # counted in the database; only each brand's latest row is sent back (was: a week of full rows per call)
+    from sqlalchemy import func
+    since = now - HISTORY_D * 86400
+    per, last_ts = {}, {}
+    for b, n, mx in (session.query(BrandBuzz.brand, func.count(BrandBuzz.id), func.max(BrandBuzz.ts))
+                     .filter(BrandBuzz.ts >= since, BrandBuzz.status == "OK").group_by(BrandBuzz.brand).all()):
+        per[b], last_ts[b] = n, mx
     latest = {}
-    for r in rows:
-        if r.brand not in latest or r.ts > latest[r.brand].ts:
-            latest[r.brand] = r
+    if last_ts:
+        for r in (session.query(BrandBuzz).filter(BrandBuzz.ts >= now - 6 * 3600, BrandBuzz.status == "OK").all()):
+            if last_ts.get(r.brand) == r.ts:
+                latest[r.brand] = r
     from engine.everyday import NON_US_BRANDS
     busiest = sorted([r for r in latest.values() if r.brand not in NON_US_BRANDS],
                      key=lambda r: r.posts or 0, reverse=True)[:15]

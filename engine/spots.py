@@ -60,6 +60,60 @@ def display(key):
     return " ".join(w[:1].upper() + w[1:] for w in key.split(" "))
 
 
+def real_trouble(title, key, company=None):
+    """Confirms a spot only if the story is real trouble for THIS brand (28 Nov 2026: a soup review confirmed
+    "trouble at Costco"): the brand is named in the headline itself, the headline passes the index's pressure
+    test AND the "Will it tip?" trouble test."""
+    from engine.everyday import brand_in, index_gate
+    from engine.tipping import tip_gate
+    if not title or _key(brand_in([title])) != key:
+        return False
+    return index_gate(title, [], company)[0] and tip_gate(title, [], company)[0]
+
+
+def undo(session, card_sid, now=None, why="moderator"):
+    """Reverse a wrong confirmation: take the payouts back, reopen the spots (or expire them if too old),
+    put the card back to SPOTTED and clear the called evidence."""
+    from engine.story_market import account
+    from db.models import StoryComment
+    now = now or time.time()
+    n = session.query(Narrative).filter(Narrative.sid == card_sid).first()
+    won = session.query(Spot).filter(Spot.card_sid == card_sid, Spot.status == "WON").all()
+    if not won:
+        return 0
+    for s in won:
+        acc = account(session, s.user_id)
+        acc.credits = (acc.credits or 0) - (s.payout or 0)
+        s.status = "OPEN" if now - s.ts <= SPOT_DAYS * DAY else "EXPIRED"
+        s.story_sid = s.story_title = s.lead_s = s.payout = None
+        s.resolved_at = None if s.status == "OPEN" else now
+    for c in session.query(StoryComment).filter(StoryComment.sid == card_sid).all():
+        if c.bonus:
+            acc = account(session, c.user_id)
+            acc.credits = (acc.credits or 0) - c.bonus
+            c.bonus = None
+        c.called, c.lead_s = None, None
+    if n:
+        snap = json.loads(n.snapshot or "{}")
+        snap.pop("confirmed_by", None)
+        snap.setdefault("undone", []).append({"at": now, "why": why})
+        n.snapshot = json.dumps(snap)
+        still = any(s.status == "OPEN" for s in won)
+        n.status, n.closed_at = ("SPOTTED", None) if still else ("EXPIRED", now)
+    print(f"↩️ Spot card {card_sid}: confirmation undone ({why}), {len(won)} payout(s) taken back")
+    return len(won)
+
+
+def _undo_wrong(session, now):
+    """Confirmations made under the old, looser rule that the new rule would not make are undone once."""
+    done = 0
+    for card in {s.card_sid for s in session.query(Spot).filter(Spot.status == "WON").all()}:
+        ws = session.query(Spot).filter(Spot.card_sid == card, Spot.status == "WON").first()
+        if ws and not real_trouble(ws.story_title, ws.brand):
+            done += undo(session, card, now, why="not real trouble for the brand (stricter rule, 28 Nov 2026)")
+    return done
+
+
 def _brand_of(title, company=None):
     from engine.everyday import brand_in
     return _key(company) or _key(brand_in([title or ""]))
@@ -157,14 +211,20 @@ def resolve(session, rows, now=None):
     passes the gate (weighted > 0); expires spots older than SPOT_DAYS."""
     from engine.story_comments import call_it
     now = now or time.time()
+    try:
+        if _undo_wrong(session, now):
+            session.flush()
+    except Exception as e:
+        print(f"⚠️ spot undo check: {e}")
     open_spots = session.query(Spot).filter(Spot.status == "OPEN").all()
     if not open_spots:
+        session.commit()
         return 0
     hit = {}
     for r in rows or []:
         if (r.get("weighted") or 0) > 0:
             k = _brand_of(r.get("title"), r.get("company"))
-            if k and k not in hit:
+            if k and k not in hit and real_trouble(r.get("title"), k, r.get("company")):
                 hit[k] = (r.get("sid"), r.get("title"))
     done = 0
     cards = {}

@@ -35,6 +35,12 @@ header {
 main { max-width: 1240px; margin: 0 auto; padding-top: 18px; display: grid; gap: 18px }
 .lbl { font-family: var(--mono); font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: 2px }
 .panel { background: var(--s1); border: 1px solid var(--border); border-radius: 8px; min-width: 0 }
+/* moderator panel: each part gets a big heading, a one-line explanation and a divider */
+.msec { margin-top: 22px; padding: 16px 14px 6px; border-top: 3px solid var(--border) }
+#cands > .msec:first-child { margin-top: 0; border-top: 0 }
+.msec-h { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 17px; font-weight: 700; color: var(--text) }
+.msec-d { font-size: 13px; color: var(--muted); margin-top: 4px; line-height: 1.45 }
+.msub { font-size: 14px; font-weight: 700; color: var(--text); padding: 12px 14px 2px; border-top: 1px dashed var(--border); margin-top: 8px }
 .panel > .ph { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--border) }
 .panel > .pb { padding: 14px }
 .rules { display: flex; gap: 10px 22px; flex-wrap: wrap; padding: 12px 14px; font-size: 12px; color: var(--muted); line-height: 1.5 }
@@ -718,9 +724,10 @@ async function candidates() {
   if (!r || !r.ok) return;                       // not a moderator → stays hidden
   const d = await r.json();
   el.hidden = false;
-  el.innerHTML = `<div class="ph"><span class="lbl">Candidates · not listed · moderators</span>
+  el.innerHTML = `<div class="msec"><div class="msec-h"><span>1 · Stories we found but didn't list</span>
       <button class="btn ghost" onclick="CANDS_OPEN=!CANDS_OPEN;candidates()">${CANDS_OPEN ? "HIDE" : `SHOW ${d.stories.length}`}</button></div>
-    ${!CANDS_OPEN ? `<div class="note">What the everyday filter found in its latest reading (${d.ts ? when(d.ts) : "none yet"}) but didn't list. Bar: score ${d.rules.score} with ${d.rules.outlets}+ outlets${d.rules.daily_cap ? `, max ${d.rules.daily_cap} a day` : ""}.</div>`
+      <div class="msec-d">Moderators only. Brand stories from the latest reading (${d.ts ? when(d.ts) : "none yet"}) that didn't make the board, each with the reason why. Use it to spot a good story the filter missed.</div></div>
+    ${!CANDS_OPEN ? ""
       : d.stories.length ? `<div class="list">${d.stories.map(c => `<div class="li"><a href="/story/${encodeURIComponent(c.sid)}">${esc(c.title)}</a>
           <div class="m"><b class="mono">${(c.score ?? 0).toFixed(1)}</b><span>${c.outlets} outlet${c.outlets === 1 ? "" : "s"}</span>${sectorTag(c.sector)}${c.company ? `<span>🏢 ${esc(c.company)}</span>` : ""}${trendTag(c.trending)}${c.buzz != null ? `<span title="Bluesky posts in the last 24h">🦋 ${c.buzz}</span>` : ""}${c.views != null ? `<span title="YouTube views, videos from the last 3 days">▶ ${fmtViews(c.views)}</span>` : ""}<span style="color:var(--dim)">${esc(c.why_not)}</span></div></div>`).join("")}</div>`
       : `<div class="empty">Nothing found in the latest reading.</div>`}
@@ -733,7 +740,8 @@ async function risingPanel() {
   const row = r => `<div class="li"><span><b>${esc(r.brand)}</b>${r.words.length ? ` · ${esc(r.words.join(", "))}` : ""}</span>
       <div class="m"><b class="mono">${r.posts} posts / 3h</b><span>${r.x}× normal</span>${r.complaints != null ? `<span class="${r.trouble ? "tag hot" : ""}">${r.complaints} complaining${r.trouble ? " · counts" : ""}</span>` : ""}<span>${esc(when(r.ts))}</span></div>
       ${r.top_post ? `<div style="font-size:12px;color:var(--dim)">“${esc((r.top_post.text || "").slice(0, 160))}”${r.top_post.url ? ` <a href="${esc(r.top_post.url)}" target="_blank" rel="noopener" style="font-size:10px">open</a>` : ""}</div>` : ""}</div>`;
-  el.innerHTML = `<div class="ph" style="margin-top:8px"><span class="lbl">Rising on Bluesky · last 6h</span><span class="tag">${d.warmed_up}/${d.brands} brands warmed up</span></div>
+  el.innerHTML = `<div class="msec"><div class="msec-h"><span>2 · Brands suddenly busy on Bluesky</span><span class="tag">${d.warmed_up}/${d.brands} brands warmed up</span></div>
+      <div class="msec-d">Last 6 hours: food brands people post about far more than usual. "Complaining" counts the angry posts; a brand with 10+ complaining posts is listed as a story.</div></div>
     ${d.rising.length ? `<div class="list">${d.rising.map(row).join("")}</div>`
       : `<div class="note">Nothing spiking right now. A brand needs about 6 checks (≈ 8 hours) before a spike can be called.${d.busiest_now.length ? ` Busiest now: ${d.busiest_now.slice(0, 6).map(b => `${esc(b.brand)} ${b.posts_3h}`).join(" · ")}.` : ""}</div>`}`;
 }
@@ -749,10 +757,10 @@ async function narrPanel() {
       <div class="m"><b class="mono">${(n.strength || 0).toFixed(1)}</b><span>${n.normal != null ? "normal " + n.normal : "no normal yet"}</span>${n.curve && n.curve.phase !== "too little data" ? `<span class="tag">curve: ${esc(n.curve.phase)}${n.curve.peak_eta_h > 0 ? ", peak in ~" + (n.curve.peak_eta_h >= 48 ? Math.round(n.curve.peak_eta_h / 24) + " days" : Math.round(n.curve.peak_eta_h) + " h") : ""}</span>` : ""}
         <span>${n.stories} stor${n.stories === 1 ? "y" : "ies"}</span><span>${esc((n.brands || []).slice(0, 6).join(", ") || "no brand")}</span>${spark(n.series)}</div>
       ${n.top && n.top.length ? `<div style="font-size:12px;color:var(--dim)">${n.top.slice(0, 2).map(t => `<a href="/story/${encodeURIComponent(t[1])}">${esc((t[0] || "").slice(0, 90))}</a>`).join(" · ")}</div>` : ""}</div>`;
-  el.innerHTML = `<div class="ph" style="margin-top:8px"><span class="lbl">Big narratives · across brands · test</span><span class="tag">${Math.min(d.hours, d.needed)}/${d.needed} hours of history</span></div>
-    <div class="note">Every story that counts in the index is sorted into a bigger narrative. Rising = 1.5× its normal level with 2+ brands. Recorded only: nothing here changes scores, listing or bets.</div>
+  el.innerHTML = `<div class="msec"><div class="msec-h"><span>3 · Big themes across brands</span><span class="tag">test · ${Math.min(d.hours, d.needed)}/${d.needed} hours of history</span></div>
+      <div class="msec-d">Every story that counts in the index is sorted into one of 7 fixed themes (prices, safety, workers…). A theme is "rising" at 1.5× its normal level with 2+ brands. Recorded only: nothing here changes scores, listing or bets.</div></div>
     <div class="list">${d.narratives.map(row).join("")}</div>
-    <div class="sub" style="margin-top:8px"><b>🌱 Emerging — themes the data found on its own</b></div>
+    <div class="msub">🌱 New themes the data found on its own</div>
     ${(d.emerging || []).length ? `<div class="list">${d.emerging.map(e => `<div class="li"><span>${esc((e.title || "").split(" — ")[0])}</span><div class="m"><b>${esc(e.brands || "")}</b><span>${esc(e.words || "")}</span><span>${esc(when(e.ts))}</span></div><div style="font-size:12px;color:var(--dim)">${esc(((e.title || "").split(" — ")[1] || "").slice(0, 200))}</div></div>`).join("")}</div>`
       : `<div class="note">None yet: an emerging theme needs stories about 2+ different brands that share distinctive words and fit none of the 7 narratives.</div>`}
     <div class="note">Curve: each narrative's running total is fitted with the simplest epidemic curve; growing / near peak / fading. Early in a rise the peak can't be placed reliably, so none is shown.</div>`;
@@ -763,11 +771,11 @@ async function attnPanel() {
   const views = n => n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1e3 ? Math.round(n / 1e3) + "k" : String(n || 0);
   const item = (i, size) => `<div class="li"><span>${i.url ? `<a href="${esc(i.url)}" target="_blank" rel="noopener">${esc((i.title || "").slice(0, 110))}</a>` : esc((i.title || "").slice(0, 110))}</span>
       <div class="m"><b>${esc(i.brand || "")}</b><span class="mono">${size}</span>${i.source ? `<span>${esc(i.source)}</span>` : ""}<span>${esc(when(i.ts))}</span></div></div>`;
-  const block = (label, arr, fmt, empty) => `<div class="sub" style="margin-top:8px"><b>${label}</b></div>
+  const block = (label, arr, fmt, empty) => `<div class="msub">${label}</div>
     ${arr.length ? `<div class="list">${arr.map(i => item(i, fmt(i))).join("")}</div>` : `<div class="note">${empty}</div>`}`;
   const watch = (d.watch || []).filter(w => w.status !== "active");
-  el.innerHTML = `<div class="ph" style="margin-top:8px"><span class="lbl">Attention · last 3 days · test</span><span class="tag">recorded only</span></div>
-    <div class="note">What pulls people towards a brand before it is "pressure". Nothing here counts in the index; the track record checks whether attention comes before damage.</div>
+  el.innerHTML = `<div class="msec"><div class="msec-h"><span>4 · Attention before trouble</span><span class="tag">test · last 3 days</span></div>
+      <div class="msec-d">Things that pull people towards a brand before there is real pressure: big videos, brands being laughed at, new names. Nothing here counts in the index; we check later whether attention comes before damage.</div></div>
     ${block("📺 Big videos about a brand", d.videos || [], i => "▶ " + views(i.size) + (i.comments && i.comments.comments ? ` · 💬 ${i.comments.comments} read, ${Math.round(100 * i.comments.complaints / i.comments.comments)}% complain` : ""), "No big brand video found yet — YouTube is searched every 2 hours.")}
     ${block("😂 Laughed at", d.ridicule || [], i => "score " + (i.size || 0).toFixed(1), "No brand being roasted in the news right now.")}
     ${block("🆕 New brands on the list", d.new_brands || [], i => "", "None yet — a name becomes a brand once it shows up in 2 separate stories.")}

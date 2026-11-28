@@ -63,6 +63,14 @@ main { max-width: 1240px; margin: 0 auto; padding-top: 18px; display: grid; gap:
 
 /* board */
 .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; padding: 14px }
+/* the two story types (28 Nov 2026): trouble = "Will it tip?", everyday = "Will it go viral?" */
+.kind-h { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin: 16px 0 8px; padding: 12px 14px 0; border-top: 3px solid var(--border) }
+.kind-h:first-of-type { border-top: 0; padding-top: 4px; margin-top: 8px }
+.kind-h b { font-size: 16px; color: var(--text) }
+.kind-h span { font-size: 12px; color: var(--muted) }
+.card.viral { border-left: 4px solid #a78bfa }
+.card.trouble { border-left: 4px solid var(--red) }
+.pill.vir { background: rgba(167, 139, 250, .16); color: #a78bfa; border: 1px solid #a78bfa }
 .card { display: grid; gap: 8px; padding: 12px; background: var(--s2); border: 1px solid var(--border); border-radius: 6px; text-decoration: none; color: inherit; min-width: 0 }
 .card:hover { border-color: var(--accent) }
 .card-top { display: flex; align-items: center; gap: 6px; flex-wrap: wrap }
@@ -647,8 +655,9 @@ async function board() {
     const isOpen = s.status === "LISTED";
     const left = s.closes_at - d.now, full = (s.listed_at ? s.closes_at - s.listed_at : r.window_h * 3600);
     const v = isOpen ? s.score : s.final_score;
-    return `<a class="card" href="/story/${encodeURIComponent(s.sid)}">
-      <div class="card-top"><span class="pill ${s.status}">${s.status}</span>${s.sector ? sectorTag(s.sector) : arenaTag(s.arena)}
+    const vir = !!(s.bet && s.bet.viral), trb = !!(s.bet && s.bet.kind === "tip" && !vir);
+    return `<a class="card${vir ? " viral" : trb ? " trouble" : ""}" href="/story/${encodeURIComponent(s.sid)}">
+      <div class="card-top"><span class="pill ${s.status}">${s.status}</span>${vir ? `<span class="pill vir">📣 VIRAL</span>` : ""}${s.sector ? sectorTag(s.sector) : arenaTag(s.arena)}
         ${(s.regions || []).map(x => `<span class="tag">${esc(x)}</span>`).join("")}
         ${(s.categories || []).filter(x => x !== s.sector).slice(0, 2).map(x => `<span class="tag">${esc(x)}</span>`).join("")}</div>
       ${s.company ? `<div class="co">${esc(s.company)}</div>` : ""}${spottedBadge(s)}
@@ -661,7 +670,7 @@ async function board() {
             <small class="mono" style="color:var(--muted)">listed at ${s.list_score.toFixed(1)}</small></div></div>
         ${spark(s.spark)}
       </div>`}
-      ${isOpen && s.bet && s.bet.kind === "tip" ? `<div class="ask" style="font-weight:700;font-size:13px">🔥 Will it tip by ${DAYS[new Date(s.bet.closes_at * 1000).getDay()]}?</div>${tipProgress(s.bet)}` : ""}
+      ${isOpen && s.bet && s.bet.kind === "tip" ? `<div class="ask" style="font-weight:700;font-size:13px">${s.bet.viral ? "📣 Will it go viral" : "🔥 Will it tip"} by ${DAYS[new Date(s.bet.closes_at * 1000).getDay()]}?</div>${tipProgress(s.bet)}` : ""}
       ${!isOpen && s.bet && s.bet.kind === "tip" ? `<div class="ask" style="font-weight:700;font-size:13px">${s.bet.tipped ? "🔥 It tipped" : "💨 It faded"}</div>` : ""}
       ${isOpen && s.bet && s.bet.kind === "cave" ? `<div class="ask" style="font-weight:700;font-size:13px">🏳️ Will ${esc(s.bet.company || s.company || "they")} back down by ${DAYS[new Date(s.bet.deadline * 1000).getDay()]}?</div>
         <div class="card-meta">${s.bet.hint ? `<span style="color:var(--amber)">⚠ possible cave spotted, waiting for confirmation</span>` : `<span>apologise · reverse · bring it back</span>`}
@@ -686,7 +695,7 @@ async function board() {
   $("#main").innerHTML = `
     <section class="panel">
       <div class="howline">
-        <span><b>How to play:</b> every story here has just started spreading. <b>🔥 Will it tip?</b> Bet YES if you think it blows up, NO if it blows over.</span>
+        <span><b>How to play:</b> every story here has just started spreading. <b>🔥 Will it tip?</b> (trouble for a brand) or <b>📣 Will it go viral?</b> (everyday stories people talk about) — bet YES if you think it blows up, NO if it blows over.</span>
         <button class="btn ghost" onclick="HOW_OPEN=!HOW_OPEN;$('#how-more').hidden=!HOW_OPEN;this.textContent=HOW_OPEN?'HIDE':'HOW IT WORKS'">HOW IT WORKS</button>
       </div>
       <div class="rules" id="how-more" hidden>
@@ -706,8 +715,15 @@ async function board() {
       <div class="ph"><span class="lbl">Listed now</span>
         <div class="tabs" style="flex-wrap:wrap">${[["all", "ALL"], ...groups.map(g => [g, g.toUpperCase()])].map(([k, l]) =>
           `<button class="${BOARD_ARENA === k ? "on" : ""}" onclick="setArena('${esc(k)}')">${esc(l)} · ${cnt(k)}</button>`).join("")}</div></div>
-      ${open.length ? `<div class="cards">${open.map(card).join("")}</div>`
-        : `<div class="empty">No story is spreading right now. New ones appear as soon as a story about a food brand starts to spread.</div>`}
+      ${(() => {
+        const vir = open.filter(s => s.bet && s.bet.viral), trb = open.filter(s => !(s.bet && s.bet.viral));
+        return `<div class="kind-h"><b>🔥 Will it tip?</b><span>Trouble for a brand — lawsuits, boycotts, prices, safety. These count in the Food Reputation Index.</span></div>
+          ${trb.length ? `<div class="cards">${trb.map(card).join("")}</div>`
+            : `<div class="empty">No brand in trouble is spreading right now. New ones appear as soon as one starts to spread.</div>`}
+          <div class="kind-h"><b>📣 Will it go viral?</b><span>Everyday stories people talk about — drive-thru videos, reviews, workers' reveals. Just for fun; not in the index.</span></div>
+          ${vir.length ? `<div class="cards">${vir.map(card).join("")}</div>`
+            : `<div class="empty">No everyday story is spreading right now.</div>`}`;
+      })()}
     </section>
     <section class="panel">
       <div class="ph"><span class="lbl">Closed · last 14 days</span><span class="tag">${closed.length}</span></div>
@@ -869,7 +885,7 @@ function chart(d) {
   if (d.bet && d.bet.kind === "line") m1 += `<line x1="${L}" x2="${W - R}" y1="${Y1(d.bet.line)}" y2="${Y1(d.bet.line)}" stroke="var(--accent)" stroke-dasharray="6 3" opacity=".8"/>
     <text x="${L + 4}" y="${Y1(d.bet.line) - 4}" ${mono} fill="var(--accent)">line ${d.bet.line.toFixed(1)}: ends above → "just the beginning" wins</text>`;
   if (tip) m1 += `<line x1="${L}" x2="${W - R}" y1="${Y1(target)}" y2="${Y1(target)}" stroke="var(--green)" stroke-dasharray="6 3" opacity=".8"/>
-    <text x="${L + 4}" y="${Y1(target) - 4}" ${mono} fill="var(--green)">tips at ${target} outlets</text>`;
+    <text x="${L + 4}" y="${Y1(target) - 4}" ${mono} fill="var(--green)">${d.bet.viral ? "viral" : "tips"} at ${target} outlets</text>`;
   if (IS_MOD && !tip) m1 += `<line x1="${L}" x2="${W - R}" y1="${Y1(d.rules.score)}" y2="${Y1(d.rules.score)}" stroke="var(--amber)" stroke-dasharray="4 4" opacity=".4"/>
     <text x="${W - R}" y="${Y1(d.rules.score) - 4}" text-anchor="end" ${mono} fill="var(--amber)" opacity=".7">listing bar ${d.rules.score}</text>`;
 
@@ -892,7 +908,7 @@ function chart(d) {
     const H3 = 110, maxT = Math.max(need + 5, ...tk.map(p => p[1] + 2));
     const Y3 = v => T + (1 - Math.min(maxT, v) / maxT) * (H3 - T - B);
     const tl3 = tk.length ? tk.map(p => `${X(p[0]).toFixed(1)},${Y3(p[1]).toFixed(1)}`).join(" ") : "";
-    talkSvg = `<div class="chart-h" style="margin-top:10px"><b>Talk on Bluesky</b><span>${esc(d.talk_kind || "posts about it")} · it also tips if this reaches ${need}${social ? "" : " and at least doubles"}.</span></div>
+    talkSvg = `<div class="chart-h" style="margin-top:10px"><b>Talk on Bluesky</b><span>${esc(d.talk_kind || "posts about it")} · it also ${d.bet && d.bet.viral ? "goes viral" : "tips"} if this reaches ${need}${social ? "" : " and at least doubles"}.</span></div>
     ${tk.length ? `<svg viewBox="0 0 ${W} ${H3}" preserveAspectRatio="none" role="img" aria-label="Talk on Bluesky over time">
       ${[0, need].map(v => `<line x1="${L}" x2="${W - R}" y1="${Y3(v)}" y2="${Y3(v)}" stroke="var(--s3)"/><text x="${L - 6}" y="${Y3(v) + 3}" text-anchor="end" ${mono} fill="var(--dim)">${v}</text>`).join("")}
       <line x1="${L}" x2="${W - R}" y1="${Y3(need)}" y2="${Y3(need)}" stroke="var(--green)" stroke-dasharray="6 3" opacity=".8"/>
@@ -906,7 +922,7 @@ function chart(d) {
     <circle id="${id}-d" r="4" opacity="0"/>
     <rect x="${L}" y="${T}" width="${W - L - R}" height="${H - T - B}" fill="transparent" class="chart-hit"/>`;
   return `
-  <div class="chart-h"><b>${tip ? "News outlets so far" : "News heat"}</b><span>${tip ? `how many news outlets cover it. It tips at ${target} (with people talking about it beyond the news).` : "score 0–100 from outside news: outlets, reach, severity, new articles. Players can't move it."}</span></div>
+  <div class="chart-h"><b>${tip ? "News outlets so far" : "News heat"}</b><span>${tip ? `how many news outlets cover it. It ${d.bet.viral ? "goes viral" : "tips"} at ${target} (with people talking about it beyond the news).` : "score 0–100 from outside news: outlets, reach, severity, new articles. Players can't move it."}</span></div>
   <svg id="sc" viewBox="0 0 ${W} ${H1}" preserveAspectRatio="none" role="img" aria-label="${tip ? "News outlets over time" : "News heat over time"}">
     ${tip ? grid(Y1, [...new Set([0, Math.round(maxV / 2), maxV])], "") : grid(Y1, [0, 25, 50, 75, 100], "")}${m1}
     <polygon points="${area}" fill="var(--amber)" opacity=".08"/>
@@ -978,7 +994,7 @@ async function story(sid) {
       <div class="list">${origin.map(art).join("")}</div>` : `<div class="empty">No articles stored.</div>`;
   const rel = d.related || [];
   const tb = d.bet && d.bet.kind === "tip" ? d.bet : null;
-  const ST = { SPREADING: ["Spreading", "var(--amber)", "It started spreading. Will it tip, or fade?"],
+  const ST = { SPREADING: ["Spreading", "var(--amber)", (tb && tb.viral) ? "Everyday story people talk about. Will it go viral, or fade?" : "It started spreading. Will it tip, or fade?"],
                TIPPED: ["Tipped", "var(--red)", tb && tb.tipped_by === "people" && tb.tipped_why ? `People took it up: ${esc(tb.tipped_why)}.` : "It went mainstream and people talked about it beyond the news."],
                FADED: ["Faded", "var(--green)", "It ran out of steam before tipping."] };
   const st = tb && ST[tb.state];
@@ -1402,7 +1418,7 @@ function isOutlets() { return MK && MK.bet && MK.bet.kind === "outlets"; }
 function isCave() { return MK && MK.bet && MK.bet.kind === "cave"; }
 function sideName(side, short) {
   if (!isLine()) return side;
-  if (isTip()) return side === "GROW" ? (short ? "YES" : "YES, IT TIPS") : (short ? "NO" : "NO, IT FADES");
+  if (isTip()) return side === "GROW" ? (short ? "YES" : (MK && MK.bet && MK.bet.viral ? "YES, IT GOES VIRAL" : "YES, IT TIPS")) : (short ? "NO" : "NO, IT FADES");
   if (isCave()) return side === "GROW" ? (short ? "YES" : "YES, THEY CAVE") : (short ? "NO" : "NO, THEY HOLD");
   if (isOutlets()) return side === "GROW" ? (short ? "YES" : "YES, IT SPREADS") : (short ? "NO" : "NO, IT STALLS");
   if (side === "GROW") return short ? "BEGINNING" : "JUST THE BEGINNING";
@@ -1420,8 +1436,8 @@ function tipProgress(b) {
       <span>${b.new_24h ? `🔥 +${b.new_24h} outlet${b.new_24h === 1 ? "" : "s"} in 24h` : "no new outlets in 24h"}</span></div>`}`;
 }
 function tipBox(L) {
-  return `<div style="font-size:16px;font-weight:700">🔥 Will this story tip by ${DAYS[new Date(L.closes_at * 1000).getDay()]} ${when(L.closes_at).split(",").pop()}?</div>
-    <div class="bd-note">${L.social ? `This one started on Bluesky. It tips if the news picks it up (<b>${L.target} news outlets</b>) or the complaints on Bluesky at least double (<b>20+ complaining posts in 3 hours</b>) before the close. Settled automatically.` : `Tips = it reaches <b>${L.target} news outlets</b> and people talk about it beyond the news, <b>or</b> the talk about it on Bluesky at least doubles (<b>25+ posts a day</b>). Settled automatically.`}</div>
+  return `<div style="font-size:16px;font-weight:700">${L.viral ? "📣 Will this story go viral" : "🔥 Will this story tip"} by ${DAYS[new Date(L.closes_at * 1000).getDay()]} ${when(L.closes_at).split(",").pop()}?</div>
+    <div class="bd-note">${L.viral ? `📣 An everyday story people talk about. It goes viral if it reaches <b>${L.target} news outlets</b> with people talking beyond the news, <b>or</b> the talk about it on Bluesky at least doubles, within 3 days. It doesn't count in the Food Reputation Index. Settled automatically.` : L.social ? `This one started on Bluesky. It tips if the news picks it up (<b>${L.target} news outlets</b>) or the complaints on Bluesky at least double (<b>20+ complaining posts in 3 hours</b>) before the close. Settled automatically.` : `Tips = it reaches <b>${L.target} news outlets</b> and people talk about it beyond the news, <b>or</b> the talk about it on Bluesky at least doubles (<b>25+ posts a day</b>). Settled automatically.`}</div>
     ${L.early_until > Date.now() / 1000 ? `<div class="m" style="color:var(--amber)">⚡ early-call bonus: units bought in the next ${dur(L.early_until - Date.now() / 1000)} pay ${100 + L.early_bonus} if right</div>` : ""}`;
 }
 function renderMarket() {
@@ -1470,7 +1486,7 @@ function renderMarket() {
       : L ? `<div class="bd-note" style="font-size:13px">Will people <b>still be talking about this</b> when the window closes ${DAYS[new Date(L.closes_at * 1000).getDay()]} ${when(L.closes_at).split(",").pop()}, or is it <b>already dying</b>?</div>` : ""}
       <div class="tp-prices">
         <div class="tp-side grow"><span class="lbl"><b>${sideName("GROW")}</b></span><span class="tp-price">${L ? Math.round(MK.price) + "%" : MK.price.toFixed(1)}</span>
-          <span class="tp-pays">${L && isTip() ? `Wins if the story <b>tips</b> before the close. Pays 100 per unit.` : L && isCave() ? `Wins if the brand <b>backs down</b> before the deadline. Pays 100 per unit.` : L && isOutlets() ? `Wins if <b>${L.target} or more</b> outlets cover it by the close. Pays 100 per unit.` : L ? `Wins if the story ends <b>above ${L.line.toFixed(1)}</b> — more coverage than a normal fade. Pays 100 per unit.` : "Pays the final score. Wins if the story ends bigger than this."}</span></div>
+          <span class="tp-pays">${L && isTip() ? `Wins if the story <b>${L.viral ? "goes viral" : "tips"}</b> before the close. Pays 100 per unit.` : L && isCave() ? `Wins if the brand <b>backs down</b> before the deadline. Pays 100 per unit.` : L && isOutlets() ? `Wins if <b>${L.target} or more</b> outlets cover it by the close. Pays 100 per unit.` : L ? `Wins if the story ends <b>above ${L.line.toFixed(1)}</b> — more coverage than a normal fade. Pays 100 per unit.` : "Pays the final score. Wins if the story ends bigger than this."}</span></div>
         <div class="tp-side fade"><span class="lbl"><b>${sideName("FADE")}</b></span><span class="tp-price">${L ? (100 - Math.round(MK.price)) + "%" : MK.fade_price.toFixed(1)}</span>
           <span class="tp-pays">${L && isTip() ? `Wins if it <b>fades</b> without tipping. Pays 100 per unit.` : L && isCave() ? `Wins if the brand <b>holds firm</b> all week. Pays 100 per unit.` : L && isOutlets() ? `Wins if it stays <b>below ${L.target}</b> outlets. Pays 100 per unit.` : L ? `Wins if the story ends <b>at or below ${L.line.toFixed(1)}</b> — it fizzles out. Pays 100 per unit.` : "Pays 100 − final score. Wins if the story ends smaller."}</span></div>
       </div>

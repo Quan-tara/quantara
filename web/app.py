@@ -2012,12 +2012,12 @@ def api_narrative_story(sid: str):
                 if snap.get("origin") == "bluesky":
                     br = (snap.get("lead_brand") or snap.get("company") or "").lower().replace("’", "'")
                     d["talk_kind"] = "complaining posts on Bluesky (3 h)"
-                    d["talk_points"] = [[r.ts, r.complaints or 0] for r in session.query(BrandBuzz)
-                                        .filter(BrandBuzz.ts >= t0, BrandBuzz.status == "OK").order_by(BrandBuzz.ts).all()
-                                        if (r.brand or "").lower().replace("’", "'") == br]
+                    d["talk_points"] = [[ts_, c or 0] for ts_, c in session.query(BrandBuzz.ts, BrandBuzz.complaints)
+                                        .filter(BrandBuzz.brand.in_(list({br, br.replace("'", "’")})),
+                                                BrandBuzz.ts >= t0, BrandBuzz.status == "OK").order_by(BrandBuzz.ts).all()]
                 else:
                     d["talk_kind"] = "Bluesky posts about it (24 h)"
-                    d["talk_points"] = [[r.ts, r.posts or 0] for r in session.query(SocialSignal)
+                    d["talk_points"] = [[ts_, p or 0] for ts_, p in session.query(SocialSignal.ts, SocialSignal.posts)
                                         .filter(SocialSignal.sid == sid, SocialSignal.source == "bluesky",
                                                 SocialSignal.status == "OK", SocialSignal.ts >= t0)
                                         .order_by(SocialSignal.ts).all()]

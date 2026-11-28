@@ -22,6 +22,13 @@ VIRAL_GROWTH = 2
 VIRAL_MIN = 4
 VIRAL_DAYS = 3
 
+# 28 Nov 2026 (v2): a viral story needs a PERSON and a REACTION in the headline — "Here's what to order from
+# McDonald's to make breakfast tacos" (a how-to) got through v1 on the word "order".
+PERSON_RX = re.compile(
+    r"\btiktok(?:er|ers)?\b|\binfluencers?\b|\bcreators?\b|\byoutubers?\b|\breddit(?:or|ors)?\b|\bcustomers?\b|"
+    r"\bshoppers?\b|\bdiners?\b|\bworkers?\b|\bemployees?\b|\bbaristas?\b|\bmanager\b|\bcashier\b|\bdriver\b|"
+    r"\bmom\b|\bmother\b|\bdad\b|\bfather\b|\bwoman\b|\bman\b|\bcouple\b|\bteen\w*|\bfamily\b|\bkids?\b|"
+    r"\bgrandma\b|\bguy\b|\bgirl\b|\bstudent\b|\bnurse\b|\bvet(?:eran)?\b|\bfans\b|\binternet\b|\bcommenters\b", re.I)
 PEOPLE_RX = re.compile(
     r"\btiktok\w*|\bviral\b|\bvideo\b|\binfluencers?\b|\bcreators?\b|\byoutubers?\b|\breddit\w*|\binternet\b|"
     r"\bcommenters?\b|\bcustomers?\b|\bshoppers?\b|\bdiners?\b|\bworkers?\b|\bemployees?\b|\bbaristas?\b|\bmanager\b|"
@@ -33,11 +40,16 @@ SKIP_RX = re.compile(
     r"\brecipes?\b|\bhow to\b|\bcopycat\b|\branked\b|\branking\b|\bbest\b|\b\d+ (?:things|items|ways|reasons|snacks|foods)\b|"
     r"\bstock\b|\bshares\b|\bearnings\b|\banalysts?\b|\bnasdaq\b|\bnyse\b|\bprice target\b|\bceo\b|\bopens? (?:its|a|new)\b|"
     r"\bgrand opening\b|\bobituar\w*|\bdies\b|\bdied\b|\bshooting\b|\bshot\b|\bkilled\b|\barrested\b|\bcharged\b|\bpolice\b|"
-    r"\brecall\w*\b|\boutbreak\b|\bsalmonella\b|\blisteria\b", re.I)
+    r"\brecall\w*\b|\boutbreak\b|\bsalmonella\b|\blisteria\b|\bwhat to order\b|\bhere'?s (?:what|how|why)\b|"
+    r"\bways to\b|\btips?\b|\bguide\b|\bhacks?\b|\bsecret menu\b|\bmake (?:your own|breakfast|a)\b|\bat home\b", re.I)
 REACT_RX = re.compile(
     r"\bbacklash|\boutrage|\bfurious|\bangry|\bslam\w*|\bdisgust\w*|\bgross\b|\bweird\b|\bwild\b|\bshock\w*|\bstun\w*|"
     r"\bdebate|\bdivide\w*|\bsplit\b|\bcontrovers\w*|\bcalls? out|\bexpos\w*|\breveal\w*|\bconfess\w*|\bcomplain\w*|"
-    r"\bcan'?t believe|\bhilarious|\broast\w*|\bmock\w*|\btroll\w*|\bpetty|\bscam\w*|\bripoff|\bdrama\b", re.I)
+    r"\bcan'?t believe|\bhilarious|\broast\w*|\bmock\w*|\btroll\w*|\bpetty|\bscam\w*|\bripoff|\bdrama\b|"
+    r"\bargu\w*|\bfight\w*|\bclash\w*|\bviral\b|\bgoes viral|\bwent viral|\bblows? up|\breact\w*|\bupset\w*|"
+    r"\bfuming|\bsparks?\b|\bslams?\b|\bembarrass\w*|\bcringe|\bawkward|\bheartwarming|\bwholesome|\btear\w*|"
+    r"\bsweet gesture|\bkindness|\bpraised?\b|\bhero\b|\bbanned?\b|\bfired\b|\bquits?\b|\bkicked out|\brefused?\b|"
+    r"\bcalled (?:the )?(?:cops|police)|\bsecretly|\bcaught\b|\bconfront\w*|\bexplains why\b", re.I)
 _BAD_GATES = ("not about the US", "not about food & drink", "a single local business, not a national brand",
               "no US brand or US place named")
 
@@ -48,7 +60,7 @@ def _texts(s):
 
 def candidate(s, now=None):
     """(ok, brand) — an everyday brand story people talk about, which the index does not count."""
-    from engine.everyday import index_gate, english_only, FOOD_BRANDS
+    from engine.everyday import index_gate, english_only, FOOD_BRANDS, GROCERS
     from engine import narrative_index as ni
     from engine.tipping import PROMO_RX, tip_gate
     now = now or time.time()
@@ -56,12 +68,12 @@ def candidate(s, now=None):
     if not t or not english_only(t) or SKIP_RX.search(t):
         return False, None
     low = t.lower().replace("’", "'")
-    found = [b for b in FOOD_BRANDS if ni._has_any(low, [b])]          # a FOOD brand (not TikTok, not Amazon)
+    found = [b for b in list(FOOD_BRANDS) + list(GROCERS) if ni._has_any(low, [b])]   # food brand or grocer (not TikTok)
     if not found:
         return False, None
     brand = max(found, key=len)
-    if not PEOPLE_RX.search(t):
-        return False, None
+    if not PERSON_RX.search(t) or not REACT_RX.search(t):
+        return False, None                       # a person AND a reaction: that is what people comment on
     if PROMO_RX.search(t) and not REACT_RX.search(t):
         return False, None                       # a launch with nobody reacting is an ad
     ok, why = index_gate(t, _texts(s), s.get("company"))
@@ -90,9 +102,42 @@ def listed_today(session, now, arena="everyday"):
     return sum(1 for (sn,) in rows if is_viral(json.loads(sn or "{}")))
 
 
+VIRAL_RULE_V = 2
+
+
+def recheck(session, now):
+    """Viral listings from an older, looser rule that the current rule would not make are delisted
+    (bets refunded) — once per story."""
+    from db.models import Narrative
+    from engine.story_listing import _settle
+    n_done = 0
+    for n in session.query(Narrative).filter(Narrative.status == "LISTED").all():
+        snap = json.loads(n.snapshot or "{}")
+        b = snap.get("bet") or {}
+        if not b.get("viral") or b.get("rule_v", 1) >= VIRAL_RULE_V or b.get("escalated_to"):
+            continue
+        t = snap.get("listed_title") or n.title
+        ok = PERSON_RX.search(t or "") and REACT_RX.search(t or "") and not SKIP_RX.search(t or "")
+        if ok:
+            b["rule_v"] = VIRAL_RULE_V
+            n.snapshot = json.dumps(snap)
+            continue
+        n.status, n.closed_at = "DELISTED", now
+        snap["delisted"] = {"at": now, "why": "not a viral people story (stricter rule, 28 Nov 2026)"}
+        n.snapshot = json.dumps(snap)
+        _settle(session, n.sid, refund=True)
+        n_done += 1
+        print(f"🧹 Viral story delisted (stricter rule)  {n.sid}  {t[:70]}")
+    return n_done
+
+
 def list_new(session, stories, now, arena="everyday"):
     """List up to VIRAL_DAILY_CAP viral stories a day; returns how many were listed now."""
     from db.models import Narrative, NarrativePoint
+    try:
+        recheck(session, now)
+    except Exception as e:
+        print(f"⚠️ viral recheck: {e}")
     from engine.story_listing import _snapshot, _inputs_from_live, _same_brand, _price_point
     from engine.tipping import rule as tip_rule
     room = VIRAL_DAILY_CAP - listed_today(session, now, arena)
@@ -118,7 +163,7 @@ def list_new(session, stories, now, arena="everyday"):
             continue
         closes = now + VIRAL_DAYS * 86400
         from engine.social_first import shown
-        bet = {"kind": "tip", "viral": True, "company": shown(brand), "start": o,
+        bet = {"kind": "tip", "viral": True, "rule_v": VIRAL_RULE_V, "company": shown(brand), "start": o,
                "target": max(VIRAL_MIN, o + VIRAL_GROWTH), "talk": False, "tipped": False, "closes_at": closes,
                "rule": {"outlets": VIRAL_MIN, "growth": VIRAL_GROWTH, "days": VIRAL_DAYS, "rate": rl.get("rate"),
                         "provisional": rl.get("provisional", True)}}

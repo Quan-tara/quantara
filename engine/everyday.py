@@ -1159,7 +1159,7 @@ def _search(query, limit=None):
                 if e.get("source") and hasattr(e.source, "get"):
                     src = (e.source.get("title") or "").strip()
                     href = e.source.get("href") or e.source.get("url") or ""
-                src = src or "Unknown"
+                src = ni.outlet_name(src) or "Unknown"
                 title = ni._clean_title(e.get("title", ""), src)
                 if title:
                     items.append({"title": title, "source": src, "href": href,

@@ -383,6 +383,18 @@ _FAR_NAMES = re.compile(r"\b(singapore|india|indonesia|philippines|malaysia|paki
                         r"sri lanka|vietnam|thailand|uae|dubai|saudi|egypt|qatar)\b", re.I)
 
 
+def outlet_name(src):
+    """One name per outlet: "Mashed - Fast Food, Celebrity Chefs, Grocery, Reviews" and "Mashed" are the same
+    outlet (Google News sometimes adds the site's tagline), so they count once (28 Nov 2026)."""
+    s = (src or "").strip()
+    for sep in (" - ", " | ", " – ", " — "):
+        if sep in s:
+            head = s.split(sep)[0].strip()
+            if len(head) >= 3:
+                s = head
+    return s
+
+
 def far_outlet(source, href):
     """True for an outlet outside the US/UK/EU/AU regions (or written in another script)."""
     if any(ord(ch) > 0x24F and ch.isalpha() for ch in (source or "")):
@@ -484,7 +496,7 @@ def pull_rss_articles(profile=None):
                 if e.get("source") and hasattr(e.source, "get"):
                     src = (e.source.get("title") or "").strip()
                     src_href = e.source.get("href") or e.source.get("url") or ""
-                src = src or feed_name or "Unknown"
+                src = outlet_name(src) or feed_name or "Unknown"
                 if "reddit.com/r/" in feed_url:              # "Reddit r/fastfood" instead of "top scoring links"
                     sub = ((e.get("tags") or [{}])[0].get("term") or "") if e.get("tags") else ""
                     if not sub:

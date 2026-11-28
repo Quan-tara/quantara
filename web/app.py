@@ -1747,6 +1747,7 @@ def _bet_card(n, b_):
                 "talk": bool(b_.get("talk")), "tipped": bool(b_.get("tipped")), "state": state_of(n),
                 "new_24h": new_outlets(_snap(n).get("articles"), _t.time() - 86400), "social": b_.get("social"),
                 "tipped_by": b_.get("tipped_by"), "tipped_why": b_.get("tipped_why"), "viral": bool(b_.get("viral")),
+                "escalated_from": b_.get("escalated_from"), "escalated_to": b_.get("escalated_to"),
                 "closes_at": n.closes_at, "early_until": (n.listed_at or 0) + EARLY_H * 3600}
     if b_.get("kind") == "outlets":
         from engine.story_market import outlets_now, new_outlets, _snap, EARLY_H

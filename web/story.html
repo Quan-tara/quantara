@@ -661,6 +661,8 @@ async function board() {
         ${(s.regions || []).map(x => `<span class="tag">${esc(x)}</span>`).join("")}
         ${(s.categories || []).filter(x => x !== s.sector).slice(0, 2).map(x => `<span class="tag">${esc(x)}</span>`).join("")}</div>
       ${s.company ? `<div class="co">${esc(s.company)}</div>` : ""}${spottedBadge(s)}
+      ${s.bet && s.bet.escalated_from ? `<div class="card-meta" style="color:var(--amber);font-weight:700">⚠ Escalated from a viral story</div>` : ""}
+      ${s.bet && s.bet.escalated_to ? `<div class="card-meta" style="color:var(--red);font-weight:700">⚠ Turned into trouble — see the 🔥 story</div>` : ""}
       ${s.short_title ? `<div class="card-title short">${esc(s.short_title)}</div><div class="orig">${esc(s.title)}</div>` : `<div class="card-title">${esc(s.title)}</div>`}
       ${trendTag(s.trending)}
 
@@ -1436,7 +1438,9 @@ function tipProgress(b) {
       <span>${b.new_24h ? `🔥 +${b.new_24h} outlet${b.new_24h === 1 ? "" : "s"} in 24h` : "no new outlets in 24h"}</span></div>`}`;
 }
 function tipBox(L) {
-  return `<div style="font-size:16px;font-weight:700">${L.viral ? "📣 Will this story go viral" : "🔥 Will this story tip"} by ${DAYS[new Date(L.closes_at * 1000).getDay()]} ${when(L.closes_at).split(",").pop()}?</div>
+  const esc_ = L.escalated_from ? `<div class="bd-note" style="border-left:3px solid var(--amber);padding-left:8px;color:var(--amber)">⚠ <b>Escalated from a viral story.</b> It started as an everyday story people talked about and turned into trouble for the brand. <a href="/story/${encodeURIComponent(L.escalated_from)}" style="color:var(--accent)">See the viral story ›</a></div>`
+    : L.escalated_to ? `<div class="bd-note" style="border-left:3px solid var(--red);padding-left:8px;color:var(--red)">⚠ <b>This story turned into trouble.</b> This bet still settles as a viral bet; the trouble is tracked as its own story. <a href="/story/${encodeURIComponent(L.escalated_to)}" style="color:var(--accent)">See the 🔥 story ›</a></div>` : "";
+  return esc_ + `<div style="font-size:16px;font-weight:700">${L.viral ? "📣 Will this story go viral" : "🔥 Will this story tip"} by ${DAYS[new Date(L.closes_at * 1000).getDay()]} ${when(L.closes_at).split(",").pop()}?</div>
     <div class="bd-note">${L.viral ? `📣 An everyday story people talk about. It goes viral if it reaches <b>${L.target} news outlets</b> with people talking beyond the news, <b>or</b> the talk about it on Bluesky at least doubles, within 3 days. It doesn't count in the Food Reputation Index. Settled automatically.` : L.social ? `This one started on Bluesky. It tips if the news picks it up (<b>${L.target} news outlets</b>) or the complaints on Bluesky at least double (<b>20+ complaining posts in 3 hours</b>) before the close. Settled automatically.` : `Tips = it reaches <b>${L.target} news outlets</b> and people talk about it beyond the news, <b>or</b> the talk about it on Bluesky at least doubles (<b>25+ posts a day</b>). Settled automatically.`}</div>
     ${L.early_until > Date.now() / 1000 ? `<div class="m" style="color:var(--amber)">⚡ early-call bonus: units bought in the next ${dur(L.early_until - Date.now() / 1000)} pay ${100 + L.early_bonus} if right</div>` : ""}`;
 }

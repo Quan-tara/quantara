@@ -290,10 +290,12 @@ def board(session, now=None):
     except Exception:
         ticks = session.query(ThemeTick.ts).distinct().count()
     from db.models import AttentionItem
-    em = (session.query(AttentionItem).filter(AttentionItem.kind == "emerging", AttentionItem.ts >= now - 7 * DAY)
+    em = (session.query(AttentionItem).filter(AttentionItem.kind == "emerging", AttentionItem.ts >= max(now - 14 * DAY, EMERGE_SINCE))
           .order_by(AttentionItem.ts.desc()).limit(8).all())
     return {"narratives": out, "hours": ticks, "needed": HISTORY_MIN_TICKS,
-            "emerging": [{"title": e.title, "brands": e.brand, "words": e.source, "size": e.size, "ts": e.ts} for e in em]}
+            "emerging": [{"title": e.title, "brands": e.brand, "words": e.source, "size": e.size, "ts": e.ts,
+                          "days": len(json.loads(e.days or "[]")) or 1,
+                          "ready": len(json.loads(e.days or "[]")) >= EMERGE_READY_DAYS} for e in em]}
 
 
 def for_titles(session, titles):
@@ -310,7 +312,11 @@ def for_titles(session, titles):
 #   AI once (cached), else by its shared words. Recorded in the attention layer.
 # ─────────────────────────────────────────────
 EMERGE_MIN_SHARED = 2
-_EM_EXTRA_STOP = set("""says said after over amid with from into about their they will would could
+EMERGE_SINCE = 1795852800      # 28 Nov 2026: only trouble stories, one brand counted once — older entries are not shown
+EMERGE_READY_DAYS = 3          # seen on 3+ different days → ready to become one of the fixed themes
+_EM_EXTRA_STOP = set("""first held open opens hours hour holiday holidays season seasonal thanksgiving christmas
+day days week weekend today year years time back again still just like more most best worst every
+says said after over amid with from into about their they will would could
 customers customer fans fan people menu item items brand brands chain company new news report reports
 online viral internet video week today year""".split())
 
@@ -323,18 +329,23 @@ def _em_words(title, brand):
             if w not in _STOP and w not in BUZZ_GENERIC and w not in bw and w not in _EM_EXTRA_STOP}
 
 
+def _brand_key(b):
+    return re.sub(r"[^a-z0-9]", "", (b or "").lower().replace("’", "'"))
+
+
 def emerging(session, rows, tags):
     """Groups of untagged stories across 2+ brands sharing 2+ distinctive words → [{name, words, brands, titles, size}]."""
     from engine.everyday import brand_in
     items = []
     for r in rows:
-        if tags.get(r.get("title")) or (r.get("score") or 0) < 8:
+        # only stories with real pressure (they count in the index, or in the themes at half weight)
+        if tags.get(r.get("title")) or (r.get("weighted") or 0) <= 0:
             continue
         b = (r.get("company") or brand_in([r.get("title") or ""]) or "").strip()
         if not b:
             continue
-        items.append({"title": r["title"], "brand": b, "w": _em_words(r["title"], b),
-                      "size": r.get("weighted") or r.get("score") or 0})
+        items.append({"title": r["title"], "brand": b, "bk": _brand_key(b), "w": _em_words(r["title"], b),
+                      "size": r.get("weighted") or 0})
     parent = list(range(len(items)))
 
     def find(i):
@@ -344,14 +355,17 @@ def emerging(session, rows, tags):
         return i
     for i in range(len(items)):
         for j in range(i + 1, len(items)):
-            if items[i]["brand"].lower() != items[j]["brand"].lower() and len(items[i]["w"] & items[j]["w"]) >= EMERGE_MIN_SHARED:
+            if items[i]["bk"] != items[j]["bk"] and len(items[i]["w"] & items[j]["w"]) >= EMERGE_MIN_SHARED:
                 parent[find(i)] = find(j)
     groups = {}
     for i in range(len(items)):
         groups.setdefault(find(i), []).append(items[i])
     out = []
     for g in groups.values():
-        brands = sorted({x["brand"] for x in g}, key=str.lower)
+        seen_b = {}
+        for x in g:
+            seen_b.setdefault(x["bk"], x["brand"])        # "Starbucks" and "STARBUCKS" are one brand
+        brands = sorted(seen_b.values(), key=str.lower)
         if len(brands) < 2:
             continue
         common = set.intersection(*[x["w"] for x in g]) if len(g) > 1 else set()
@@ -373,15 +387,21 @@ def record_emerging(session, rows, tags):
     from db.models import AttentionItem
     found = emerging(session, rows, tags)
     for e in found:
-        key = "em:" + "|".join(sorted(b.lower() for b in e["brands"]))[:110]
+        key = "em2:" + "|".join(sorted(_brand_key(b) for b in e["brands"]))[:110]
+        day = time.strftime("%Y-%m-%d", time.gmtime())
         old = session.query(AttentionItem).filter(AttentionItem.key == key).first()
         if old:
             old.size = max(old.size or 0, e["size"])
+            days = json.loads(old.days or "[]")
+            if day not in days:
+                old.days = json.dumps(days + [day])
+                if len(days) + 1 == EMERGE_READY_DAYS:
+                    print(f"🌱 Emerging narrative seen on {EMERGE_READY_DAYS} days — ready to become a theme: {old.title[:60]}")
             continue
         name = _name_emerging(e["words"], e["titles"])
         session.add(AttentionItem(ts=time.time(), kind="emerging", brand=", ".join(e["brands"])[:60],
                                   title=f"{name} — " + " | ".join(e["titles"])[:420], size=e["size"],
-                                  source=" · ".join(e["words"])[:80], key=key))
+                                  source=" · ".join(e["words"])[:80], key=key, days=json.dumps([day])))
         print(f"🌱 Emerging narrative: {name} ({', '.join(e['brands'][:5])})")
     session.commit()
     return found

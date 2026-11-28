@@ -1745,6 +1745,7 @@ def _bet_card(n, b_):
         return {"kind": "tip", "company": b_.get("company"), "target": b_["target"], "now": outlets_now(n),
                 "talk": bool(b_.get("talk")), "tipped": bool(b_.get("tipped")), "state": state_of(n),
                 "new_24h": new_outlets(_snap(n).get("articles"), _t.time() - 86400), "social": b_.get("social"),
+                "tipped_by": b_.get("tipped_by"), "tipped_why": b_.get("tipped_why"),
                 "closes_at": n.closes_at, "early_until": (n.listed_at or 0) + EARLY_H * 3600}
     if b_.get("kind") == "outlets":
         from engine.story_market import outlets_now, new_outlets, _snap, EARLY_H
@@ -2000,6 +2001,27 @@ def api_narrative_story(sid: str):
         from db.models import StoryPricePoint
         d["price_points"] = [[p.ts, p.price] for p in session.query(StoryPricePoint)
                              .filter(StoryPricePoint.sid == sid).order_by(StoryPricePoint.ts).all()]
+        # "Will it tip?" chart: talk on Bluesky over time (story posts / 24 h, or the brand's complaining
+        # posts / 3 h for stories that started on Bluesky)
+        d["talk_points"], d["talk_kind"] = [], None
+        try:
+            if n and (snap.get("bet") or {}).get("kind") == "tip":
+                from db.models import BrandBuzz, SocialSignal
+                t0 = (n.listed_at or now) - 6 * 3600
+                if snap.get("origin") == "bluesky":
+                    br = (snap.get("lead_brand") or snap.get("company") or "").lower().replace("’", "'")
+                    d["talk_kind"] = "complaining posts on Bluesky (3 h)"
+                    d["talk_points"] = [[r.ts, r.complaints or 0] for r in session.query(BrandBuzz)
+                                        .filter(BrandBuzz.ts >= t0, BrandBuzz.status == "OK").order_by(BrandBuzz.ts).all()
+                                        if (r.brand or "").lower().replace("’", "'") == br]
+                else:
+                    d["talk_kind"] = "Bluesky posts about it (24 h)"
+                    d["talk_points"] = [[r.ts, r.posts or 0] for r in session.query(SocialSignal)
+                                        .filter(SocialSignal.sid == sid, SocialSignal.source == "bluesky",
+                                                SocialSignal.status == "OK", SocialSignal.ts >= t0)
+                                        .order_by(SocialSignal.ts).all()]
+        except Exception as e:
+            print(f"⚠️ talk points {sid}: {e}")
         arts = sorted(articles, key=lambda a: a.get("ts") or 0)
         d["article_count"] = max(len(articles), d.get("articles") or 0) if isinstance(d.get("articles"), int) else len(articles)
         d.update({

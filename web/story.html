@@ -685,7 +685,7 @@ async function board() {
       </div>
       <div class="rules" id="how-more" hidden>
         <span>Stories are picked from US food news, Reddit and Bluesky when people are really talking about them and something is at stake: prices, safety, trust or a boycott.</span>
-        <span><b>Will it tip?</b> A story tips when it reaches its target number of news outlets <b>and</b> people talk about it beyond the news (Bluesky, YouTube) within 5 days. It's checked every few hours and settled automatically. The winner gets 100 credits per unit; prices are the chance in %. <b>⚡ Early calls</b> in a story's first 12 hours pay <b>120</b>.</span>
+        <span><b>Will it tip?</b> A story tips within 5 days in one of two ways: it reaches its target number of news outlets <b>and</b> people talk about it beyond the news (Bluesky, YouTube), <b>or</b> the talk about it on Bluesky at least doubles (25+ posts a day; for stories that started on Bluesky, 20+ complaining posts in 3 hours). It's checked every few hours and settled automatically. The winner gets 100 credits per unit; prices are the chance in %. <b>⚡ Early calls</b> in a story's first 12 hours pay <b>120</b>.</span>
         <span><b>The Food Reputation Index</b> is one number for how much trouble the US food industry is in right now: half food-safety news (recalls, outbreaks), half the biggest stories here. Companies watch it and insure against it; your bets help it warn them early.</span>
         <span><b>🔍 Spot it:</b> think trouble is brewing at a brand (anger online, a price change, a staff dispute) that the news hasn't picked up yet? Spot it, with a reason. If a real story about that brand appears within 14 days, you win <b>100 credits + 20 for every day you were early</b> (+50 if you were first). If nothing happens, you lose nothing. Up to 3 open spots at a time.</span>
         <span><b>Evidence:</b> back your call in the discussion with a reason and a source. Others mark it useful or post a counter-argument. When the story ends, evidence on the right side gets <b>✅ called it</b>, and the most useful one earns <b>+50 credits</b>.</span>
@@ -814,14 +814,31 @@ function chanceLabel(d) {
   return k === "tip" ? "Chance it tips" : k === "cave" ? `Chance ${d.bet.company || "the brand"} caves` : k === "line" ? "Chance it's just the beginning"
     : k === "outlets" ? "Chance it spreads to more outlets" : "Market price";
 }
+// "Will it tip?": news outlets over time, from the first article of each outlet
+function tipSeries(d) {
+  const first = {};
+  (d.articles || []).forEach(a => { const s = (a.source || "").trim().toLowerCase(); if (s && a.ts) first[s] = Math.min(first[s] || Infinity, a.ts); });
+  const ts = Object.values(first).sort((a, b) => a - b);
+  const nowT = d.now || Date.now() / 1000;
+  const end = d.status === "LISTED" ? nowT : Math.min(nowT, d.closed_at || d.closes_at || nowT);
+  const start = Math.min(d.listed_at || end, ts.length ? ts[0] : end);
+  const pts = [[start, ts.filter(t => t <= start).length]];
+  ts.filter(t => t > start && t <= end).forEach(t => { const k = pts[pts.length - 1][1]; pts.push([t, k]); pts.push([t, k + 1]); });
+  pts.push([end, pts[pts.length - 1][1]]);
+  return pts;
+}
 function chart(d) {
-  const pts = d.points || [];
+  const tip = !!(d.bet && d.bet.kind === "tip");
+  const pts = tip ? tipSeries(d) : (d.points || []);
   if (pts.length < 2) return `<div class="empty">Score history builds up with each reading (every 15 minutes).</div>`;
-  const W = 760, L = 32, R = 10, T = 8, B = 20, H1 = 170, H2 = 120;
-  const t0 = Math.min(pts[0][0], d.listed_at || pts[0][0]);
-  const t1 = Math.max(pts[pts.length - 1][0], d.status === "LISTED" ? d.closes_at : 0);
+  const target = tip ? (d.bet.target || 6) : null;
+  const maxV = tip ? Math.max(target + 2, ...pts.map(p => p[1] + 1)) : 100;
+  const W = 760, L = 32, R = 10, T = 8, B = 20, H1 = tip ? 150 : 170, H2 = 120;
+  const t0 = Math.min(pts[0][0], d.listed_at || pts[0][0], ...(tip ? (d.talk_points || []).map(p => p[0]) : []));
+  const t1 = Math.max(pts[pts.length - 1][0], d.status === "LISTED" ? d.closes_at : 0,
+                      ...(tip ? (d.talk_points || []).map(p => p[0]) : []));
   const X = t => L + ((t - t0) / Math.max(1, t1 - t0)) * (W - L - R);
-  const Y1 = v => T + (1 - Math.min(100, v) / 100) * (H1 - T - B);
+  const Y1 = v => T + (1 - Math.min(maxV, v) / maxV) * (H1 - T - B);
   const Y2 = v => T + (1 - Math.min(100, v) / 100) * (H2 - T - B);
   const mono = `font-size="9" font-family="Space Mono, monospace"`;
   const grid = (Y, vals, unit) => vals.map(v => `<line x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--s3)"/>
@@ -834,7 +851,7 @@ function chart(d) {
   };
   const tl = H => [t0, (t0 + t1) / 2, t1].map((t, i) => `<text x="${X(t)}" y="${H - 5}" text-anchor="${["start", "middle", "end"][i]}" ${mono} fill="var(--dim)">${esc(when(t))}</text>`).join("");
 
-  // top: news heat
+  // top: news heat (or, for "Will it tip?", news outlets against the target)
   const line = pts.map(p => `${X(p[0]).toFixed(1)},${Y1(p[1]).toFixed(1)}`).join(" ");
   const area = `${X(pts[0][0]).toFixed(1)},${Y1(0)} ${line} ${X(pts[pts.length - 1][0]).toFixed(1)},${Y1(0)}`;
   let m1 = vlines(H1);
@@ -842,7 +859,9 @@ function chart(d) {
   if (d.closes_at) m1 += `<text x="${X(d.closes_at) - 4}" y="${T + 9}" text-anchor="end" ${mono} fill="var(--muted)">${d.status === "CLOSED" ? "closed" : "closes"}</text>`;
   if (d.bet && d.bet.kind === "line") m1 += `<line x1="${L}" x2="${W - R}" y1="${Y1(d.bet.line)}" y2="${Y1(d.bet.line)}" stroke="var(--accent)" stroke-dasharray="6 3" opacity=".8"/>
     <text x="${L + 4}" y="${Y1(d.bet.line) - 4}" ${mono} fill="var(--accent)">line ${d.bet.line.toFixed(1)}: ends above → "just the beginning" wins</text>`;
-  if (IS_MOD) m1 += `<line x1="${L}" x2="${W - R}" y1="${Y1(d.rules.score)}" y2="${Y1(d.rules.score)}" stroke="var(--amber)" stroke-dasharray="4 4" opacity=".4"/>
+  if (tip) m1 += `<line x1="${L}" x2="${W - R}" y1="${Y1(target)}" y2="${Y1(target)}" stroke="var(--green)" stroke-dasharray="6 3" opacity=".8"/>
+    <text x="${L + 4}" y="${Y1(target) - 4}" ${mono} fill="var(--green)">tips at ${target} outlets</text>`;
+  if (IS_MOD && !tip) m1 += `<line x1="${L}" x2="${W - R}" y1="${Y1(d.rules.score)}" y2="${Y1(d.rules.score)}" stroke="var(--amber)" stroke-dasharray="4 4" opacity=".4"/>
     <text x="${W - R}" y="${Y1(d.rules.score) - 4}" text-anchor="end" ${mono} fill="var(--amber)" opacity=".7">listing bar ${d.rules.score}</text>`;
 
   // bottom: chance (calculated, moved by trades)
@@ -854,18 +873,38 @@ function chart(d) {
     steps.push([Math.max(pts[pts.length - 1][0], pp[pp.length - 1][0]), pp[pp.length - 1][1]]);
     pline = steps.map(p => `${X(p[0]).toFixed(1)},${Y2(p[1]).toFixed(1)}`).join(" ");
   }
-  window.__pts = pts; window.__pp = pp; window.__X = X; window.__Y1 = Y1; window.__Y2 = Y2; window.__W = W;
+  window.__pts = pts; window.__pp = pp; window.__X = X; window.__Y1 = Y1; window.__Y2 = Y2; window.__W = W; window.__tip = tip;
+  // talk on Bluesky (Will it tip?): the second way to tip
+  const tk = tip ? (d.talk_points || []).filter(p => p[0] >= t0) : [];
+  const social = !!(d.bet && d.bet.social);
+  const need = social ? Math.max(20, 2 * ((d.bet.social || {}).complaints || 10)) : 25;
+  let talkSvg = "";
+  if (tip) {
+    const H3 = 110, maxT = Math.max(need + 5, ...tk.map(p => p[1] + 2));
+    const Y3 = v => T + (1 - Math.min(maxT, v) / maxT) * (H3 - T - B);
+    const tl3 = tk.length ? tk.map(p => `${X(p[0]).toFixed(1)},${Y3(p[1]).toFixed(1)}`).join(" ") : "";
+    talkSvg = `<div class="chart-h" style="margin-top:10px"><b>Talk on Bluesky</b><span>${esc(d.talk_kind || "posts about it")} · it also tips if this reaches ${need}${social ? "" : " and at least doubles"}.</span></div>
+    ${tk.length ? `<svg viewBox="0 0 ${W} ${H3}" preserveAspectRatio="none" role="img" aria-label="Talk on Bluesky over time">
+      ${[0, need].map(v => `<line x1="${L}" x2="${W - R}" y1="${Y3(v)}" y2="${Y3(v)}" stroke="var(--s3)"/><text x="${L - 6}" y="${Y3(v) + 3}" text-anchor="end" ${mono} fill="var(--dim)">${v}</text>`).join("")}
+      <line x1="${L}" x2="${W - R}" y1="${Y3(need)}" y2="${Y3(need)}" stroke="var(--green)" stroke-dasharray="6 3" opacity=".8"/>
+      ${vlines(H3)}
+      ${tk.length > 1 ? `<polyline points="${tl3}" fill="none" stroke="var(--green)" stroke-width="2" vector-effect="non-scaling-stroke"/>` : ""}
+      ${tk.map(p => `<circle cx="${X(p[0]).toFixed(1)}" cy="${Y3(p[1]).toFixed(1)}" r="2.5" fill="var(--green)"/>`).join("")}
+      ${tl(H3)}
+    </svg>` : `<div class="note" style="padding:4px 0">No Bluesky readings for it yet — they come every few hours.</div>`}`;
+  }
   const hover = (id, H) => `<line id="${id}-h" y1="${T}" y2="${H - B}" stroke="var(--text)" opacity="0" vector-effect="non-scaling-stroke"/>
     <circle id="${id}-d" r="4" opacity="0"/>
     <rect x="${L}" y="${T}" width="${W - L - R}" height="${H - T - B}" fill="transparent" class="chart-hit"/>`;
   return `
-  <div class="chart-h"><b>News heat</b><span>score 0–100 from outside news: outlets, reach, severity, new articles. Players can't move it.</span></div>
-  <svg id="sc" viewBox="0 0 ${W} ${H1}" preserveAspectRatio="none" role="img" aria-label="News heat over time">
-    ${grid(Y1, [0, 25, 50, 75, 100], "")}${m1}
+  <div class="chart-h"><b>${tip ? "News outlets so far" : "News heat"}</b><span>${tip ? `how many news outlets cover it. It tips at ${target} (with people talking about it beyond the news).` : "score 0–100 from outside news: outlets, reach, severity, new articles. Players can't move it."}</span></div>
+  <svg id="sc" viewBox="0 0 ${W} ${H1}" preserveAspectRatio="none" role="img" aria-label="${tip ? "News outlets over time" : "News heat over time"}">
+    ${tip ? grid(Y1, [...new Set([0, Math.round(maxV / 2), maxV])], "") : grid(Y1, [0, 25, 50, 75, 100], "")}${m1}
     <polygon points="${area}" fill="var(--amber)" opacity=".08"/>
     <polyline points="${line}" fill="none" stroke="var(--amber)" stroke-width="2" vector-effect="non-scaling-stroke"/>
     ${hover("sc", H1)}${tl(H1)}
   </svg>
+  ${talkSvg}
   <div class="chart-h" style="margin-top:10px"><b>${esc(chanceLabel(d))}</b><span>${pline ? "calculated from the news, then pushed up or down by players' bets." : "appears once the story is listed."}</span></div>
   ${pline ? `<svg id="sp" viewBox="0 0 ${W} ${H2}" preserveAspectRatio="none" role="img" aria-label="Chance over time">
     ${grid(Y2, [0, 50, 100], "%")}${vlines(H2)}
@@ -889,7 +928,7 @@ function hookChart() {
       if (cy == null) { c.setAttribute("opacity", "0"); return; }
       c.setAttribute("cx", X(t)); c.setAttribute("cy", cy); c.setAttribute("fill", col); c.setAttribute("opacity", "1");
     });
-    document.getElementById("sc-tip").textContent = `▸ ${when(t)} · news heat ${pts[i][1].toFixed(1)}${pr != null ? ` · chance ${pr.toFixed(0)}%` : ""}`;
+    document.getElementById("sc-tip").textContent = `▸ ${when(t)} · ${window.__tip ? `${pts[i][1]} outlets` : `news heat ${pts[i][1].toFixed(1)}`}${pr != null ? ` · chance ${pr.toFixed(0)}%` : ""}`;
   };
   const hide = () => {
     ["sc", "sp"].forEach(id => { ["-h", "-d"].forEach(x => { const e = document.getElementById(id + x); if (e) e.setAttribute("opacity", "0"); }); });
@@ -931,7 +970,7 @@ async function story(sid) {
   const rel = d.related || [];
   const tb = d.bet && d.bet.kind === "tip" ? d.bet : null;
   const ST = { SPREADING: ["Spreading", "var(--amber)", "It started spreading. Will it tip, or fade?"],
-               TIPPED: ["Tipped", "var(--red)", "It went mainstream and people talked about it beyond the news."],
+               TIPPED: ["Tipped", "var(--red)", tb && tb.tipped_by === "people" && tb.tipped_why ? `People took it up: ${esc(tb.tipped_why)}.` : "It went mainstream and people talked about it beyond the news."],
                FADED: ["Faded", "var(--green)", "It ran out of steam before tipping."] };
   const st = tb && ST[tb.state];
   const tipHero = st ? `<section class="panel">
@@ -1373,7 +1412,7 @@ function tipProgress(b) {
 }
 function tipBox(L) {
   return `<div style="font-size:16px;font-weight:700">🔥 Will this story tip by ${DAYS[new Date(L.closes_at * 1000).getDay()]} ${when(L.closes_at).split(",").pop()}?</div>
-    <div class="bd-note">${L.social ? `This one started on Bluesky. It tips if the news picks it up: <b>${L.target} news outlets</b> before the close. Settled automatically.` : `Tips = it reaches <b>${L.target} news outlets</b> and people talk about it <b>beyond the news</b> (Bluesky, YouTube). Settled automatically.`}</div>
+    <div class="bd-note">${L.social ? `This one started on Bluesky. It tips if the news picks it up (<b>${L.target} news outlets</b>) or the complaints on Bluesky at least double (<b>20+ complaining posts in 3 hours</b>) before the close. Settled automatically.` : `Tips = it reaches <b>${L.target} news outlets</b> and people talk about it beyond the news, <b>or</b> the talk about it on Bluesky at least doubles (<b>25+ posts a day</b>). Settled automatically.`}</div>
     ${L.early_until > Date.now() / 1000 ? `<div class="m" style="color:var(--amber)">⚡ early-call bonus: units bought in the next ${dur(L.early_until - Date.now() / 1000)} pay ${100 + L.early_bonus} if right</div>` : ""}`;
 }
 function renderMarket() {
@@ -1386,7 +1425,7 @@ function renderMarket() {
   if (MK.status !== "OPEN") {
     const mine = (MK.me || {}).positions || [];
     const lineRes = isTip() ? (MK.bet.tipped
-      ? `<b>It tipped</b>: ${MK.bet.final_outlets || MK.bet.now} outlets and people talking about it beyond the news. <b>YES</b> won and paid 100 per unit (120 for early calls).`
+      ? `<b>It tipped</b>: ${MK.bet.tipped_why ? esc(MK.bet.tipped_why) : `${MK.bet.final_outlets || MK.bet.now} outlets and people talking about it beyond the news`}. <b>YES</b> won and paid 100 per unit (120 for early calls).`
       : `<b>It faded</b>: it didn't reach ${MK.bet.target} outlets with people talking about it beyond the news in time. <b>NO</b> won and paid 100 per unit (120 for early calls).`)
       : isCave() ? (MK.bet.caved
       ? `<b>${esc(MK.bet.company || "The brand")} backed down</b>: <b>YES</b> won and paid 100 per unit (120 for early calls).`

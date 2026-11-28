@@ -30,7 +30,8 @@ BACKFILL_H       = 72      # history copied from earlier readings when a story l
 MAX_ARTICLES     = 60
 
 
-_KEEP = ("bet", "short_title", "title_by", "title_v", "delisted", "merged_into", "lead_brand")
+_KEEP = ("bet", "short_title", "title_by", "title_v", "delisted", "merged_into", "lead_brand",
+         "origin", "follows", "escalated_from", "escalated_to", "listed_title")
 
 
 def _lead_brand(title):
@@ -281,6 +282,8 @@ def update_listings(stories, session, now=None, arena="food"):
         if n.sid in live:
             continue
         snap = json.loads(n.snapshot or "{}")
+        if snap.get("follows") or (snap.get("bet") or {}).get("viral"):
+            continue
         tk, hz = set(snap.get("tokens", [])), set(snap.get("hazards", []))
         mine = (snap.get("company") or "").lower()
         into = next((s for s in listed_live if s["sid"] != n.sid
@@ -305,7 +308,7 @@ def update_listings(stories, session, now=None, arena="food"):
             except Exception as e:
                 print(f"⚠️ social story {n.sid}: {e}")
         snap = json.loads(n.snapshot or "{}")
-        s = live.get(n.sid)
+        s = live.get(n.sid) or live.get(snap.get("follows") or "")
         lead = snap.get("lead_brand") or _lead_brand(n.title) or snap.get("company")
         if s and lead and _lead_brand(s.get("title")) and not _same_brand(_lead_brand(s.get("title")), lead):
             s = None                       # this reading's group is about another brand — keep our own record
@@ -320,7 +323,9 @@ def update_listings(stories, session, now=None, arena="food"):
             # about the SAME topic ("Taco Bell brings back the Steakhouse Burrito" must not take over a
             # story about smaller nachos)
             anchor = _anchor(snap, n)
-            if not anchor or _same_topic(s["title"], anchor, lead):
+            if snap.get("follows"):
+                pass                               # an escalated story keeps its trouble headline
+            elif not anchor or _same_topic(s["title"], anchor, lead):
                 n.title, n.url, n.source = s["title"], s["url"], s["source"]
             elif not _same_topic(n.title, anchor, lead):
                 best = next((a for a in snap.get("articles", []) if _same_topic(a.get("title"), anchor, lead)), None)
@@ -427,6 +432,8 @@ def update_listings(stories, session, now=None, arena="food"):
             twin = False
             for o in _arena_filter(session.query(Narrative).filter(Narrative.listed_at >= now - 7 * 86400), arena).all():
                 osnap = json.loads(o.snapshot or "{}")
+                if (osnap.get("bet") or {}).get("viral"):
+                    continue                      # a viral story never blocks a trouble story (it escalates instead)
                 if _same_brand(osnap.get("lead_brand") or osnap.get("company"), br) and \
                         ((osnap.get("origin") == "bluesky" and not _sf_is_list(osnap) or
                           osnap.get("origin") == "bluesky" and "boycott" in (s.get("title") or "").lower())
@@ -507,6 +514,12 @@ def update_listings(stories, session, now=None, arena="food"):
             list_new(session, now, room, arena)
         except Exception as e:
             print(f"⚠️ social-first listing error: {e}")
+        try:                                      # 28 Nov 2026: viral stories that turned into trouble
+            from engine.viral import escalate as _viral_escalate
+            _viral_escalate(session, stories, now, arena)
+        except Exception as e:
+            session.rollback()
+            print(f"⚠️ escalation error: {e}")
         try:                                      # 28 Nov 2026: "Will it go viral?" everyday stories (engine/viral)
             from engine.viral import list_new as _viral_new
             _viral_new(session, stories, now, arena)

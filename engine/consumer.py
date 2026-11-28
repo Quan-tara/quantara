@@ -116,3 +116,14 @@ def wide_brand(name):
     if k in WIDE_ALIASES:
         k = WIDE_ALIASES[k]
     return k if k in WIDE_BRANDS else None
+
+
+# 28 Nov 2026: tracked brands whose headlines alone did not say what they are ("other" before)
+BRAND_SECTORS = {
+    **{b: "fast food & restaurants" for b in (
+        "applebee's", "arby's", "chili's", "cracker barrel", "dairy queen", "denny's", "dutch bros", "ihop", "in-n-out",
+        "jack in the box", "jersey mike's", "krispy kreme", "raising cane's", "sonic", "sweetgreen", "texas roadhouse",
+        "wingstop")},
+    **{b: "groceries & prices" for b in ("albertsons", "target", "instacart")},
+    **{b: "snacks & drinks" for b in ("kraft", "heinz", "mondelez", "nestlé", "nestle", "beyond meat", "anheuser-busch")},
+}

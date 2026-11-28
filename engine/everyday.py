@@ -225,9 +225,13 @@ def _count(text, words):
 
 def sector_of(text):
     """Best-matching sector (or 'other'). A listed consumer brand decides first (Nike → fashion & beauty)."""
-    wb = C.wide_brand(brand_in([text]))
+    b = brand_in([text])
+    wb = C.wide_brand(b)
     if wb:
         return C.WIDE_BRANDS[wb][0]
+    k = (b or "").lower().replace("’", "'").strip()
+    if k in C.BRAND_SECTORS:
+        return C.BRAND_SECTORS[k]
     best, best_n = "other", 0
     for sec, kws in SECTORS.items():
         n = _count(text, kws)

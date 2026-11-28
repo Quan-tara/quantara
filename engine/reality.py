@@ -63,12 +63,12 @@ BRANDS = {
     "walmart": ("Walmart", "WMT"), "costco": ("Costco", "COST"), "target": ("Target_Corporation", "TGT"),
     "kroger": ("Kroger", "KR"), "albertsons": ("Albertsons", "ACI"), "trader joe's": ("Trader_Joe's", None),
     "whole foods": ("Whole_Foods_Market", None), "aldi": ("Aldi", None), "doordash": ("DoorDash", "DASH"),
-    "instacart": ("Instacart", "CART"), "nestle": ("Nestlé", "NSRGY"), "nestlé": ("Nestlé", "NSRGY"),
+    "instacart": ("Instacart", "CART"), "nestlé": ("Nestlé", "NSRGY"),
 }
 # 23 Nov 2026: more food & drink brands (engine/consumer.py)
 from engine.consumer import WIDE_BRANDS as _WB, WIDE_ALIASES as _WA
 BRANDS.update({k: (wiki, tic) for k, (_sec, wiki, tic) in _WB.items() if k not in BRANDS})
-ALIASES = {"mcdonalds": "mcdonald's", "dominos": "domino's", "dunkin'": "dunkin", "coke": "coca-cola",
+ALIASES = {"mcdonalds": "mcdonald's", "dominos": "domino's", "dunkin'": "dunkin", "coke": "coca-cola", "nestle": "nestlé",
            "kellogg's": None, "kraft heinz": "kraft"}
 ALIASES.update({k: v for k, v in _WA.items() if k not in ALIASES})
 

@@ -135,5 +135,117 @@ def list_new(session, stories, now, arena="everyday"):
             pass
         busy.append(brand)
         used += 1
+        try:                                     # the reality check follows viral stories too ("attention before trouble")
+            from engine.reality import log_listed
+            log_listed(session, s["sid"], s["title"], brand)
+            from db.models import ForwardLog
+            session.add(ForwardLog(ts=now, kind="viral", brand=None, sid=s["sid"], title=s["title"][:300], label="viral listed"))
+        except Exception as e:
+            print(f"⚠️ viral log: {e}")
         print(f"📌 Story listed  {s['sid']}  VIRAL  [{o} outlets]  {s['title'][:80]}")
     return used
+
+
+# ─────────────────────────────────────────────
+# ESCALATION: a viral story turns into trouble (28 Nov 2026)
+# ─────────────────────────────────────────────
+ESCALATE_WINDOW_D = 7      # trouble within a week of the viral listing counts as an escalation
+
+
+def _trouble(title, brand):
+    from engine.everyday import index_gate
+    from engine.tipping import tip_gate
+    return bool(title) and index_gate(title, [], brand)[0] and tip_gate(title, [], brand)[0]
+
+
+def _link(session, v, vsnap, tip_sid, tip_title, now, how):
+    """Mark the pair and record the escalation for the track record."""
+    from db.models import ForwardLog, Narrative
+    vsnap["escalated_to"] = tip_sid
+    (vsnap.setdefault("bet", {}))["escalated_to"] = tip_sid
+    v.snapshot = json.dumps(vsnap)
+    t = session.query(Narrative).filter(Narrative.sid == tip_sid).first()
+    if t:
+        tsnap = json.loads(t.snapshot or "{}")
+        tsnap["escalated_from"] = v.sid
+        (tsnap.setdefault("bet", {}))["escalated_from"] = v.sid
+        t.snapshot = json.dumps(tsnap)
+    hours = max(0.0, (now - (v.listed_at or now)) / 3600)
+    try:
+        from engine.reality import brand_key
+        session.add(ForwardLog(ts=now, kind="escalated", brand=brand_key((vsnap.get("bet") or {}).get("company")),
+                               sid=tip_sid, title=(tip_title or "")[:300], label=f"{hours:.0f} h after viral",
+                               weight=round(hours, 1)))
+    except Exception as e:
+        print(f"⚠️ escalation log: {e}")
+    print(f"⚠️ Viral story ESCALATED  {v.sid} → {tip_sid}  ({how}, {hours:.0f} h)  {(tip_title or '')[:70]}")
+
+
+def escalate(session, stories, now, arena="everyday"):
+    """For every viral story of the last week: has it turned into trouble?
+    a) a separate trouble story about the same brand & topic was listed → link the two;
+    b) the viral story's own coverage now has trouble headlines → open a linked "Will it tip?" story that
+       follows the same news group (its id is the viral id + "x")."""
+    from db.models import Narrative, NarrativePoint
+    from engine.story_listing import _snapshot, _inputs_from_live, _same_brand, _same_topic, _price_point
+    from engine.tipping import rule as tip_rule, make_bet
+    session.flush()                              # stories listed earlier in this same run must be visible
+    live = {s["sid"]: s for s in stories}
+    done = 0
+    vir = [n for n in session.query(Narrative).filter(Narrative.arena == arena,
+                                                       Narrative.listed_at >= now - ESCALATE_WINDOW_D * 86400).all()
+           if is_viral(n)]
+    if not vir:
+        return 0
+    tips = [n for n in session.query(Narrative).filter(Narrative.arena == arena, Narrative.status == "LISTED").all()
+            if not is_viral(n) and (json.loads(n.snapshot or "{}").get("bet") or {}).get("kind") == "tip"]
+    for v in vir:
+        vsnap = json.loads(v.snapshot or "{}")
+        if vsnap.get("escalated_to") or (vsnap.get("bet") or {}).get("escalated_to"):
+            continue
+        brand = (vsnap.get("bet") or {}).get("company")
+        # a) a trouble story about it is already on the board
+        hit = next((t for t in tips if (t.listed_at or 0) >= (v.listed_at or 0)
+                    and _same_brand((json.loads(t.snapshot or "{}").get("bet") or {}).get("company") or t.title, brand)
+                    and (_same_topic(t.title, vsnap.get("listed_title") or v.title, brand)
+                         or VIRALISH_RX.search(t.title or ""))), None)
+        if hit:
+            _link(session, v, vsnap, hit.sid, hit.title, now, "trouble story listed")
+            done += 1
+            continue
+        # b) the viral story's own news group now carries trouble headlines
+        s = live.get(v.sid)
+        if not s:
+            continue
+        bad = [m for m in s.get("members", []) if (m.get("ts") or 0) >= (v.listed_at or 0) and _trouble(m.get("title"), brand)]
+        if not bad:
+            continue
+        sid = (v.sid + "x")[:16]
+        if session.query(Narrative).filter(Narrative.sid == sid).first():
+            continue
+        rl = tip_rule(session)
+        closes = now + rl["days"] * 86400
+        title = bad[-1]["title"]
+        bet = make_bet({**s, "company": brand}, closes, rl)
+        bet["escalated_from"] = v.sid
+        snap = {**_snapshot(s), "score_inputs": {**_inputs_from_live(s), "at": now}, "listed_title": title,
+                "bet": bet, "origin": "escalated", "follows": v.sid, "escalated_from": v.sid}
+        t = Narrative(sid=sid, title=title, url=bad[-1].get("url") or s["url"], source=bad[-1].get("source") or s["source"],
+                      arena=arena, status="LISTED", first_seen=s.get("first_seen"), listed_at=now, closes_at=closes,
+                      list_score=s["story_score"], last_score=s["story_score"], peak_score=s["story_score"], last_seen=now,
+                      snapshot=json.dumps(snap))
+        session.add(t)
+        session.add(NarrativePoint(sid=sid, ts=now, score=s["story_score"]))
+        session.flush()
+        try:
+            _price_point(session, t, now)
+            from engine.reality import log_listed
+            log_listed(session, sid, title, brand)
+        except Exception:
+            pass
+        _link(session, v, vsnap, sid, title, now, "its own coverage turned into trouble")
+        done += 1
+    return done
+
+
+VIRALISH_RX = re.compile(r"\bviral\b|\bvideo\b|\btiktok\w*|\bclip\b|\bpost\b|\bcustomer'?s?\b", re.I)

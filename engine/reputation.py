@@ -90,7 +90,7 @@ def _social(session):
                      "weighted": round(min(100.0, w), 1), "posts": posts, "company": s.get("company"),
                      "sector": s.get("sector"), "listed": bool(s.get("listed")), "url": s.get("url"), "stakes": level,
                      "source": s.get("source"), "demand": dem, "gate": None if ok else why,
-                     "spread_r": s.get("spread_r"), "outlets": s.get("outlets") or 0})
+                     "spread_r": s.get("spread_r"), "outlets": s.get("outlets") or 0, "regions": s.get("regions") or []})
     rows.sort(key=lambda x: x["weighted"], reverse=True)
     try:                                           # headline tone (test, recorded only): counting stories first
         from engine.tone import tones
@@ -254,6 +254,28 @@ def us_safety(session, fsni):
     return round(fsni * (SAFETY_KEEP + (1 - SAFETY_KEEP) * share), 2), round(share, 2), us
 
 
+# Themes see more than the index (28 Nov 2026): US food stories with real stakes that the index leaves out only
+# because no national brand is named ("servers debate tip pooling", one LAX bar's tipping trick) still show where
+# the industry's narratives are going. They count at half weight in the themes and never in the index.
+THEME_ONLY_GATES = ("no US brand or US place named", "a single local business, not a national brand")
+THEME_ONLY_WEIGHT = 0.5
+
+
+def theme_only_rows(rows):
+    from engine.everyday import STAKE_RX
+    out = []
+    for r in rows:
+        if (r.get("weighted") or 0) > 0 or r.get("gate") not in THEME_ONLY_GATES:
+            continue
+        t = r.get("title") or ""
+        if "US" not in (r.get("regions") or []) or FOREIGN_RX.search(t) or NON_ASCII_RX.search(t):
+            continue
+        if not any(rx.search(t) for rx in STAKE_RX.values()):
+            continue
+        out.append({**r, "weighted": round(THEME_ONLY_WEIGHT * (r.get("score") or 0), 1), "theme_only": True})
+    return out
+
+
 def compute_reputation():
     session = SessionLocal()
     try:
@@ -301,7 +323,8 @@ def compute_reputation():
                                           key=lambda x: -(x.get("score") or 0))[:SAFETY_TOP_N])
             safety_rows = [{"sid": f.get("sid"), "title": f.get("title"), "weighted": round(f.get("score") or 0, 1),
                             "company": f.get("company")} for f in food if (f.get("score") or 0) > 0]
-            _narr(session, getattr(_social, "last_rows", []) + safety_rows)   # big narratives (test, recorded only)
+            rows_ = getattr(_social, "last_rows", [])
+            _narr(session, rows_ + theme_only_rows(rows_) + safety_rows)   # big narratives (test, recorded only)
         except Exception as e:
             session.rollback()
             print(f"⚠️ narratives error: {e}")

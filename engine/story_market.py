@@ -525,6 +525,7 @@ def _bet_view(n, now):
                 "tipped_at": b.get("tipped_at"), "final_outlets": b.get("final_outlets"),
                 "state": state_of(n), "rule": b.get("rule"), "new_24h": new_outlets(arts, now - 86400),
                 "social": b.get("social"), "tipped_by": b.get("tipped_by"), "tipped_why": b.get("tipped_why"),
+                "viral": bool(b.get("viral")),
                 "chance": round(100 * (line_chance(n, now) or 0), 1), "closes_at": n.closes_at,
                 "early_until": early_until, "early_bonus": EARLY_BONUS}
     if b.get("kind") == "outlets":

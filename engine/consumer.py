@@ -101,6 +101,10 @@ WIDE_FEEDS = [
     _gn("site:today.com+OR+site:delish.com+%22fast+food%22+OR+restaurant+viral+OR+backlash+OR+customers"),
     _gn("tiktok+OR+influencer+OR+creator+%22fast+food%22+OR+restaurant+OR+snack+viral+backlash+OR+furious+OR+exposes"),
     _gn("%22food+reviewer%22+OR+%22food+influencer%22+OR+%22tiktok+review%22+restaurant+OR+chain+OR+brand"),
+    # everyday viral moments for "Will it go viral?" (engine/viral.py)
+    _gn("site:newsweek.com+tiktok+OR+viral+%22fast+food%22+OR+restaurant+OR+starbucks+OR+mcdonald%27s+OR+costco+OR+walmart"),
+    _gn("site:parade.com+OR+site:allrecipes.com+OR+site:yahoo.com+tiktok+OR+viral+customers+restaurant+OR+%22fast+food%22"),
+    _gn("viral+tiktok+drive-thru+OR+barista+OR+%22fast+food+worker%22+OR+%22grocery+store%22+customer"),
 ]
 
 

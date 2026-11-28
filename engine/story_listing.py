@@ -396,6 +396,11 @@ def update_listings(stories, session, now=None, arena="food"):
         # delisted stories (removed by a moderator) don't use up the day's places
         today = _arena_filter(session.query(Narrative).filter(Narrative.listed_at >= now - 86400,
                                                               Narrative.status.notin_(["DELISTED", "SPOTTED", "CONFIRMED", "EXPIRED"])), arena).count()
+        try:                                      # "Will it go viral?" stories have their own daily cap
+            from engine.viral import listed_today as _viral_today
+            today -= _viral_today(session, now, arena)
+        except Exception:
+            pass
         room = max(0, rules["daily_cap"] - today)
     def listing_score(s):
         if not rules.get("stakes"):
@@ -502,6 +507,12 @@ def update_listings(stories, session, now=None, arena="food"):
             list_new(session, now, room, arena)
         except Exception as e:
             print(f"⚠️ social-first listing error: {e}")
+        try:                                      # 28 Nov 2026: "Will it go viral?" everyday stories (engine/viral)
+            from engine.viral import list_new as _viral_new
+            _viral_new(session, stories, now, arena)
+        except Exception as e:
+            session.rollback()
+            print(f"⚠️ viral listing error: {e}")
 
     if rules.get("bet") == "tip":
         try:                                      # phase 2: timelines + company responses (recorded only)

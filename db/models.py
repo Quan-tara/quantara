@@ -461,7 +461,7 @@ class ForwardLog(Base):
     title   = Column(Text, nullable=True)
     fri     = Column(Float, nullable=True)
     outlook = Column(Float, nullable=True)
-    label   = Column(String(24), nullable=True)
+    label   = Column(String(80), nullable=True)
     weight  = Column(Float, nullable=True)                     # how much the story pushed the index
     result  = Column(Text, nullable=True)                      # JSON, filled in once enough time has passed
     checked = Column(Float, nullable=True)
